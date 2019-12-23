@@ -4,48 +4,86 @@ library(tidyverse)
 #library(DT)
 #library(data.table)
 
-#set database connection
-conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
-#query all SMP IDs
-smp_id <- odbc::dbGetQuery(conn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% dplyr::arrange(smp_id)
 
-#create dataframe with new wells, names and codes
-asset_type <- c("Shallow Well", "Groundwater Well", "Groundwater Control Well", "Forebay")
-ow_code <- c("SW", "GW", "CW", "FB")
-new_wells <- data.frame(asset_type, ow_code)
-new_wells$asset_type <- new_wells$asset_type %>% as.character()
-new_wells$ow_code <- new_wells$ow_code %>% as.character()
-rm(asset_type, ow_code)
+# Setup for adding observation well ---------------------------------------
 
+  #set database connection
+  conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  #query all SMP IDs
+  smp_id <- odbc::dbGetQuery(conn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% dplyr::arrange(smp_id)
+  
+  #create dataframe with new wells, names and codes
+  asset_type <- c("Shallow Well", "Groundwater Well", "Groundwater Control Well", "Forebay")
+  ow_code <- c("SW", "GW", "CW", "FB")
+  new_wells <- data.frame(asset_type, ow_code)
+  new_wells$asset_type <- new_wells$asset_type %>% as.character()
+  new_wells$ow_code <- new_wells$ow_code %>% as.character()
+  rm(asset_type, ow_code)
+
+
+# Setup for Sensor Inventory ----------------------------------------------
+
+  #Sensor Model Number options
+  hobo_options <- c("U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
+
+  
+
+# UI ----------------------------------------------------------------------
 ui <- fluidPage(
   
-  titlePanel("MARS Observation Wells"),
-  
-  sidebarPanel(
-  
-    width = 6, 
-  selectInput("smp_id", "Select an SMP ID", choices = smp_id),
-  selectInput("component_id", "Select a Component ID", choices = c("a",
-                                                                   "OW2")),
-  
-  textInput("ow_suffix", "OW Suffix"), 
-  actionButton("add_ow", "Add Observation Well")
-  ), 
-  
-  mainPanel(
-  h4("Observation Well Name"),
-  textOutput("text"),
-  h4("List of Observation Wells at this SMP"), 
-  tableOutput("table"), 
-  h4("Facility ID"), 
-  textOutput("facility")
-  # h4("test"),
-  # textOutput("blah")
+  tabsetPanel(type = "tabs", 
+    tabPanel("Add OW", 
+      titlePanel("MARS Observation Wells"),
+      
+      sidebarPanel(
+      
+        width = 6, 
+        selectInput("smp_id", "Select an SMP ID", choices = smp_id),
+        selectInput("component_id", "Select a Component ID", choices = c("a",
+                                                                         "OW2")),
+        
+        textInput("ow_suffix", "OW Suffix"), 
+        actionButton("add_ow", "Add Observation Well")
+        ), 
+      
+      mainPanel(
+        h4("Observation Well Name"),
+        textOutput("text"),
+        h4("List of Observation Wells at this SMP"), 
+        tableOutput("table"), 
+        h4("Facility ID"), 
+        textOutput("facility")
+        # h4("test"),
+        # textOutput("blah")
+        )
+    ), 
+  tabPanel("Add Sensor", 
+    titlePanel("Add Sensor to Inventory"), 
+    
+    sidebarPanel(
+      width = 6, 
+      textInput("serial_no", "Sensor Serial Number"), 
+      selectInput("model_no", "Sensor Model Number", choices = hobo_options), 
+      dateInput("purchase_date", "Purchase Date"), 
+      actionButton("add_sensor", "Add Sensor")
+      
+    )
+    
+    
+    ), 
+  tabPanel("Deploy Sensor", 
+    titlePanel("Deploy Sensor")
+    )
   )
-  
 )
 
+
+# Server ------------------------------------------------------------------
 server <- function(input, output, session){
+  
+
+ # Add Observation Well  ----
+
   # anything commented out is likely for adding "EDIT" buttons to the table, which has been put on hold for the time being (12/23/2019 - NM)
   
   
@@ -161,6 +199,17 @@ server <- function(input, output, session){
 	      VALUES ('", input$smp_id, "','", input$ow_suffix, "','",  facility_id()[1,1], "')"
     ))
   })
+  
+ # Sensor Inventory ----
+
+  #Write to database when button is clicked
+  observeEvent(input$add_sensor, {
+    odbc::dbGetQuery(conn, paste0(
+      "INSERT INTO inventory_sensors_testing (sensor_serial, sensor_model, date_purchased) 
+	      VALUES ('", input$serial_no, "','", input$model_no, "','",  input$purchase_date, "')"
+    ))
+  })
+  
   
 }
 
