@@ -5,7 +5,7 @@ library(tidyverse)
 #library(data.table)
 
 #set database connection
-conn <- odbc::dbConnect(odbc(), dsn = "mars_testing")
+conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
 #query all SMP IDs
 smp_id <- odbc::dbGetQuery(conn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% dplyr::arrange(smp_id)
 
