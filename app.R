@@ -1,5 +1,5 @@
 library(shiny)
-library(pool)
+#library(pool)
 library(odbc)
 library(tidyverse)
 library(shinythemes)
@@ -16,7 +16,7 @@ library(lubridate)
   #query all SMP IDs
   smp_id <- odbc::dbGetQuery(conn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% dplyr::arrange(smp_id) %>% dplyr::pull()
   
-  #create dataframe with new wells, names and codes
+  # create dataframe with new wells, names and codes
   asset_type <- c("Shallow Well", "Groundwater Well", "Groundwater Control Well", "Forebay")
   ow_code <- c("SW", "GW", "CW", "FB")
   new_wells <- data.frame(asset_type, ow_code)
@@ -42,7 +42,8 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
         selectInput("smp_id", "Select an SMP ID", choices = c("", smp_id), selected = NULL),
         selectInput("component_id", "Select a Component ID", choices = c("", "")),
         textInput("ow_suffix", "OW Suffix"), 
-        actionButton("add_ow", "Add Observation Well")
+        actionButton("add_ow", "Add Observation Well"), 
+        actionButton("add_ow_deploy", "Deploy Sensor")
         ), 
       
       mainPanel(
@@ -71,37 +72,48 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
     )
     
     ), 
-  tabPanel("Deploy Sensor", 
+  tabPanel("Deploy Sensor", value = "deploy_tab",
     titlePanel("Deploy Sensor"), 
     
-    sidebarPanel(
+    fluidRow(
+      column(4, 
+        sidebarPanel(width = 12, 
       actionButton("create_well", "Create a New Well"), 
       selectInput("smp_id_deploy", "Select an SMP ID", choices = c("", smp_id), selected = NULL), 
       selectInput("well_name", "Well Name", choices = c("a", "b"))
-    ), 
-    sidebarPanel(
+      )
+      ),
+     
+    column(4,
+      sidebarPanel(width = 12, 
       actionButton("create_sensor", "Create a New Sensor"),
       selectInput("sensor_id", "Sensor ID", choices = c("", ""), selected = NULL),
       selectInput("sensor_purpose", "Sensor Purpose", choices = c("", "BARO", "LEVEL"), selected = NULL),
       selectInput("interval", "Measurement Interval (min)", choices = c("", 5, 15), selected = NULL),
       dateInput("deploy_date", "Deployment Date", value = as.Date(NA)),
       dateInput("collect_date", "Collection Date", value = as.Date(NA))
+      )
       ),
-    conditionalPanel(
-      condition = "input.collect_date",
-      checkboxInput("redeploy", "Redeploy Sensor?"),
-      h6("Redeploy sensor in the same well on this collection date")
+    column(4, 
+      actionButton("deploy_sensor", "Deploy Sensor"), 
+      #actionButton("test_sensor", "test"),
+      conditionalPanel(width = 12, 
+        condition = "input.collect_date",
+        checkboxInput("redeploy", "Redeploy Sensor?"),
+        h6("Redeploy sensor in the same well on this collection date")
+      )
+    )
     ),
-    sidebarPanel(
-      actionButton("deploy_sensor", "Deploy Sensor")
-    ),
-    mainPanel(
+    column(7, 
       h4("Active Deployments at this SMP"),
-      tableOutput("current_deployment"), 
+      tableOutput("current_deployment")
+    ), 
+    column(5, 
       h4("Previous Deployments at this SMP"),
       tableOutput("prev_deployment")
     )
     )
+    
   )
 
 
@@ -208,7 +220,7 @@ server <- function(input, output, session){
   #show facility ID
   #output$facility <- observe(if(input$component_id == "") renderText({paste("x")}) else renderText({paste(facility_id()[1,1])}) )
   output$facility <- renderText({
-    paste(facility_id(), "  ", paste(rv_ow$existing_ow_codes(), collapse = " "))
+    paste(facility_id())
   })
   
   
@@ -231,6 +243,13 @@ server <- function(input, output, session){
       "SELECT * FROM ow_testing WHERE smp_id = '", input$smp_id, "'")))
     updateTextInput(session, "ow_suffix", value = NA)
     updateSelectInput(session, "component_id", selected = NA)
+  })
+  
+  observeEvent(input$add_ow_deploy, {
+    updateSelectInput(session, "smp_id_deploy", selected = "1-1-1")
+    updateSelectInput(session, "smp_id_deploy", selected = input$smp_id)
+    updateTabsetPanel(session, "inTabset", selected = "deploy_tab")
+    #updateSelectInput(session, "smp_id_deploy", selected = input$smp_id)
   })
   
   #existing_ow_codes <- eventReactive(input$add_ow, odbc::dbGetQuery(conn, paste0("SELECT ow_suffix FROM ow_testing WHERE smp_id = '", input$smp_id, "'")))
@@ -283,10 +302,12 @@ server <- function(input, output, session){
   
  # Deploy Sensor ----
   
-  ow_suffixes <- reactive(odbc::dbGetQuery(conn, paste0(
+  rv_deploy <- reactiveValues()
+  rv_deploy$ow_suffixes <- reactive(odbc::dbGetQuery(conn, paste0(
     "select ow_suffix from ow_testing where smp_id = '", input$smp_id_deploy, "'")) %>% dplyr::pull())
   
-  observe(updateSelectInput(session, "well_name", choices = ow_suffixes()))
+  observe(updateSelectInput(session, "well_name", choices = rv_deploy$ow_suffixes()))
+  observe(updateDateInput(session, "collect_date", min = input$deploy_date))
   
   observeEvent(input$create_well, {
     updateTabsetPanel(session, "inTabset", selected = "add_ow")
@@ -297,7 +318,16 @@ server <- function(input, output, session){
     updateTabsetPanel(session, "inTabset", selected = "add_sensor")
   })
   
-  active_table <- reactive(odbc::dbGetQuery(conn, paste0(
+  observeEvent(input$deploy_tab, {
+    updateSelectInput(session, "well_name", choices = ow_suffixes())
+  })
+  
+  rv_deploy$purpose <- reactive(if(input$sensor_purpose == "LEVEL") 1 else if(input$sensor_purpose == "BARO") 2 else NA)
+  rv_deploy$inventory_sensors_uid <- reactive(odbc::dbGetQuery(conn, paste0(
+    "SELECT inventory_sensors_uid FROM inventory_sensors_testing WHERE sensor_serial = '", input$sensor_id, "'"
+  )))
+  rv_deploy$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
+  rv_deploy$active_table <- reactive(odbc::dbGetQuery(conn, paste0(
     "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min FROM deployment_testing te
       LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
       WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL")) %>% 
@@ -311,10 +341,10 @@ server <- function(input, output, session){
                     "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
   
   output$current_deployment <- renderTable({
-    active_table()
+    rv_deploy$active_table()
   })
   
-  old_table <- reactive(odbc::dbGetQuery(conn, paste0(
+  rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, paste0(
     "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est
      FROM deployment_testing te
       LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
@@ -325,8 +355,66 @@ server <- function(input, output, session){
                     "Purpose" = "sensor_purpose", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
  
   output$prev_deployment <- renderTable({
-    old_table()
+    rv_deploy$old_table()
   })
+  
+  rv_deploy$redeploy <- reactive(if(length(input$collect_date > 0) & input$redeploy == TRUE) TRUE else FALSE)
+  
+    #paste0("'", input$collect_date, "'") else paste0("NA"))
+  
+  # reactive(if(input$sensor_purpose == "LEVEL"){
+  #   rv_deploy$purpose <- 1
+  # })
+  # reactive(if(input$sensor_purpose == "BARO"){
+  #   rv_deploy$purpose <- 2
+  # })
+  
+  #write to database on click
+  #1/3/2020 does not yet do anything different for editing, checkbox also does nothing
+  observeEvent(input$deploy_sensor, { 
+    odbc::dbGetQuery(conn,
+     paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
+     inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
+        VALUES ('", input$deploy_date, "', get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
+            rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "',", rv_deploy$collect_date(),")"))
+    if(rv_deploy$redeploy() == TRUE){
+      dbGetQuery(conn, paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
+     inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
+        VALUES (", rv_deploy$collect_date(), ", get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
+                              rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
+      print("input$redeploy == TRUE")
+    }
+    rv_deploy$active_table <- rv_deploy$active_table <- reactive(odbc::dbGetQuery(conn, paste0(
+      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min FROM deployment_testing te
+        LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
+        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL")) %>% 
+        mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
+                                          interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
+               `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
+                                            interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
+        mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
+        dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, `80% Full Date`, `100% Full Date`) %>% 
+        dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
+                      "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
+    rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, paste0(
+      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est
+        FROM deployment_testing te
+        LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
+        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL")) %>% 
+        mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
+        dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, collection_dtime_est) %>% 
+        dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
+                      "Purpose" = "sensor_purpose", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
+    })
+    
+  # observeEvent(input$test_sensor, {
+  #   #req(input$smp_id_deploy, input$well_name, input$sensor_id, input$sensor_purpose, input$interval, input$deploy_date)
+  #   print(rv_deploy$redeploy())
+  #   print(input$deploy_tab)
+  # })
+            
+              #print(rv_deploy$collect_date()))
+              #print(if(length(input$collect_date >0)) input$collect_date else NULL))
    
 }
 
