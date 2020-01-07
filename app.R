@@ -4,6 +4,7 @@ library(odbc)
 library(tidyverse)
 library(shinythemes)
 library(lubridate)
+library(shiny)
 #library(DT)
 #library(data.table)
 
@@ -34,8 +35,10 @@ library(lubridate)
 
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset",
+                
     tabPanel(title = "Add OW", value = "add_ow",  
       titlePanel("Add Observation Well"),
+      useShinyjs(),
       sidebarPanel(
     
         # width = 6, 
@@ -43,7 +46,7 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
         selectInput("component_id", "Select a Component ID", choices = c("", "")),
         textInput("ow_suffix", "OW Suffix"), 
         actionButton("add_ow", "Add Observation Well"), 
-        actionButton("add_ow_deploy", "Deploy Sensor")
+        actionButton("add_ow_deploy", "Deploy Sensor at this SMP")
         ), 
       
       mainPanel(
@@ -87,7 +90,7 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
     column(4,
       sidebarPanel(width = 12, 
       actionButton("create_sensor", "Create a New Sensor"),
-      selectInput("sensor_id", "Sensor ID", choices = c("", ""), selected = NULL),
+      selectInput("sensor_id", paste("Sensor ID"), choices = c("", ""), selected = NULL),
       selectInput("sensor_purpose", "Sensor Purpose", choices = c("", "BARO", "LEVEL"), selected = NULL),
       selectInput("interval", "Measurement Interval (min)", choices = c("", 5, 15), selected = NULL),
       dateInput("deploy_date", "Deployment Date", value = as.Date(NA)),
@@ -123,18 +126,6 @@ server <- function(input, output, session){
   
 
  # Add Observation Well  ----
-  #buttons #####
-  # anything commented out is likely for adding "EDIT" buttons to the table, which has been put on hold for the time being (12/23/2019 - NM)
-  
-  
-  # shinyInput <- function(FUN, len, id, ...) {
-  #   inputs <- character(len)
-  #   for (i in seq_len(len)) {
-  #     inputs[i] <- as.character(FUN(paste0(id, i), ...))
-  #   }
-  #   inputs
-  # }
- ##### 
   #set component IDs based on SMP ID
   component_id <- reactive(odbc::dbGetQuery(conn, paste0(
     "select distinct component_id, asset_type from smpid_facilityid_componentid where smp_id = '", input$smp_id, "' 
@@ -174,22 +165,6 @@ server <- function(input, output, session){
     "SELECT * FROM ow_testing WHERE smp_id = '", input$smp_id, "'")))
   rv_ow$existing_ow_codes <- reactive(gsub('\\d+', '', rv_ow$ow_table()$ow_suffix))
   
-  #buttons #####
-  #actions <- reactive(shinyInput(actionButton, nrow(result_table), 'button', label = "Edit"))
-  
-  # df <- reactive(reactiveValues(data = data.frame(
-  #   smp_id = result_table()$smp_id, 
-  #   ow_suffix = result_table()$ow_suffix, 
-  #   facility_id = result_table()$facility_id, 
-  #   actions = shinyInput(actionButton, nrow(result_table()), 'button', label = "Edit", onclick = 'Shiny.onInputChange(select_button, this.id'), 
-  #   stringsAsFactors = FALSE, 
-  #   row.names = 1:nrow(result_table())
-  # )))
-  
-  # output$table <- DT::renderDataTable(
-  #   df()$data, server = FALSE, escape = FALSE, selection = 'none'
-  # )
-  #####
   #render result table
   output$table <- renderTable(
     rv_ow$ow_table()
@@ -232,6 +207,9 @@ server <- function(input, output, session){
   
   observe(if(input$component_id=="") updateTextInput(session, "ow_suffix", value = NA) else 
                   updateTextInput(session, "ow_suffix", value = ow_suggested_pre()))
+  
+  observe({toggleState(id = "add_ow", condition = nchar(input$smp_id) > 0 & nchar(input$component_id) > 0 & nchar(input$ow_suffix) >0)})
+  observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
   
   #Write to database when button is clicked
   observeEvent(input$add_ow, {
@@ -279,6 +257,7 @@ server <- function(input, output, session){
   observe(updateSelectInput(session, "model_no", selected = model_no_select()))
   observe(updateDateInput(session, "date_purchased", value = date_purchased_select()))
   
+  observe({toggleState(id = "add_sensor", condition = nchar(input$serial_no) > 0 & nchar(input$model_no) > 0 & nchar(input$date_purchased) >0)})
   #Write to database when button is clicked
   observeEvent(input$add_sensor, {
     if(!(input$serial_no %in% rv_sensor$hobo_list$sensor_serial)){
@@ -327,28 +306,33 @@ server <- function(input, output, session){
     "SELECT inventory_sensors_uid FROM inventory_sensors_testing WHERE sensor_serial = '", input$sensor_id, "'"
   )))
   rv_deploy$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
-  rv_deploy$active_table <- reactive(odbc::dbGetQuery(conn, paste0(
+  
+  active_table_query <- reactive(paste0(
     "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min FROM deployment_testing te
       LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
-      WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL")) %>% 
-      mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
-                                        interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
-             `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
-                                         interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
-      mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
-      dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, `80% Full Date`, `100% Full Date`) %>% 
-      dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
-                    "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
+      WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL"))
+  
+  rv_deploy$active_table <- reactive(odbc::dbGetQuery(conn, active_table_query()) %>% 
+                 mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
+                                                   interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
+                        `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
+                                                     interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
+                 mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
+                 dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, `80% Full Date`, `100% Full Date`) %>% 
+                 dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
+                               "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
   
   output$current_deployment <- renderTable({
     rv_deploy$active_table()
   })
   
-  rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, paste0(
+  old_table_query <- reactive(paste0(
     "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est
      FROM deployment_testing te
       LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
-      WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL")) %>% 
+      WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
+  
+  rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, old_table_query()) %>% 
       mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
       dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, collection_dtime_est) %>% 
       dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
@@ -360,17 +344,8 @@ server <- function(input, output, session){
   
   rv_deploy$redeploy <- reactive(if(length(input$collect_date > 0) & input$redeploy == TRUE) TRUE else FALSE)
   
-    #paste0("'", input$collect_date, "'") else paste0("NA"))
-  
-  # reactive(if(input$sensor_purpose == "LEVEL"){
-  #   rv_deploy$purpose <- 1
-  # })
-  # reactive(if(input$sensor_purpose == "BARO"){
-  #   rv_deploy$purpose <- 2
-  # })
-  
   #write to database on click
-  #1/3/2020 does not yet do anything different for editing, checkbox also does nothing
+  #1/7/2020 does not yet do anything different for editing,
   observeEvent(input$deploy_sensor, { 
     odbc::dbGetQuery(conn,
      paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
@@ -384,37 +359,26 @@ server <- function(input, output, session){
                               rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
       print("input$redeploy == TRUE")
     }
-    rv_deploy$active_table <- rv_deploy$active_table <- reactive(odbc::dbGetQuery(conn, paste0(
-      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min FROM deployment_testing te
-        LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
-        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL")) %>% 
-        mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
-                                          interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
-               `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
-                                            interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
-        mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
-        dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, `80% Full Date`, `100% Full Date`) %>% 
-        dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
-                      "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
-    rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, paste0(
-      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est
-        FROM deployment_testing te
-        LEFT JOIN ow_validity v ON te.ow_uid = v.ow_uid
-        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL")) %>% 
+    rv_deploy$active_table  <- reactive(odbc::dbGetQuery(conn, active_table_query()) %>% 
+              mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
+                                                interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
+                     `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
+                                                  interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
+              mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
+              dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, `80% Full Date`, `100% Full Date`) %>% 
+              dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
+                            "OW" = "ow_suffix", "Purpose" = "sensor_purpose", "Interval" = "interval_min"))
+    rv_deploy$old_table <- reactive(odbc::dbGetQuery(conn, old_table_query()) %>% 
         mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
         dplyr::select(deployment_dtime_est, smp_id, ow_suffix, sensor_purpose, interval_min, collection_dtime_est) %>% 
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
                       "Purpose" = "sensor_purpose", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
     })
     
-  # observeEvent(input$test_sensor, {
-  #   #req(input$smp_id_deploy, input$well_name, input$sensor_id, input$sensor_purpose, input$interval, input$deploy_date)
-  #   print(rv_deploy$redeploy())
-  #   print(input$deploy_tab)
-  # })
+  observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
+                         nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
+                        nchar(input$interval) > 0 & length(input$deploy_date) > 0 )})
             
-              #print(rv_deploy$collect_date()))
-              #print(if(length(input$collect_date >0)) input$collect_date else NULL))
    
 }
 
