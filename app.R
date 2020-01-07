@@ -4,7 +4,7 @@ library(odbc)
 library(tidyverse)
 library(shinythemes)
 library(lubridate)
-library(shiny)
+library(shinyjs)
 #library(DT)
 #library(data.table)
 
