@@ -5,9 +5,11 @@ library(tidyverse)
 library(shinythemes)
 library(lubridate)
 library(shinyjs)
-#library(DT)
+library(DT)
 #library(data.table)
 library(reactable)
+
+options(DT.options = list(dom ='t'))
 
 # Setup for adding observation well ---------------------------------------
 
@@ -60,7 +62,7 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
         h4("Observation Well Name"),
         textOutput("text"),
         h4("List of Observation Wells at this SMP"), 
-        reactableOutput("ow_table")
+        DTOutput("ow_table")
         )
       ),
     
@@ -114,11 +116,11 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
     ),
     column(width = 6,
       h4("Active Deployments at this SMP"),
-      reactableOutput("current_deployment")
+      DTOutput("current_deployment")
     ), 
     column(width = 6, 
       h4("Previous Deployments at this SMP"),
-      reactableOutput("prev_deployment")
+      DTOutput("prev_deployment")
     )
     )
     
@@ -127,7 +129,6 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
 # Server ------------------------------------------------------------------
 server <- function(input, output, session){
   
-
  # Add Observation Well  ----
   #set component IDs based on SMP ID
   component_and_asset_query <- reactive(paste0(
@@ -160,30 +161,34 @@ server <- function(input, output, session){
   rv_ow$existing_ow_prefixes <- reactive(gsub('\\d+', '', rv_ow$ow_table()$ow_suffix))
   
   #render ow table
-  output$ow_table <- renderReactable(
-    reactable(rv_ow$ow_table(), 
-              columns = list(ow_uid = colDef(name = "OW UID", width = 70), 
-                                               smp_id = colDef(name = "SMP ID", width = 70), 
-                                               ow_suffix = colDef(name = "OW Suffix", width = 100), 
-                                               facility_id = colDef(name = "Facility ID")), 
-              selection = "single",
-              selectionId = "selected_ow",
-              onClick =  "select"
-                )
+  output$ow_table <- renderDT(
+    rv_ow$ow_table(), 
+    selection = 'single',
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('OW UID', 'SMP ID', 'OW Suffix', 'Facility ID')
+              # columns = list(ow_uid = colDef(name = "OW UID", width = 70), 
+              #                                  smp_id = colDef(name = "SMP ID", width = 70), 
+              #                                  ow_suffix = colDef(name = "OW Suffix", width = 100), 
+              #                                  facility_id = colDef(name = "Facility ID")), 
+              # selection = "single",
+              # selectionId = "selected_ow",
+              # onClick =  "select"
+              #   )
   )
   
   #add info from table to selectboxes, on click
-  observeEvent(input$selected_ow,{ 
-               rv_ow$fac <- (rv_ow$ow_table()[input$selected_ow, 4])
+  observeEvent(input$ow_table_rows_selected,{ 
+               rv_ow$fac <- (rv_ow$ow_table()[input$ow_table_rows_selected, 4])
                comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid where facility_id = '", rv_ow$fac, "' 
         AND component_id IS NOT NULL")
                comp_id_step <- odbc::dbGetQuery(conn, comp_id_query) %>% pull()
                comp_id_click <- if(length(comp_id_step) > 0) comp_id_step else "NA"
-               ow_prefix_click <- gsub('\\d+', '', rv_ow$ow_table()[input$selected_ow, 3])
+               ow_prefix_click <- gsub('\\d+', '', rv_ow$ow_table()[input$ow_table_rows_selected, 3])
                asset_type_click <- if(nchar(comp_id_click) > 2) dplyr::filter(asset_comp(), component_id == comp_id_click) %>% select(asset_type) %>% pull() else new_and_ex_wells %>% dplyr::filter(ow_prefix == ow_prefix_click) %>% dplyr::select(asset_type) %>% pull()
                asset_comp_code_click = paste(asset_type_click, ow_prefix_click, comp_id_click, sep = " | ")
                updateSelectInput(session, "component_id", selected = asset_comp_code_click)
-               updateSelectInput(session, "ow_suffix", selected = rv_ow$ow_table()[input$selected_ow, 3])
+               updateSelectInput(session, "ow_suffix", selected = rv_ow$ow_table()[input$ow_table_rows_selected, 3])
     })
   
   #get the row/case that has the selected asset_comp_code
@@ -221,20 +226,16 @@ server <- function(input, output, session){
   rv_ow$ow_suggested_pre <- reactive(paste0(select_ow_prefix(), (rv_ow$well_count() + 1))) 
   
   #only show suggested suffix if there is a selected component id
-  rv_ow$ow_suggested <- reactive(if(length(input$selected_ow) > 0) rv_ow$ow_table()[input$selected_ow, 3] else rv_ow$ow_suggested_pre())
+  rv_ow$ow_suggested <- reactive(if(length(input$ow_table_rows_selected) > 0) rv_ow$ow_table()[input$ow_table_rows_selected, 3] else rv_ow$ow_suggested_pre())
   
   observe(if(input$component_id=="") updateTextInput(session, "ow_suffix", value = NA) else 
                   updateTextInput(session, "ow_suffix", value = rv_ow$ow_suggested()))
   
   #toggle state (enable/disable) buttons based on whether smp id, component id, and ow suffix are selected (this is shinyjs)
   observe({toggleState(id = "add_ow", condition = nchar(input$smp_id) > 0 & nchar(input$component_id) > 0 & nchar(input$ow_suffix) >0)})
-  observe({toggleState(id = "edit_ow", condition = length(input$selected_ow) > 0)})
-  #observe({toggleState(id = "delete_ow", condition = length(input$selected_ow) > 0)})
+  observe({toggleState(id = "edit_ow", condition = length(input$ow_table_rows_selected) > 0)})
+  #observe({toggleState(id = "delete_ow", condition = length(input$ow_table_rows_selected) > 0)})
   observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
-  
-  observeEvent(input$edit_ow, {
-    print(input$selected_ow)
-  })
   
   #Write to database when button is clicked
   observeEvent(input$add_ow, {
@@ -259,8 +260,8 @@ server <- function(input, output, session){
     edit_ow_query <- paste0(
       "UPDATE ow_testing SET ow_suffix = '", input$ow_suffix, "', facility_id = '", facility_id(), "' 
         WHERE smp_id = '", input$smp_id, "'
-        AND ow_suffix = '", rv_ow$ow_table()[input$selected_ow, 3], "' 
-        AND facility_id = '", rv_ow$ow_table()[input$selected_ow, 4], "'")
+        AND ow_suffix = '", rv_ow$ow_table()[input$ow_table_rows_selected, 3], "' 
+        AND facility_id = '", rv_ow$ow_table()[input$ow_table_rows_selected, 4], "'")
     #print(edit_ow_query)
     dbGetQuery(conn, edit_ow_query)
     #update ow_table with new well
@@ -407,18 +408,12 @@ server <- function(input, output, session){
                    dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
                                  "OW" = "ow_suffix", "Purpose" = "type", "Interval" = "interval_min"))
     
-    output$current_deployment <- renderReactable({
-      reactable(rv_deploy$active_table(), columns = list(`Deploy Date` = colDef(width = 100), 
-                                                         `SMP ID` = colDef(width = 70), 
-                                                         OW = colDef(width = 60), 
-                                                         Purpose = colDef(width = 70), 
-                                                         Interval = colDef(width = 70), 
-                                                         `80% Full Date` = colDef(width = 110), 
-                                                         `100% Full Date` = colDef(width = 115)), 
-                selection = "single", 
-                selectionId = "selected_active_deploy", 
-                onClick = "select") 
-    })
+    output$current_deployment <- renderDT(
+      rv_deploy$active_table(),
+                selection = "single",
+                style = 'bootstrap', 
+                class = 'table-responsive, table-hover, table-condensed', 
+    )
     
     #query for previous deployments
     old_table_query <- reactive(paste0(
@@ -436,20 +431,21 @@ server <- function(input, output, session){
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
                       "Purpose" = "type", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
    
-    output$prev_deployment <- renderReactable({
-      reactable(rv_deploy$old_table(), columns = list(`Deploy Date` = colDef(width = 100), 
-                                                      `Collection Date` = colDef(width = 120), 
-                                                      `SMP ID` = colDef(width = 70), 
-                                                      OW = colDef(width = 60), 
-                                                      Purpose = colDef(width = 70), 
-                                                      Interval = colDef(width = 70)), 
-                selection = "single", 
-                selectionId = "selected_old_deploy", 
-                onClick = "select") 
-    })
+    output$prev_deployment <- renderDT(
+      rv_deploy$old_table(),
+        selection = "single",
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover, table-condensed' 
+    )
   
-  observe(toggleState(id = "selected_active_deploy", condition = length(input$selected_old_deploy) > 0))  
+    observeEvent(input$current_deployment_rows_selected, {
+      dataTableProxy('prev_deployment') %>% selectRows(NULL)
+    })
     
+    observeEvent(input$prev_deployment_rows_selected, {
+      dataTableProxy('current_deployment') %>% selectRows(NULL)
+    })
+        
   #control for redeploy checkbox. had to add, because after checking it, then removing collect_date, it goes away, but is still TRUE
     rv_deploy$redeploy <- reactive(if(length(input$collect_date > 0) & input$redeploy == TRUE) TRUE else FALSE)
   
