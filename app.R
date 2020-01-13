@@ -6,8 +6,6 @@ library(shinythemes)
 library(lubridate)
 library(shinyjs)
 library(DT)
-#library(data.table)
-library(reactable)
 
 options(DT.options = list(dom ='t'))
 
@@ -111,7 +109,8 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
         condition = "input.collect_date",
         checkboxInput("redeploy", "Redeploy Sensor?"),
         h6("Redeploy sensor in the same well on this collection date")
-      )
+      ),
+      actionButton("clear_deploy_fields", "Clear all Fields")
     )
     ),
     column(width = 6,
@@ -122,7 +121,12 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
       h4("Previous Deployments at this SMP"),
       DTOutput("prev_deployment")
     )
-    )
+    ), 
+  tabPanel("Collection Calendar", value = "calendar_tab", 
+           titlePanel("Collection Calendar")
+  )
+           
+           
     
   )
 
@@ -280,25 +284,6 @@ server <- function(input, output, session){
     updateTabsetPanel(session, "inTabset", selected = "deploy_tab")
   })
   
-  # observeEvent(input$delete_ow, {
-  # 
-  #   showModal(modalDialog(title = "Remove?", 
-  #             "Are you sure you want to remove the selected observation well?", 
-  #             modalButton("No"), 
-  #             actionButton("confirm_delete_ow", "Yes")))
-  # })
-  # 
-  # observeEvent(input$confirm_delete_ow, {
-  #   delete_ow_query <- paste0(
-  #     "DELETE FROM ow_testing WHERE smp_id = '", input$smp_id, "'
-  #       AND ow_suffix = '", rv_ow$ow_table()[input$selected_ow, 3], "'
-  #       AND facility_id = '", rv_ow$ow_table()[input$selected_ow, 4], "'"
-  #   )
-  #   #dbGetQuery(conn, delete_ow_query)
-  #   removeModal()
-  # })
-  
-  
  # Sensor Inventory ----
 
   #start reactiveValues for this section
@@ -391,8 +376,9 @@ server <- function(input, output, session){
   ## show tables
     #query for active deployments
     active_table_query <- reactive(paste0(
-      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min FROM deployment_testing te
+      "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, inv.sensor_serial FROM deployment_testing te
         LEFT JOIN ow_testing v ON te.ow_uid = v.ow_uid
+        LEFT JOIN inventory_sensors_testing inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
         WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL"))
     
     #create table as a reactive value based on query, then add 80% and 100% full dates and relabel table
@@ -408,18 +394,33 @@ server <- function(input, output, session){
                    dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
                                  "OW" = "ow_suffix", "Purpose" = "type", "Interval" = "interval_min"))
     
+    #on click of selecting rows
+    observeEvent(input$current_deployment_rows_selected, {
+      #deselect from other table
+      dataTableProxy('prev_deployment') %>% selectRows(NULL)
+      #print(input$current_deployment_rows_selected)
+      updateSelectInput(session, "sensor_id", selected = rv_deploy$active_table_db()$sensor_serial[input$current_deployment_rows_selected])
+      updateSelectInput(session, "sensor_purpose", selected = rv_deploy$active_table()$`Purpose`[input$current_deployment_rows_selected])
+      updateSelectInput(session, "interval", selected = rv_deploy$active_table_db()$interval_min[input$current_deployment_rows_selected])
+      updateSelectInput(session, "well_name", selected = rv_deploy$active_table_db()$ow_suffix[input$current_deployment_rows_selected])
+      updateDateInput(session, "deploy_date", value = rv_deploy$active_table_db()$deployment_dtime_est[input$current_deployment_rows_selected])
+      updateDateInput(session, "collect_date", value = as.Date(NA))
+      
+    })
+    #render Datatable
     output$current_deployment <- renderDT(
       rv_deploy$active_table(),
                 selection = "single",
                 style = 'bootstrap', 
-                class = 'table-responsive, table-hover, table-condensed', 
+                class = 'table-responsive, table-condensed', 
     )
     
     #query for previous deployments
     old_table_query <- reactive(paste0(
-      "SELECT te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est
+      "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est, inv.sensor_serial
        FROM deployment_testing te
         LEFT JOIN ow_testing v ON te.ow_uid = v.ow_uid
+        LEFT JOIN inventory_sensors_testing inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
         WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
     
     #create table as a reactive value based on query, then relabel table
@@ -431,33 +432,65 @@ server <- function(input, output, session){
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
                       "Purpose" = "type", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
    
+    #render datatable
     output$prev_deployment <- renderDT(
       rv_deploy$old_table(),
         selection = "single",
         style = 'bootstrap', 
-        class = 'table-responsive, table-hover, table-condensed' 
+        class = 'table-responsive, table-condensed' 
     )
-  
-    observeEvent(input$current_deployment_rows_selected, {
-      dataTableProxy('prev_deployment') %>% selectRows(NULL)
-    })
     
     observeEvent(input$prev_deployment_rows_selected, {
+      #deselect from other table
       dataTableProxy('current_deployment') %>% selectRows(NULL)
+      #print(rv_deploy$old_table_db())
+      updateSelectInput(session, "sensor_id", selected = rv_deploy$old_table_db()$sensor_serial[input$prev_deployment_rows_selected])
+      updateSelectInput(session, "sensor_purpose", selected = rv_deploy$old_table()$`Purpose`[input$prev_deployment_rows_selected])
+      updateSelectInput(session, "interval", selected = rv_deploy$old_table_db()$interval_min[input$prev_deployment_rows_selected])
+      updateSelectInput(session, "well_name", selected = rv_deploy$old_table_db()$ow_suffix[input$prev_deployment_rows_selected])
+      updateDateInput(session, "deploy_date", value = rv_deploy$old_table_db()$deployment_dtime_est[input$prev_deployment_rows_selected])
+      updateDateInput(session, "collect_date", value = rv_deploy$old_table_db()$collection_dtime_est[input$prev_deployment_rows_selected])
     })
         
   #control for redeploy checkbox. had to add, because after checking it, then removing collect_date, it goes away, but is still TRUE
     rv_deploy$redeploy <- reactive(if(length(input$collect_date > 0) & input$redeploy == TRUE) TRUE else FALSE)
+    
+    #relabel deploy button if editing
+    rv_deploy$label <- reactive(if(length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0) "Add New Deployment" else "Edit Selected Deployment")
+    
+    observe(updateActionButton(session, "deploy_sensor", label = rv_deploy$label()))
   
+    #rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0) rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected] else if(length(input$prev_deployment_rows_selected) > 0) rv_deploy$old_table_db()$deployment_uid[input$current_deployment_rows_selected] else 0)
+    
+    rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0){
+      rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected]
+    }else if(length(input$prev_deployment_rows_selected) > 0){
+      rv_deploy$old_table_db()$deployment_uid[input$prev_deployment_rows_selected]
+    }else{
+      0
+    }
+    )
+    
   #write to database on click
   #1/7/2020 does not yet do anything different for editing,
   observeEvent(input$deploy_sensor, {
+    if(length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0){
     #write deployment
     odbc::dbGetQuery(conn,
      paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
         VALUES ('", input$deploy_date, "', get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
             rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "',", rv_deploy$collect_date(),")"))
+    }else{
+      odbc::dbGetQuery(conn, 
+                       paste0("UPDATE deployment_testing SET deployment_dtime_est = '", input$deploy_date, "', 
+                       ow_uid = get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), 
+                              inventory_sensors_uid = '",  rv_deploy$inventory_sensors_uid(), "', 
+                              sensor_purpose = '", rv_deploy$purpose(), "', 
+                              interval_min = '", input$interval, "',
+                              collection_dtime_est = ", rv_deploy$collect_date(), " WHERE 
+                              deployment_uid = '", rv_deploy$update_deployment_uid(), "'"))
+    }
     #write redeployment
     if(rv_deploy$redeploy() == TRUE){
       dbGetQuery(conn, paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
@@ -465,6 +498,7 @@ server <- function(input, output, session){
         VALUES (", rv_deploy$collect_date(), ", get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
                               rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
     }
+    print(rv_deploy$update_deployment_uid())
     #query active table
     rv_deploy$active_table_db  <- reactive(odbc::dbGetQuery(conn, active_table_query())) 
     #query prev table
@@ -476,7 +510,16 @@ server <- function(input, output, session){
                          nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 )})
             
-   
+  #clear all fields
+  observeEvent(input$clear_deploy_fields, {
+    reset("sensor_id")
+    reset("sensor_purpose")
+    reset("interval")
+    reset("deploy_date")
+    reset("collect_date")
+    reset("smp_id_deploy")
+    reset("well_name")
+  })
 }
 
 shinyApp(ui, server)
