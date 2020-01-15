@@ -7,7 +7,7 @@ library(lubridate)
 library(shinyjs)
 library(DT)
 
-options(DT.options = list(dom ='t'))
+options(DT.options = list(pageLength = 15))
 
 # Setup for adding observation well ---------------------------------------
 
@@ -43,6 +43,18 @@ options(DT.options = list(dom ='t'))
 ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
     
     #create a tabPanel for each tab
+    tabPanel("Collection Calendar", value = "calendar_tab", 
+             titlePanel("Collection Calendar"), 
+             sidebarPanel(
+               selectInput("property_type", "Property Type", choices = c("All", "Public", "Private")),
+               selectInput("interval_filter", "Interval", choices = c("All", "5", "15")),
+               selectInput("capacity_used", "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
+               #radioButtons("sort_calendar", "Sort Collection Calendar By:", choices = c("Collection Date", "SMP ID"))
+             ), 
+             mainPanel(
+               DTOutput("collection")
+             )
+    ),
     tabPanel(title = "Add OW", value = "add_ow",  
       titlePanel("Add Observation Well"),
       useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
@@ -121,11 +133,7 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
       h4("Previous Deployments at this SMP"),
       DTOutput("prev_deployment")
     )
-    ), 
-  tabPanel("Collection Calendar", value = "calendar_tab", 
-           titlePanel("Collection Calendar")
-  )
-           
+    )
            
     
   )
@@ -165,31 +173,38 @@ server <- function(input, output, session){
   rv_ow$existing_ow_prefixes <- reactive(gsub('\\d+', '', rv_ow$ow_table()$ow_suffix))
   
   #render ow table
+  #allow for only one selection; rename columns
+  #'t' means only show the table, no search bar, etc
   output$ow_table <- renderDT(
     rv_ow$ow_table(), 
     selection = 'single',
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('OW UID', 'SMP ID', 'OW Suffix', 'Facility ID')
-              # columns = list(ow_uid = colDef(name = "OW UID", width = 70), 
-              #                                  smp_id = colDef(name = "SMP ID", width = 70), 
-              #                                  ow_suffix = colDef(name = "OW Suffix", width = 100), 
-              #                                  facility_id = colDef(name = "Facility ID")), 
-              # selection = "single",
-              # selectionId = "selected_ow",
-              # onClick =  "select"
-              #   )
+    colnames = c('OW UID', 'SMP ID', 'OW Suffix', 'Facility ID'), 
+    options = list(dom = 't')
   )
   
   #add info from table to selectboxes, on click
+  #need to reverse engineer the asset/ow/component combo
   observeEvent(input$ow_table_rows_selected,{ 
+               #get facility id from table
                rv_ow$fac <- (rv_ow$ow_table()[input$ow_table_rows_selected, 4])
+               #get component id
                comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid where facility_id = '", rv_ow$fac, "' 
         AND component_id IS NOT NULL")
                comp_id_step <- odbc::dbGetQuery(conn, comp_id_query) %>% pull()
+               #determine whether component id exists and is useful
                comp_id_click <- if(length(comp_id_step) > 0) comp_id_step else "NA"
+               #get ow prefix, to sort by asset type
                ow_prefix_click <- gsub('\\d+', '', rv_ow$ow_table()[input$ow_table_rows_selected, 3])
-               asset_type_click <- if(nchar(comp_id_click) > 2) dplyr::filter(asset_comp(), component_id == comp_id_click) %>% select(asset_type) %>% pull() else new_and_ex_wells %>% dplyr::filter(ow_prefix == ow_prefix_click) %>% dplyr::select(asset_type) %>% pull()
+               #get asset type - base on component id (if exists), then base on prefix if not. 
+               #need to do both to check for OW (fittings/obs wells)
+               asset_type_click <- if(nchar(comp_id_click) > 2){
+                 dplyr::filter(asset_comp(), component_id == comp_id_click) %>% select(asset_type) %>% pull()
+               }else{
+                 new_and_ex_wells %>% dplyr::filter(ow_prefix == ow_prefix_click) %>% dplyr::select(asset_type) %>% pull()
+               }
+               #combine asset type, ow, and component id
                asset_comp_code_click = paste(asset_type_click, ow_prefix_click, comp_id_click, sep = " | ")
                updateSelectInput(session, "component_id", selected = asset_comp_code_click)
                updateSelectInput(session, "ow_suffix", selected = rv_ow$ow_table()[input$ow_table_rows_selected, 3])
@@ -312,8 +327,8 @@ server <- function(input, output, session){
   observe({toggleState(id = "add_sensor", condition = nchar(input$serial_no) > 0 & nchar(input$model_no) > 0)})
   observe({toggleState(id = "add_sensor_deploy", input$serial_no %in% rv_sensor$hobo_list$sensor_serial)})
   
+  #change label from Add to Edit if the sensor already exists in db
   rv_sensor$label <- reactive(if(!(input$serial_no %in% rv_sensor$hobo_list$sensor_serial)) "Add Sensor" else "Edit Sensor")
-  
   observe(updateActionButton(session, "add_sensor", label = rv_sensor$label()))
   
   #Write to database when button is clicked
@@ -376,35 +391,23 @@ server <- function(input, output, session){
   ## show tables
     #query for active deployments
     active_table_query <- reactive(paste0(
-      "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, inv.sensor_serial FROM deployment_testing te
-        LEFT JOIN ow_testing v ON te.ow_uid = v.ow_uid
-        LEFT JOIN inventory_sensors_testing inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
-        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NULL"))
+      "SELECT * FROM active_deployments_testing
+        WHERE smp_id = '", input$smp_id_deploy, "'"))
     
-    #create table as a reactive value based on query, then add 80% and 100% full dates and relabel table
+    #create table as a reactive value based on query
     rv_deploy$active_table_db <- reactive(odbc::dbGetQuery(conn, active_table_query()))
+    #select columns to show in app, and rename
     rv_deploy$active_table <- reactive(rv_deploy$active_table_db() %>% 
-                   mutate(`80% Full Date`= case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(60), "day"),
-                                                     interval_min == 15 ~ round_date(deployment_dtime_est + days(180), "day")), 
-                          `100% Full Date` = case_when(interval_min == 5 ~ round_date(deployment_dtime_est + days(75), "day"),
-                                                       interval_min == 15 ~ round_date(deployment_dtime_est + days(225), "day"))) %>% 
-                   left_join(y = deployment_lookup, by = c("sensor_purpose" = "sensor_purpose_lookup_uid")) %>% 
-                   mutate_at(c("deployment_dtime_est", "80% Full Date", "100% Full Date"), as.character) %>% 
-                   dplyr::select(deployment_dtime_est, smp_id, ow_suffix, type, interval_min, `80% Full Date`, `100% Full Date`) %>% 
+                   mutate_at(c("deployment_dtime_est", "date_80percent", "date_100percent"), as.character) %>% 
+                   dplyr::select(deployment_uid, deployment_dtime_est, smp_id, ow_suffix, type, interval_min, date_80percent, date_100percent) %>% 
                    dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
-                                 "OW" = "ow_suffix", "Purpose" = "type", "Interval" = "interval_min"))
+                                 "OW" = "ow_suffix", "Purpose" = "type", "Interval (min)" = "interval_min", 
+                                 "80% Full Date" = "date_80percent", "100% Full Date" = "date_100percent"))
     
-    #on click of selecting rows
+    #when a row in active deployments table is clicked
     observeEvent(input$current_deployment_rows_selected, {
       #deselect from other table
       dataTableProxy('prev_deployment') %>% selectRows(NULL)
-      #print(input$current_deployment_rows_selected)
-      updateSelectInput(session, "sensor_id", selected = rv_deploy$active_table_db()$sensor_serial[input$current_deployment_rows_selected])
-      updateSelectInput(session, "sensor_purpose", selected = rv_deploy$active_table()$`Purpose`[input$current_deployment_rows_selected])
-      updateSelectInput(session, "interval", selected = rv_deploy$active_table_db()$interval_min[input$current_deployment_rows_selected])
-      updateSelectInput(session, "well_name", selected = rv_deploy$active_table_db()$ow_suffix[input$current_deployment_rows_selected])
-      updateDateInput(session, "deploy_date", value = rv_deploy$active_table_db()$deployment_dtime_est[input$current_deployment_rows_selected])
-      updateDateInput(session, "collect_date", value = as.Date(NA))
       
     })
     #render Datatable
@@ -412,7 +415,8 @@ server <- function(input, output, session){
       rv_deploy$active_table(),
                 selection = "single",
                 style = 'bootstrap', 
-                class = 'table-responsive, table-condensed', 
+                class = 'table-responsive, table-condensed',
+                options = list(dom = 'tp')
     )
     
     #query for previous deployments
@@ -423,33 +427,47 @@ server <- function(input, output, session){
         LEFT JOIN inventory_sensors_testing inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
         WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
     
-    #create table as a reactive value based on query, then relabel table
+    #create table as a reactive value based on query
     rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(conn, old_table_query()))
     rv_deploy$old_table <- reactive(rv_deploy$old_table_db() %>% 
         mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
           left_join(y = deployment_lookup, by = c("sensor_purpose" = "sensor_purpose_lookup_uid")) %>% 
         dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, interval_min) %>% 
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
-                      "Purpose" = "type", "Interval" = "interval_min", "Collection Date" = "collection_dtime_est"))
+                      "Purpose" = "type", "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
    
     #render datatable
     output$prev_deployment <- renderDT(
       rv_deploy$old_table(),
         selection = "single",
         style = 'bootstrap', 
-        class = 'table-responsive, table-condensed' 
+        class = 'table-responsive, table-condensed', 
+        options = list(dom = 'tp')
     )
     
+    #shorten name of selected rows from active and prev deployments tables
+    rv_deploy$active <- reactive(input$current_deployment_rows_selected) 
+    rv_deploy$prev <- reactive(input$prev_deployment_rows_selected)
+    
+    #define inputs, based on whether previous or active deployments tables are selected
+    #this was in two separate observeEvent calls, but changed to try to address the issue where collection date is sometimes blank when it shouldn't be
+    #that was not resolved - I believe the issue is related to having two dateInputs update at the same time
+    rv_deploy$sensor_id <- reactive(if(length(rv_deploy$active()) > 0) rv_deploy$active_table_db()$sensor_serial[rv_deploy$active()] else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table_db()$sensor_serial[rv_deploy$prev()])
+    rv_deploy$sensor_purpose <- reactive(if(length(rv_deploy$active()) > 0) rv_deploy$active_table()$`Purpose`[rv_deploy$active()] else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table()$`Purpose`[rv_deploy$prev()])
+    rv_deploy$mea_int <- reactive(if(length(rv_deploy$active()) > 0) rv_deploy$active_table_db()$interval_min[rv_deploy$active()] else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table()$interval_min[rv_deploy$prev()])
+    rv_deploy$deploy_date <- reactive(if(length(rv_deploy$active()) > 0) rv_deploy$active_table_db()$deployment_dtime_est[rv_deploy$active()] else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table_db()$deployment_dtime_est[rv_deploy$prev()])
+    rv_deploy$collect <- reactive(if(length(rv_deploy$active()) > 0) NA else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table_db()$collection_dtime_est[rv_deploy$prev()])
+    
+    observe(updateSelectInput(session, "sensor_id", selected = rv_deploy$sensor_id()))
+    observe(updateSelectInput(session, "sensor_purpose", selected = rv_deploy$sensor_purpose()))
+    observe(updateSelectInput(session, "interval", selected = rv_deploy$mea_int()))
+    observe(updateDateInput(session, "deploy_date", value = rv_deploy$deploy_date()))
+    observe(updateDateInput(session, "collect_date", value = rv_deploy$collect()))
+    
+    #when a row in the previous deployments table is clicked
     observeEvent(input$prev_deployment_rows_selected, {
       #deselect from other table
       dataTableProxy('current_deployment') %>% selectRows(NULL)
-      #print(rv_deploy$old_table_db())
-      updateSelectInput(session, "sensor_id", selected = rv_deploy$old_table_db()$sensor_serial[input$prev_deployment_rows_selected])
-      updateSelectInput(session, "sensor_purpose", selected = rv_deploy$old_table()$`Purpose`[input$prev_deployment_rows_selected])
-      updateSelectInput(session, "interval", selected = rv_deploy$old_table_db()$interval_min[input$prev_deployment_rows_selected])
-      updateSelectInput(session, "well_name", selected = rv_deploy$old_table_db()$ow_suffix[input$prev_deployment_rows_selected])
-      updateDateInput(session, "deploy_date", value = rv_deploy$old_table_db()$deployment_dtime_est[input$prev_deployment_rows_selected])
-      updateDateInput(session, "collect_date", value = rv_deploy$old_table_db()$collection_dtime_est[input$prev_deployment_rows_selected])
     })
         
   #control for redeploy checkbox. had to add, because after checking it, then removing collect_date, it goes away, but is still TRUE
@@ -498,12 +516,43 @@ server <- function(input, output, session){
         VALUES (", rv_deploy$collect_date(), ", get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
                               rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
     }
-    print(rv_deploy$update_deployment_uid())
     #query active table
     rv_deploy$active_table_db  <- reactive(odbc::dbGetQuery(conn, active_table_query())) 
     #query prev table
     rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(conn, old_table_query())) 
+    
+    #re-read in the collection table, then edit, then re-render it
+    #this needs to all be re-done because the collection table is not reactive and i couldn't figure out how to just re-run one thing and I have it all update
+    #would love to try changing it again
+    collect_table_db <- odbc::dbGetQuery(conn, collect_query) %>% 
+      dplyr::arrange(deployment_uid)
+    collect_table <- collect_table_db %>% dplyr::select(deployment_uid, smp_id, ow_suffix, deployment_dtime_est, date_80percent, date_100percent) %>%
+      mutate(deployment_dtime_est = lubridate::force_tz(deployment_dtime_est, "America/New_York") %>% lubridate::ymd(),
+             date_80percent = lubridate::force_tz(date_80percent, "America/New_York") %>% lubridate::ymd(),
+             date_100percent = lubridate::force_tz(date_100percent, "America/New_York") %>% lubridate::ymd()) 
+    
+    output$collection <- renderDT(
+      DT::datatable(
+        collect_table, 
+        selection = "single", 
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover', 
+        options = list(scroller = TRUE, 
+                       scrollX = TRUE, 
+                       scrollY = 550, 
+                       order = list(6, 'asc'))) %>%
+        formatStyle(
+          'date_80percent',
+          backgroundColor = styleInterval(lubridate::today(), c('yellow', 'white'))
+        ) %>% 
+        formatStyle(
+          'date_100percent',
+          backgroundColor = styleInterval(lubridate::today(), c('red', 'white'))
+        ), 
+    )
+        
     })
+    
     
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
@@ -520,6 +569,60 @@ server <- function(input, output, session){
     reset("smp_id_deploy")
     reset("well_name")
   })
+  
+
+# Collection Calendar -----------------------------------------------------
+
+  rv_collect <- reactiveValues()  
+  
+  #query the collection calendar and arrange by deployment_uid
+  collect_query <- "select * from active_deployments_testing"
+  collect_table_db <- odbc::dbGetQuery(conn, collect_query) %>% 
+    dplyr::arrange(deployment_uid)
+  #select columns that will be shown in app, and update timezone for comparison to lubridate::today()
+  collect_table <- collect_table_db %>% dplyr::select(deployment_uid, smp_id, ow_suffix, deployment_dtime_est,date_80percent,date_100percent) %>%
+    mutate(deployment_dtime_est = lubridate::force_tz(deployment_dtime_est, "America/New_York") %>% lubridate::ymd(), 
+           date_80percent = lubridate::force_tz(date_80percent, "America/New_York") %>% lubridate::ymd(),
+           date_100percent = lubridate::force_tz(date_100percent, "America/New_York") %>% lubridate::ymd()) 
+  
+  output$collection <- renderDT(
+    DT::datatable(
+      collect_table, 
+      selection = "single", 
+      style = 'bootstrap', 
+      class = 'table-responsive, table-hover', 
+      options = list(scroller = TRUE, 
+                     scrollX = TRUE, 
+                     scrollY = 550, 
+                     order = list(6, 'asc'))) %>%
+    formatStyle(
+      'date_80percent',
+      backgroundColor = styleInterval(lubridate::today(), c('yellow', 'white'))
+    ) %>% 
+    formatStyle(
+      'date_100percent',
+      backgroundColor = styleInterval(lubridate::today(), c('red', 'white'))
+    ), 
+  )
+  
+  #this is a two-step observeEvent
+  #when a line in the calendar is clicked, go toggle and update "smp_id_deploy", and switch tabs
+  observeEvent(input$collection_rows_selected, {
+    updateSelectInput(session, "smp_id_deploy", selected = "")
+    updateSelectInput(session, "smp_id_deploy", selected = collect_table_db$smp_id[input$collection_rows_selected])
+    updateTabsetPanel(session, "inTabset", selected = "deploy_tab")
+  })
+  
+  #when the active table is updated, AND it follows a click on the collection table, make the row in the selected active table match the collection table
+  observeEvent(rv_deploy$active_table_db(), {
+    if(length(input$collection_rows_selected) > 0){
+      #print(paste("input row selected", input$collection_rows_selected))
+      #print(paste("collect_deployment_uid", collect_table_db$deployment_uid[input$collection_rows_selected]))
+      active_row <- which(rv_deploy$active_table_db()$deployment_uid == collect_table_db$deployment_uid[input$collection_rows_selected], arr.ind = TRUE)
+      dataTableProxy('current_deployment') %>% selectRows(active_row)
+    }
+  })
+  
 }
 
 shinyApp(ui, server)
