@@ -1,5 +1,5 @@
 library(shiny)
-#library(pool)
+library(pool)
 library(odbc)
 library(tidyverse)
 library(shinythemes)
@@ -12,22 +12,22 @@ options(DT.options = list(pageLength = 15))
 # Setup for adding observation well ---------------------------------------
 
   #set database connection
-  conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
-  #conn <- odbc::dbConnect(odbc(), dsn = "marsDB", uid = "shiny_user", pwd = "bat-hog-verse-fun-crypt-noise")
+  #conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
   #query all SMP IDs
-  smp_id <- odbc::dbGetQuery(conn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
+  smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
     dplyr::arrange(smp_id) %>% 
     dplyr::pull()
   
   #read in ow prefixes and names
-  ow_prefixes_db <- dbGetQuery(conn, "select * from ow_prefixes") %>% rename("asset_type" = "ow_name")
+  ow_prefixes_db <- dbGetQuery(poolConn, "select * from ow_prefixes") %>% rename("asset_type" = "ow_name")
   new_and_ex_wells <- ow_prefixes_db %>% dplyr::select(ow_prefix, asset_type) 
   new_wells <- ow_prefixes_db %>% dplyr::filter(componentless == 1) %>% dplyr::select(ow_prefix,asset_type)
   
   #disconnect from db on stop 
   #db connection may be replaced with POOL soon 
   onStop(function(){
-    odbc::dbDisconnect(conn)
+    poolClose(poolConn)
     })
 # Setup for Sensor Inventory ----------------------------------------------
 
@@ -37,7 +37,7 @@ options(DT.options = list(pageLength = 15))
 # Setup for Sensor Deployment ---------------------------------------------
 
   #Deployment purpose lookup table
-  deployment_lookup <- dbGetQuery(conn, "select * from deployment_lookup_table")
+  deployment_lookup <- dbGetQuery(poolConn, "select * from deployment_lookup_table")
   
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
@@ -83,7 +83,7 @@ ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset"
       selectInput("model_no", "Sensor Model Number", choices = hobo_options, selected = NULL), 
       dateInput("date_purchased", "Purchase Date", value = as.Date(NA)), 
       actionButton("add_sensor", "Add Sensor"), 
-      actionButton("add_sensor_deploy", "Deploy this Sensor")
+      actionButton("add_sensor_deploy", "Deploy this Sensor"),
       ),
     
     mainPanel(
@@ -136,7 +136,7 @@ server <- function(input, output, session){
   component_and_asset_query <- reactive(paste0(
     "select distinct component_id, asset_type from smpid_facilityid_componentid where smp_id = '", input$smp_id, "' 
         AND component_id IS NOT NULL"))
-  component_and_asset <- reactive(odbc::dbGetQuery(conn, component_and_asset_query()))
+  component_and_asset <- reactive(odbc::dbGetQuery(poolConn, component_and_asset_query()))
   
   #set ow code based on asset comp
   #set "asset comp code" to be shown in component ID combo box. asset comp code is a concat of asset type, ow_prefix, and component id 
@@ -153,7 +153,7 @@ server <- function(input, output, session){
   #use reactive values to read in table, and see which wells already exist at the SMP
   rv_ow <- reactiveValues()
   ow_table_query <- reactive(paste0("SELECT * FROM ow_testing WHERE smp_id = '", input$smp_id, "'"))
-  rv_ow$ow_table <- reactive(odbc::dbGetQuery(conn, ow_table_query()))
+  rv_ow$ow_table <- reactive(odbc::dbGetQuery(poolConn, ow_table_query()))
   #get the existing ow_prefixes. these will be counted and used to suggest and OW Suffix
   rv_ow$existing_ow_prefixes <- reactive(gsub('\\d+', '', rv_ow$ow_table()$ow_suffix))
   
@@ -179,7 +179,7 @@ server <- function(input, output, session){
                #get component id
                comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid where facility_id = '", rv_ow$fac, "' 
         AND component_id IS NOT NULL")
-               comp_id_step <- odbc::dbGetQuery(conn, comp_id_query) %>% pull()
+               comp_id_step <- odbc::dbGetQuery(poolConn, comp_id_query) %>% pull()
                #determine whether component id exists and is useful
                comp_id_click <- if(length(comp_id_step) > 0) comp_id_step else "NA"
                #get ow prefix, to sort by asset type
@@ -213,9 +213,9 @@ server <- function(input, output, session){
   
   #get facility ID. Either use SMP footprint (for a new well) or the facility ID of the existing component
   facility_id <- reactive(if(input$component_id != "" & length(select_ow_prefix() > 0 )){
-    if(select_ow_prefix() %in% new_wells$ow_prefix) odbc::dbGetQuery(conn, paste0(
+    if(select_ow_prefix() %in% new_wells$ow_prefix) odbc::dbGetQuery(poolConn, paste0(
        "SELECT facility_id FROM smpid_facilityid_componentid WHERE component_id IS NULL AND smp_id = '", input$smp_id, "'"))[1,1] else 
-      odbc::dbGetQuery(conn, paste0(
+      odbc::dbGetQuery(poolConn, paste0(
       "SELECT facility_id from smpid_facilityid_componentid WHERE component_id = '", select_component_id(), "'"))[1,1]
   }else{
     ""
@@ -252,14 +252,13 @@ server <- function(input, output, session){
                          rv_ow$toggle_suffix() & rv_ow$toggle_component_id())})
   rv_ow$label <- reactive(if(length(input$ow_table_rows_selected) == 0) "Add New" else "Edit Selected")
   observe(updateActionButton(session, "add_ow", label = rv_ow$label()))
-  #observe({toggleState(id = "delete_ow", condition = length(input$ow_table_rows_selected) > 0)})
   observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
   
   #Write to database when button is clicked
   #update if editing
   observeEvent(input$add_ow, {
     if(length(input$ow_table_rows_selected) == 0){
-      odbc::dbGetQuery(conn, paste0(
+      odbc::dbGetQuery(poolConn, paste0(
       "INSERT INTO ow_testing (smp_id, ow_suffix, facility_id) 
   	      VALUES ('", input$smp_id, "','", input$ow_suffix, "','",  facility_id(), "')"
       ))
@@ -269,10 +268,10 @@ server <- function(input, output, session){
         WHERE smp_id = '", input$smp_id, "'
         AND ow_suffix = '", rv_ow$ow_table()[input$ow_table_rows_selected, 3], "' 
         AND facility_id = '", rv_ow$ow_table()[input$ow_table_rows_selected, 4], "'")
-      dbGetQuery(conn, edit_ow_query)
+      dbGetQuery(poolConn, edit_ow_query)
     }
     #update ow_table with new well
-    rv_ow$ow_table <- reactive(odbc::dbGetQuery(conn, ow_table_query()))
+    rv_ow$ow_table <- reactive(odbc::dbGetQuery(poolConn, ow_table_query()))
     #upon click update the smp_id in the Deploy Sensor tab
     #it needs to switch to NULL and then back to the input$smp_id to make sure the change is registered
     updateSelectInput(session, "smp_id_deploy", selected = "")
@@ -282,7 +281,7 @@ server <- function(input, output, session){
     #reset component id to blank
     updateSelectInput(session, "component_id", selected = NA)
     #query collection table
-    rv_collect$collect_table_db <- odbc::dbGetQuery(conn, collect_query)
+    rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
     
   })
   
@@ -311,7 +310,7 @@ server <- function(input, output, session){
   hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from inventory_sensors_testing inv
                           left join deployment_testing d on d.inventory_sensors_uid = inv.inventory_sensors_uid
                           left join ow_testing ow on ow.ow_uid = d.ow_uid"
-  rv_sensor$hobo_list <- odbc::dbGetQuery(conn, hobo_list_query)
+  rv_sensor$hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
 
   #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
   model_no_select <- reactive(if(input$serial_no %in% rv_sensor$hobo_list$sensor_serial) dplyr::filter(rv_sensor$hobo_list, sensor_serial == input$serial_no) %>% dplyr::select(sensor_model) %>% dplyr::pull() else "")
@@ -330,20 +329,21 @@ server <- function(input, output, session){
   observe({toggleState(id = "add_sensor_deploy", input$serial_no %in% rv_sensor$hobo_list$sensor_serial)})
   
   #change label from Add to Edit if the sensor already exists in db
+  #rv_sensor$label <- reactive(if(!(as.numeric(input$serial_no) %in% rv_sensor$hobo_list$sensor_serial)) "Add Sensor" else "Edit Sensor")
   rv_sensor$label <- reactive(if(!(input$serial_no %in% rv_sensor$hobo_list$sensor_serial)) "Add Sensor" else "Edit Sensor")
   observe(updateActionButton(session, "add_sensor", label = rv_sensor$label()))
   
   #Write to database when button is clicked
   observeEvent(input$add_sensor, { #write new sensor info to db
     if(!(input$serial_no %in% rv_sensor$hobo_list$sensor_serial)){
-      odbc::dbGetQuery(conn, paste0(
+      odbc::dbGetQuery(poolConn, paste0(
       "INSERT INTO inventory_sensors_testing (sensor_serial, sensor_model, date_purchased) 
 	      VALUES ('", input$serial_no, "','", input$model_no, "',",  rv_sensor$date_purchased(), ")"))
       output$testing <- renderText({
         isolate(paste("Sensor", input$serial_no, "added."))
       })
     }else{ #edit sensor info
-      odbc::dbGetQuery(conn, paste0("UPDATE inventory_sensors_testing SET sensor_model = '", input$model_no, 
+      odbc::dbGetQuery(poolConn, paste0("UPDATE inventory_sensors_testing SET sensor_model = '", input$model_no, 
                                     "', date_purchased = ", rv_sensor$date_purchased(), " WHERE sensor_serial = '", input$serial_no, "'"))
       output$testing <- renderText({
         isolate(paste("Sensor", input$serial_no, "edited."))
@@ -353,7 +353,7 @@ server <- function(input, output, session){
     reset("model_no")
     reset("date")
     #update sensor list following addition
-    rv_sensor$hobo_list <- odbc::dbGetQuery(conn, hobo_list_query)
+    rv_sensor$hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
   })
   
   #switch tabs to "Deploy" and update Sensor ID to the current Sensor ID (if the add/edit button says edit sensor)
@@ -362,7 +362,7 @@ server <- function(input, output, session){
     updateTabsetPanel(session, "inTabset", selected = "deploy_tab")
   })
   
-  rv_sensor$hobo_list_display <- reactive(rv_sensor$hobo_list %>% mutate("date_purchased" = lubridate::ymd("date_purchased")) %>% 
+  rv_sensor$hobo_list_display <- reactive(rv_sensor$hobo_list %>% mutate("date_purchased" = as.character(date_purchased)) %>% 
                                             rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
                                                    "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "OW Suffix" = "ow_suffix"))
   
@@ -386,7 +386,7 @@ server <- function(input, output, session){
   rv_deploy <- reactiveValues()
   ## well panel
     #query ow_suffixes based on smp_id
-    rv_deploy$ow_suffixes <- reactive(odbc::dbGetQuery(conn, paste0(
+    rv_deploy$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
       "select ow_suffix from ow_testing where smp_id = '", input$smp_id_deploy, "'")) %>% dplyr::pull())
     
     observe(updateSelectInput(session, "well_name", choices = c("", rv_deploy$ow_suffixes())))
@@ -397,7 +397,7 @@ server <- function(input, output, session){
     rv_deploy$purpose <- reactive(deployment_lookup %>% dplyr::filter(type == input$sensor_purpose) %>% 
       select(sensor_purpose_lookup_uid) %>% pull())
     #rv_deploy$purpose <- reactive(if(input$sensor_purpose == "LEVEL") 1 else if(input$sensor_purpose == "BARO") 2 else NA)
-    rv_deploy$inventory_sensors_uid <- reactive(odbc::dbGetQuery(conn, paste0(
+    rv_deploy$inventory_sensors_uid <- reactive(odbc::dbGetQuery(poolConn, paste0(
       "SELECT inventory_sensors_uid FROM inventory_sensors_testing WHERE sensor_serial = '", input$sensor_id, "'"
     )))
     rv_deploy$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
@@ -409,7 +409,7 @@ server <- function(input, output, session){
         WHERE smp_id = '", input$smp_id_deploy, "'"))
     
     #create table as a reactive value based on query
-    rv_deploy$active_table_db <- reactive(odbc::dbGetQuery(conn, active_table_query()))
+    rv_deploy$active_table_db <- reactive(odbc::dbGetQuery(poolConn, active_table_query()))
     #select columns to show in app, and rename
     rv_deploy$active_table <- reactive(rv_deploy$active_table_db() %>% 
                    mutate_at(c("deployment_dtime_est", "date_80percent", "date_100percent"), as.character) %>% 
@@ -442,7 +442,7 @@ server <- function(input, output, session){
         WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
     
     #create table as a reactive value based on query
-    rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(conn, old_table_query()))
+    rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query()))
     rv_deploy$old_table <- reactive(rv_deploy$old_table_db() %>% 
         mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
           left_join(y = deployment_lookup, by = c("sensor_purpose" = "sensor_purpose_lookup_uid")) %>% 
@@ -510,13 +510,13 @@ server <- function(input, output, session){
   observeEvent(input$deploy_sensor, {
     if(length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0){
     #write deployment
-    odbc::dbGetQuery(conn,
+    odbc::dbGetQuery(poolConn,
      paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
         VALUES ('", input$deploy_date, "', get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
             rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "',", rv_deploy$collect_date(),")"))
     }else{
-      odbc::dbGetQuery(conn, 
+      odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE deployment_testing SET deployment_dtime_est = '", input$deploy_date, "', 
                        ow_uid = get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), 
                               inventory_sensors_uid = '",  rv_deploy$inventory_sensors_uid(), "', 
@@ -527,18 +527,18 @@ server <- function(input, output, session){
     }
     #write redeployment
     if(rv_deploy$redeploy() == TRUE){
-      dbGetQuery(conn, paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
+      dbGetQuery(poolConn, paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
         VALUES (", rv_deploy$collect_date(), ", get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
                               rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
     }
     #query active table
-    rv_deploy$active_table_db  <- reactive(odbc::dbGetQuery(conn, active_table_query())) 
+    rv_deploy$active_table_db  <- reactive(odbc::dbGetQuery(poolConn, active_table_query())) 
     #query prev table
-    rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(conn, old_table_query())) 
+    rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query())) 
     
     #query collection table
-    rv_collect$collect_table_db <- odbc::dbGetQuery(conn, collect_query)
+    rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
     })
     
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
@@ -566,7 +566,7 @@ server <- function(input, output, session){
   
   #query the collection calendar and arrange by deployment_uid
   collect_query <- "select ac.*, own.public from active_deployments_testing ac left join ow_ownership_testing own on ac.ow_uid = own.ow_uid"
-  rv_collect$collect_table_db<- odbc::dbGetQuery(conn, collect_query)
+  rv_collect$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   #arrange and filtered the collection calendar
   rv_collect$collect_table_filter <- reactive(rv_collect$collect_table_db %>% 
     dplyr::arrange(deployment_uid) %>% 
