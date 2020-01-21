@@ -5,7 +5,7 @@ library(tidyverse)
 library(shinythemes)
 library(lubridate)
 library(shinyjs)
-library(DT)
+library(DT)  
 
 options(DT.options = list(pageLength = 15))
 
@@ -40,7 +40,7 @@ options(DT.options = list(pageLength = 15))
   deployment_lookup <- dbGetQuery(poolConn, "select * from deployment_lookup_table")
   
 # UI ----------------------------------------------------------------------
-ui <- navbarPage("Fieldwork DB", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
+ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
     
     #create a tabPanel for each tab
     tabPanel("Collection Calendar", value = "calendar_tab", 
