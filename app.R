@@ -20,7 +20,7 @@ options(DT.options = list(pageLength = 15))
     dplyr::pull()
   
   #read in ow prefixes and names
-  ow_prefixes_db <- dbGetQuery(poolConn, "select * from ow_prefixes") %>% rename("asset_type" = "ow_name")
+  ow_prefixes_db <- dbGetQuery(poolConn, "select * from fieldwork.ow_prefixes") %>% rename("asset_type" = "ow_name")
   new_and_ex_wells <- ow_prefixes_db %>% dplyr::select(ow_prefix, asset_type) 
   new_wells <- ow_prefixes_db %>% dplyr::filter(componentless == 1) %>% dplyr::select(ow_prefix,asset_type)
   
@@ -37,7 +37,7 @@ options(DT.options = list(pageLength = 15))
 # Setup for Sensor Deployment ---------------------------------------------
 
   #Deployment purpose lookup table
-  deployment_lookup <- dbGetQuery(poolConn, "select * from deployment_lookup_table")
+  deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
   
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
@@ -47,6 +47,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
              
              titlePanel("Collection Calendar"), 
+      useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
              sidebarPanel(
                selectInput("property_type", "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
                selectInput("interval_filter", "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
@@ -59,7 +60,6 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     ),
     tabPanel(title = "Add OW", value = "add_ow",  
       titlePanel("Add Observation Well"),
-      useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
       sidebarPanel(
         selectInput("smp_id", "Select an SMP ID", choices = c("", smp_id), selected = NULL),
         selectInput("component_id", "Select a Component ID", choices = c("", "")),
@@ -83,7 +83,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
       selectInput("model_no", "Sensor Model Number", choices = hobo_options, selected = NULL), 
       dateInput("date_purchased", "Purchase Date", value = as.Date(NA)), 
       actionButton("add_sensor", "Add Sensor"), 
-      actionButton("add_sensor_deploy", "Deploy this Sensor"),
+      actionButton("add_sensor_deploy", "Deploy this Sensor")
       ),
     
     mainPanel(
@@ -120,12 +120,36 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
         h4("Previous Deployments at this SMP"),
         DTOutput("prev_deployment")
       )
-    ),
-
-
     )
-           
-    
+    ), 
+  tabPanel("Documentation", value = "readme_tab", 
+           titlePanel("MARS Fieldwork Database v0.1"), 
+           column(width = 5,
+             h2("User Guide"),
+             h3("Collection Calendar"),
+             h5("The Collection Calendar tab presents a table of all active deployments. The sidebar has filters for property type, interval, and capacity. The table is searchable, and the \"80% Full Date\" column is highlighted yellow if that date has passed. The \"100% Full Date\" column is highlighted red if that date has passed. Click a row to go to the \"Deploy Sensor\" tab, where the same deployment will be selected and available to edit.", style = "margin-left: 20px"), 
+             h3("Add Observation Well"), 
+             h5("Select an SMP ID to give options for Component ID. A suggested OW Suffix (ie, OW1) is autofilled, which can be overwritten if needed. Facility ID is autofilled based on the selected Component ID. If the selected feature does not have a component ID, the facility ID of the SMP will be used. Once all field are complete, and the new observation does not already exist, add the observation well. Click a row on the table to enable editing of an observation well." , style = "margin-left: 20px"), 
+             h3("Add Sensor"), 
+             h5("Add a new sensor to the inventory by entering sensor serial number and model number. Purchase date is optional. Edit existing sensors by entering the sensor serial number, or clicking on the desired table row. The table can be sorted and searched. Click \"Deploy this Sensor\" to go to the \"Deploy Sensor\" tab with the sensor selected.", style = "margin-left: 20px"),
+             h3("Deploy Sensor"), 
+             h5("Add a new sensor deployment by filling out SMP ID, well name, sensor serial number, purpose (baro or level), interval (5 or 15 mintues), and deployment date. Collection date is optional. New deployments can not be added for sensors that are already deployed elsewhere. Edit existing deployments by clicking on either the active or previous deployments table. Once a collection date is added, a checkbox is presented with the option to redeploy the sensor. If selected, then upon deployment, two entries to the database will be made: one for the collected deployment (which could be an edit of a previous active deployment), one for the new active deployment. The tables will instantly update with new deployments.", style = "margin-left: 20px")
+           ), 
+          column(width = 5, offset = 1,
+            h2("Current Status"), 
+            h3("v0.1"), 
+            h5("This is the user testing phase. Changes will be made based on feedback, then v1.0 will be issued. Current tabs include:" , style = "margin-left: 10px"), 
+            HTML("<h5><ul>
+                 <li>Collection Calendar</li>
+                 <li>Add Observation Well</li>
+                 <li>Add Sensor</li>
+                 <li>Deploy Sensor</li>
+                 <li>Documentation</li>
+                 </ul></h5>"), 
+            h3("Potential Updates"), 
+            h5("Add validation to catch and present backend SQL errors. Add database tables and user tabs for SRTs and dye tests. On the backend, modularize Shiny scripts.")
+           ))
+  
   )
 
 # Server ------------------------------------------------------------------
@@ -152,7 +176,7 @@ server <- function(input, output, session){
   
   #use reactive values to read in table, and see which wells already exist at the SMP
   rv_ow <- reactiveValues()
-  ow_table_query <- reactive(paste0("SELECT * FROM ow_testing WHERE smp_id = '", input$smp_id, "'"))
+  ow_table_query <- reactive(paste0("SELECT * FROM fieldwork.ow WHERE smp_id = '", input$smp_id, "'"))
   rv_ow$ow_table <- reactive(odbc::dbGetQuery(poolConn, ow_table_query()))
   #get the existing ow_prefixes. these will be counted and used to suggest and OW Suffix
   rv_ow$existing_ow_prefixes <- reactive(gsub('\\d+', '', rv_ow$ow_table()$ow_suffix))
@@ -232,7 +256,7 @@ server <- function(input, output, session){
   rv_ow$ow_suggested_pre <- reactive(paste0(select_ow_prefix(), (rv_ow$well_count() + 1))) 
   
   #only show suggested suffix if there is a selected component id
-  rv_ow$ow_suggested <- reactive(if(input$component_id==""){
+  rv_ow$ow_suggested <- reactive(if(nchar(input$component_id) == 0){
     NA
   }else if(length(input$ow_table_rows_selected) > 0 & rv_ow$asset_comp_code_click == select_combo_row()$asset_comp_code){
     rv_ow$ow_table()[input$ow_table_rows_selected, 3]
@@ -240,16 +264,26 @@ server <- function(input, output, session){
     rv_ow$ow_suggested_pre()
   })
   
-  observe(updateTextInput(session, "ow_suffix", value = rv_ow$ow_suggested()))
+  #only update ow_suffix when component ID changes, or when a table row is selected or deselected. 
+  #udpateTextInput was previously in an observe(), but if OW Suffix was populated, changing SMP ID would cause the app to crash 
+  #this was likely because there was a blank instance, which led to ow_suffix trying to populate off of an item of length zero
+  #the "== 0" was added so that the observeEvents also trigger when a row is deselected
+  
+  observeEvent(input$component_id, {
+    updateTextInput(session, "ow_suffix", value = rv_ow$ow_suggested())
+  })
+  
+  observeEvent(input$ow_table_rows_selected == 0, {
+    updateTextInput(session, "ow_suffix", value = rv_ow$ow_suggested())
+  })
   
   rv_ow$toggle_suffix <- reactive(!(input$ow_suffix %in% rv_ow$ow_table()$ow_suffix) | length(input$ow_table_rows_selected) > 0)
-  rv_ow$toggle_component_id <- reactive(!input$facility_id %in% rv_ow$ow_table()$facility_id | 
-                                          length(input$ow_table_rows_selected) > 0 |
-                                          is.na(select_component_id()))
-  
+  #rv_ow$toggle_component_id <- reactive(!input$facility_id %in% rv_ow$ow_table()$facility_id | 
+     #                                     length(input$ow_table_rows_selected) > 0)
+                                          
   #toggle state (enable/disable) buttons based on whether smp id, component id, and ow suffix are selected (this is shinyjs)
   observe({toggleState(id = "add_ow", condition = nchar(input$smp_id) > 0 & nchar(input$component_id) > 0 & nchar(input$ow_suffix) >0 &
-                         rv_ow$toggle_suffix() & rv_ow$toggle_component_id())})
+                        rv_ow$toggle_suffix())})#rv_ow$toggle_component_id())})
   rv_ow$label <- reactive(if(length(input$ow_table_rows_selected) == 0) "Add New" else "Edit Selected")
   observe(updateActionButton(session, "add_ow", label = rv_ow$label()))
   observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
@@ -259,12 +293,12 @@ server <- function(input, output, session){
   observeEvent(input$add_ow, {
     if(length(input$ow_table_rows_selected) == 0){
       odbc::dbGetQuery(poolConn, paste0(
-      "INSERT INTO ow_testing (smp_id, ow_suffix, facility_id) 
+      "INSERT INTO fieldwork.ow (smp_id, ow_suffix, facility_id) 
   	      VALUES ('", input$smp_id, "','", input$ow_suffix, "','",  facility_id(), "')"
       ))
     }else{
       edit_ow_query <- paste0(
-        "UPDATE ow_testing SET ow_suffix = '", input$ow_suffix, "', facility_id = '", facility_id(), "' 
+        "UPDATE fieldwork.ow SET ow_suffix = '", input$ow_suffix, "', facility_id = '", facility_id(), "' 
         WHERE smp_id = '", input$smp_id, "'
         AND ow_suffix = '", rv_ow$ow_table()[input$ow_table_rows_selected, 3], "' 
         AND facility_id = '", rv_ow$ow_table()[input$ow_table_rows_selected, 4], "'")
@@ -307,9 +341,9 @@ server <- function(input, output, session){
   rv_sensor <- reactiveValues()
   
   #Sensor Serial Number List
-  hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from inventory_sensors_testing inv
-                          left join deployment_testing d on d.inventory_sensors_uid = inv.inventory_sensors_uid
-                          left join ow_testing ow on ow.ow_uid = d.ow_uid"
+  hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
+                          left join fieldwork.deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
+                          left join fieldwork.ow ow on ow.ow_uid = d.ow_uid"
   rv_sensor$hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
 
   #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
@@ -337,13 +371,13 @@ server <- function(input, output, session){
   observeEvent(input$add_sensor, { #write new sensor info to db
     if(!(input$serial_no %in% rv_sensor$hobo_list$sensor_serial)){
       odbc::dbGetQuery(poolConn, paste0(
-      "INSERT INTO inventory_sensors_testing (sensor_serial, sensor_model, date_purchased) 
+      "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model, date_purchased) 
 	      VALUES ('", input$serial_no, "','", input$model_no, "',",  rv_sensor$date_purchased(), ")"))
       output$testing <- renderText({
         isolate(paste("Sensor", input$serial_no, "added."))
       })
     }else{ #edit sensor info
-      odbc::dbGetQuery(poolConn, paste0("UPDATE inventory_sensors_testing SET sensor_model = '", input$model_no, 
+      odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_model = '", input$model_no, 
                                     "', date_purchased = ", rv_sensor$date_purchased(), " WHERE sensor_serial = '", input$serial_no, "'"))
       output$testing <- renderText({
         isolate(paste("Sensor", input$serial_no, "edited."))
@@ -370,7 +404,10 @@ server <- function(input, output, session){
     rv_sensor$hobo_list_display(),
     selection = "single",
     style = 'bootstrap', 
-    class = 'table-responsive, table-hover'
+    class = 'table-responsive, table-hover',
+    options = list(scroller = TRUE, 
+                   scrollX = TRUE, 
+                   scrollY = 550)
   )
   
   observeEvent(input$sensor_table_rows_selected, {
@@ -387,7 +424,7 @@ server <- function(input, output, session){
   ## well panel
     #query ow_suffixes based on smp_id
     rv_deploy$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
-      "select ow_suffix from ow_testing where smp_id = '", input$smp_id_deploy, "'")) %>% dplyr::pull())
+      "select ow_suffix from fieldwork.ow where smp_id = '", input$smp_id_deploy, "'")) %>% dplyr::pull())
     
     observe(updateSelectInput(session, "well_name", choices = c("", rv_deploy$ow_suffixes())))
     observe(updateDateInput(session, "collect_date", min = input$deploy_date))
@@ -398,14 +435,14 @@ server <- function(input, output, session){
       select(sensor_purpose_lookup_uid) %>% pull())
     #rv_deploy$purpose <- reactive(if(input$sensor_purpose == "LEVEL") 1 else if(input$sensor_purpose == "BARO") 2 else NA)
     rv_deploy$inventory_sensors_uid <- reactive(odbc::dbGetQuery(poolConn, paste0(
-      "SELECT inventory_sensors_uid FROM inventory_sensors_testing WHERE sensor_serial = '", input$sensor_id, "'"
+      "SELECT inventory_sensors_uid FROM fieldwork.inventory_sensors WHERE sensor_serial = '", input$sensor_id, "'"
     )))
     rv_deploy$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
   
   ## show tables
     #query for active deployments
     active_table_query <- reactive(paste0(
-      "SELECT * FROM active_deployments_testing
+      "SELECT * FROM fieldwork.active_deployments
         WHERE smp_id = '", input$smp_id_deploy, "'"))
     
     #create table as a reactive value based on query
@@ -436,9 +473,9 @@ server <- function(input, output, session){
     #query for previous deployments
     old_table_query <- reactive(paste0(
       "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est, inv.sensor_serial
-       FROM deployment_testing te
-        LEFT JOIN ow_testing v ON te.ow_uid = v.ow_uid
-        LEFT JOIN inventory_sensors_testing inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
+       FROM fieldwork.deployment te
+        LEFT JOIN fieldwork.ow v ON te.ow_uid = v.ow_uid
+        LEFT JOIN fieldwork.inventory_sensors inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
         WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
     
     #create table as a reactive value based on query
@@ -473,12 +510,15 @@ server <- function(input, output, session){
     rv_deploy$deploy_date <- reactive(if(length(rv_deploy$active()) > 0) rv_deploy$active_table_db()$deployment_dtime_est[rv_deploy$active()] else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table_db()$deployment_dtime_est[rv_deploy$prev()])
     rv_deploy$collect <- reactive(if(length(rv_deploy$active()) > 0) NA else if(length(rv_deploy$prev()) > 0) rv_deploy$old_table_db()$collection_dtime_est[rv_deploy$prev()])
     
-    observe(updateSelectInput(session, "well_name", selected = rv_deploy$well_name()))
-    observe(updateSelectInput(session, "sensor_id", selected = rv_deploy$sensor_id()))
-    observe(updateSelectInput(session, "sensor_purpose", selected = rv_deploy$sensor_purpose()))
-    observe(updateSelectInput(session, "interval", selected = rv_deploy$mea_int()))
-    observe(updateDateInput(session, "deploy_date", value = rv_deploy$deploy_date()))
-    observe(updateDateInput(session, "collect_date", value = rv_deploy$collect()))
+    #update inputs based on the reactive value definitions above
+    observe({
+      updateSelectInput(session, "well_name", selected = rv_deploy$well_name())
+      updateSelectInput(session, "sensor_id", selected = rv_deploy$sensor_id())
+      updateSelectInput(session, "sensor_purpose", selected = rv_deploy$sensor_purpose())
+      updateSelectInput(session, "interval", selected = rv_deploy$mea_int())
+      updateDateInput(session, "deploy_date", value = rv_deploy$deploy_date())
+      updateDateInput(session, "collect_date", value = rv_deploy$collect())
+      })
     
     #when a row in the previous deployments table is clicked
     observeEvent(input$prev_deployment_rows_selected, {
@@ -511,14 +551,14 @@ server <- function(input, output, session){
     if(length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0){
     #write deployment
     odbc::dbGetQuery(poolConn,
-     paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
+     paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
-        VALUES ('", input$deploy_date, "', get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
+        VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), '",
             rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "',", rv_deploy$collect_date(),")"))
     }else{
       odbc::dbGetQuery(poolConn, 
-                       paste0("UPDATE deployment_testing SET deployment_dtime_est = '", input$deploy_date, "', 
-                       ow_uid = get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), 
+                       paste0("UPDATE fieldwork.deployment SET deployment_dtime_est = '", input$deploy_date, "', 
+                       ow_uid = fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), 
                               inventory_sensors_uid = '",  rv_deploy$inventory_sensors_uid(), "', 
                               sensor_purpose = '", rv_deploy$purpose(), "', 
                               interval_min = '", input$interval, "',
@@ -527,9 +567,9 @@ server <- function(input, output, session){
     }
     #write redeployment
     if(rv_deploy$redeploy() == TRUE){
-      dbGetQuery(poolConn, paste0("INSERT INTO deployment_testing (deployment_dtime_est, ow_uid,
+      dbGetQuery(poolConn, paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
-        VALUES (", rv_deploy$collect_date(), ", get_ow_uid_testing('",input$smp_id_deploy,"', '", input$well_name, "'), '",
+        VALUES (", rv_deploy$collect_date(), ", fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), '",
                               rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "', NULL)"))
     }
     #query active table
@@ -565,7 +605,7 @@ server <- function(input, output, session){
   rv_collect <- reactiveValues()  
   
   #query the collection calendar and arrange by deployment_uid
-  collect_query <- "select ac.*, own.public from active_deployments_testing ac left join ow_ownership_testing own on ac.ow_uid = own.ow_uid"
+  collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join ow_ownership_testing own on ac.ow_uid = own.ow_uid"
   rv_collect$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   #arrange and filtered the collection calendar
   rv_collect$collect_table_filter <- reactive(rv_collect$collect_table_db %>% 
@@ -626,8 +666,6 @@ server <- function(input, output, session){
   #when the active table is updated, AND it follows a click on the collection table, make the row in the selected active table match the collection table
   observeEvent(rv_deploy$active_table_db(), {
     if(length(input$collection_rows_selected) > 0){
-      #print(paste("input row selected", input$collection_rows_selected))
-      #print(paste("collect_deployment_uid", collect_table_db$deployment_uid[input$collection_rows_selected]))
       active_row <- which(rv_deploy$active_table_db()$deployment_uid == rv_collect$collect_table_filter()$deployment_uid[input$collection_rows_selected], arr.ind = TRUE)
       dataTableProxy('current_deployment') %>% selectRows(active_row)
     }
