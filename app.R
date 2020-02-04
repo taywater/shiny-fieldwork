@@ -52,6 +52,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                selectInput("property_type", "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
                selectInput("interval_filter", "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
                selectInput("capacity_used", "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
+               selectInput("purpose_filter", "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2))
                #radioButtons("sort_calendar", "Sort Collection Calendar By:", choices = c("Collection Date", "SMP ID"))
              ), 
              mainPanel(
@@ -105,13 +106,13 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
           selectInput("interval", "Measurement Interval (min)", choices = c("", 5, 15), selected = NULL),
           dateInput("deploy_date", "Deployment Date", value = as.Date(NA)),
           dateInput("collect_date", "Collection Date", value = as.Date(NA)), 
-          actionButton("deploy_sensor", "Deploy Sensor"), 
           conditionalPanel(width = 12, 
             condition = "input.collect_date",
             checkboxInput("redeploy", "Redeploy Sensor?"),
             h6("Redeploy sensor in the same well on this collection date")
           ),
-          actionButton("clear_deploy_fields", "Clear all Fields") 
+          actionButton("deploy_sensor", "Deploy Sensor"), 
+          actionButton("clear_deploy_fields", "Clear all Fields")
       )
       ),
       column(width = 8,
@@ -582,6 +583,7 @@ server <- function(input, output, session){
     })
     
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
+  #also check to make sure the sesnor is not already deployed, or the collection has a sensor date, or a row selected
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
                          nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 &
@@ -626,6 +628,7 @@ server <- function(input, output, session){
                     #use 5 or 15 minute intervals, with 10 for both, with a tolerance of 5.1 
                     #so if 10 is selected, 5 and 15 are picked up
                     near(interval_min, as.numeric(input$interval_filter), tol = 5.1) &
+                    near(sensor_purpose, as.numeric(input$purpose_filter), tol = .51) &
                     filter_80 == 1))
   #select and rename columns to show in app
   rv_collect$collect_table <- reactive(rv_collect$collect_table_filter() %>% 
