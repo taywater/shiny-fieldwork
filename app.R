@@ -51,6 +51,7 @@ options(DT.options = list(pageLength = 15))
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
     
+    #Collection Calendar ##
     #create a tabPanel for each tab
     tabPanel("Collection Calendar", value = "calendar_tab", 
              #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
@@ -68,6 +69,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                DTOutput("collection")
              )
     ),
+    
+    #Add Observation Well ##
     tabPanel(title = "Add OW", value = "add_ow",  
       titlePanel("Add Observation Well"),
       sidebarPanel(
@@ -85,6 +88,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
         )
       ),
     
+  #Add Sensor ##
   tabPanel(title = "Add Sensor", value = "add_sensor",
     titlePanel("Add Sensor to Inventory"), 
     
@@ -102,6 +106,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     )
     
     ), 
+  
+  #Deploy Sensor ##
   tabPanel("Deploy Sensor", value = "deploy_tab",
     titlePanel("Deploy Sensor"), 
     
@@ -132,6 +138,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
       )
     )
     ), 
+  
+  #SRT ###
   tabPanel("SRT", value = "srt_tab", 
      titlePanel("Add SRT"), 
      sidebarPanel(
@@ -151,7 +159,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
        DTOutput("srt_table")
      )
   ),
-           
+  
+  #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
            titlePanel("MARS Fieldwork Database v0.1"), 
            column(width = 5,
@@ -167,6 +176,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.2"), 
+            h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab. The SRT tab has been added, but is not yet for use."),
             h3("v0.1"), 
             h5("This is the user testing phase. Changes will be made based on feedback, then v1.0 will be issued. Current tabs include:" , style = "margin-left: 10px"), 
             HTML("<h5><ul>
@@ -577,17 +588,39 @@ server <- function(input, output, session){
     }
     )
     
+    #define 
+    rv_deploy$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
+    rv_deploy$modal_title <- reactive(if(rv_deploy$add_new()) "Add New Deployment" else "Edit Deployment")
+    rv_deploy$modal_text <- reactive(if(rv_deploy$add_new() & rv_deploy$redeploy()){
+      "Add New Deployment and Redeploy Sensor?"
+    }else if(rv_deploy$add_new() & rv_deploy$redeploy() == FALSE){
+      "Add New Deployment?"
+    }else if(rv_deploy$add_new() == FALSE & rv_deploy$redeploy() == TRUE){
+      "Edit Deployment and Redeploy Sensor?"
+    }else if(rv_deploy$add_new() == FALSE & rv_deploy$redeploy() == FALSE){
+      "Edit Deployment?"
+    })
+    
   #write to database on click
-  #1/7/2020 does not yet do anything different for editing,
+    #go through dialog box to confirm action
   observeEvent(input$deploy_sensor, {
-    if(length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0){
-    #write deployment
+    showModal(modalDialog(title = rv_deploy$modal_title(), 
+                          rv_deploy$modal_text(), 
+                          modalButton("No"), 
+                          actionButton("confirm_deploy", "Yes")))
+  })
+  
+  observeEvent(input$confirm_deploy, {
+    
+    if(rv_deploy$add_new()){
+    #write new deployment
     odbc::dbGetQuery(poolConn,
      paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
         VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), '",
             rv_deploy$inventory_sensors_uid(), "','", rv_deploy$purpose(), "','",input$interval, "',", rv_deploy$collect_date(),")"))
     }else{
+      #update existing deployment
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.deployment SET deployment_dtime_est = '", input$deploy_date, "', 
                        ow_uid = fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), 
@@ -611,6 +644,7 @@ server <- function(input, output, session){
     
     #query collection table
     rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
+    removeModal()
     })
     
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
@@ -623,6 +657,13 @@ server <- function(input, output, session){
             
   #clear all fields
   observeEvent(input$clear_deploy_fields, {
+    showModal(modalDialog(title = "Clear All Fields", 
+                          "Are you sure you want to clear all fields on this tab?", 
+                          modalButton("No"), 
+                          actionButton("confirm_clear_deploy", "Yes")))
+  })
+  
+  observeEvent(input$confirm_clear_deploy, {
     reset("sensor_id")
     reset("sensor_purpose")
     reset("interval")
@@ -630,6 +671,7 @@ server <- function(input, output, session){
     reset("collect_date")
     reset("smp_id_deploy")
     reset("well_name")
+    removeModal()
   })
   
 
