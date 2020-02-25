@@ -156,7 +156,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
           column(width = 5, offset = 1,
             h2("Current Status"), 
             h3("v0.2"), 
-            h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab."),
+            h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab. The public/private filter on the \"Collection Calendar\" tab has been updated to work properly."),
             h3("v0.1"), 
             h5("This is the user testing phase. Changes will be made based on feedback, then v1.0 will be issued. Current tabs include:" , style = "margin-left: 10px"), 
             HTML("<h5><ul>
@@ -659,7 +659,7 @@ server <- function(input, output, session){
   rv_collect <- reactiveValues()  
   
   #query the collection calendar and arrange by deployment_uid
-  collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join ow_ownership_testing own on ac.ow_uid = own.ow_uid"
+  collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join fieldwork.ow_ownership own on ac.ow_uid = own.ow_uid"
   rv_collect$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   #arrange and filtered the collection calendar
   rv_collect$collect_table_filter <- reactive(rv_collect$collect_table_db %>% 
@@ -676,7 +676,7 @@ server <- function(input, output, session){
                                   TRUE ~ 1)) %>% 
       #use 1 or 0 for public or private, respectively, and 0.5 for both, with a tolerance of .51 
       #so if .5 is selected, 0 and 1 are picked up
-    dplyr::filter(near(as.numeric(public), as.numeric(input$property_type), tol =.51) & 
+    dplyr::filter(near(as.numeric(public), as.numeric(input$property_type), tol = 0.51) &
                     #use 5 or 15 minute intervals, with 10 for both, with a tolerance of 5.1 
                     #so if 10 is selected, 5 and 15 are picked up
                     near(interval_min, as.numeric(input$interval_filter), tol = 5.1) &
