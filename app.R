@@ -139,27 +139,6 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     )
     ), 
   
-  #SRT ###
-  tabPanel("SRT", value = "srt_tab", 
-     titlePanel("Add SRT"), 
-     sidebarPanel(
-       selectInput("system_id", "System ID", choices = c("", sys_id), selected = NULL), 
-       dateInput("srt_date", "Test Date", value = as.Date(NA)), 
-       selectInput("srt_type", "SRT Type", choices = c("", srt_types$type), selected = NULL), 
-       numericInput("test_volume", "Test Volume (cf)",  value = NA, min = 0), 
-       disabled(numericInput("dcia", "Impervious Drainage Area (sf)", value = NA)),
-       disabled(numericInput("storm_size", "Equivalent Storm Size (in)",  value = NA, min = 0)), 
-       textAreaInput("srt_summary", "Results Summary", height = '125px'), 
-       actionButton("add_srt", "Add SRT"),
-       actionButton("clear_srt", "Clear All Fields"), 
-       actionButton("print_check", "print_check")
-     ), 
-     mainPanel(
-       h4("List of SRTs at this System"), 
-       DTOutput("srt_table")
-     )
-  ),
-  
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
            titlePanel("MARS Fieldwork Database v0.1"), 
@@ -176,8 +155,10 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.2.1"),
+            h5("Updated the \"Deploy Sensor\" tab to help prevent accidental double deployment of the same sensor, and to clear inputs (other than SMP ID) and deselect rows following an add or edit."),
             h3("v0.2"), 
-            h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab. The SRT tab has been added, but is not yet for use."),
+            h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab. The public/private filter on the \"Collection Calendar\" tab has been updated to work properly."),
             h3("v0.1"), 
             h5("This is the user testing phase. Changes will be made based on feedback, then v1.0 will be issued. Current tabs include:" , style = "margin-left: 10px"), 
             HTML("<h5><ul>
@@ -486,7 +467,7 @@ server <- function(input, output, session){
     #query for active deployments
     active_table_query <- reactive(paste0(
       "SELECT * FROM fieldwork.active_deployments
-        WHERE smp_id = '", input$smp_id_deploy, "'"))
+        WHERE smp_id = '", input$smp_id_deploy, "' ORDER BY deployment_dtime_est"))
     
     #create table as a reactive value based on query
     rv_deploy$active_table_db <- reactive(odbc::dbGetQuery(poolConn, active_table_query()))
@@ -515,17 +496,13 @@ server <- function(input, output, session){
     
     #query for previous deployments
     old_table_query <- reactive(paste0(
-      "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est, inv.sensor_serial
-       FROM fieldwork.deployment te
-        LEFT JOIN fieldwork.ow v ON te.ow_uid = v.ow_uid
-        LEFT JOIN fieldwork.inventory_sensors inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
-        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
+      "SELECT * FROM fieldwork.previous_deployments
+        WHERE smp_id = '", input$smp_id_deploy, "' ORDER BY deployment_dtime_est"))
     
     #create table as a reactive value based on query
     rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query()))
     rv_deploy$old_table <- reactive(rv_deploy$old_table_db() %>% 
         mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
-          left_join(y = deployment_lookup, by = c("sensor_purpose" = "sensor_purpose_lookup_uid")) %>% 
         dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, interval_min) %>% 
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
                       "Purpose" = "type", "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
@@ -577,8 +554,6 @@ server <- function(input, output, session){
     
     observe(updateActionButton(session, "deploy_sensor", label = rv_deploy$label()))
   
-    #rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0) rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected] else if(length(input$prev_deployment_rows_selected) > 0) rv_deploy$old_table_db()$deployment_uid[input$current_deployment_rows_selected] else 0)
-    
     rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0){
       rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected]
     }else if(length(input$prev_deployment_rows_selected) > 0){
@@ -644,6 +619,16 @@ server <- function(input, output, session){
     
     #query collection table
     rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
+    
+    #clear entries
+    dataTableProxy('current_deployment') %>% selectRows(NULL)
+    dataTableProxy('prev_deployment') %>% selectRows(NULL)
+    reset("sensor_id")
+    reset("sensor_purpose")
+    reset("interval")
+    reset("deploy_date")
+    reset("collect_date")
+    reset("well_name")
     removeModal()
     })
     
@@ -652,8 +637,11 @@ server <- function(input, output, session){
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
                          nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 &
-                         (!(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial) | length(input$collect_date) > 0 |
-                            length(input$current_deployment_rows_selected) > 0 | length(input$prev_deployment_rows_selected) > 0))})
+                         (!(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial) | 
+                            (length(input$collect_date) > 0 & rv_deploy$redeploy() == TRUE & !(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial)) |
+                            (length(input$collect_date) >0 & rv_deploy$redeploy() == FALSE) |
+                            length(input$current_deployment_rows_selected) > 0 | 
+                            length(input$prev_deployment_rows_selected) > 0))})
             
   #clear all fields
   observeEvent(input$clear_deploy_fields, {
@@ -680,7 +668,7 @@ server <- function(input, output, session){
   rv_collect <- reactiveValues()  
   
   #query the collection calendar and arrange by deployment_uid
-  collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join ow_ownership_testing own on ac.ow_uid = own.ow_uid"
+  collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join fieldwork.ow_ownership own on ac.ow_uid = own.ow_uid"
   rv_collect$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   #arrange and filtered the collection calendar
   rv_collect$collect_table_filter <- reactive(rv_collect$collect_table_db %>% 
@@ -697,7 +685,7 @@ server <- function(input, output, session){
                                   TRUE ~ 1)) %>% 
       #use 1 or 0 for public or private, respectively, and 0.5 for both, with a tolerance of .51 
       #so if .5 is selected, 0 and 1 are picked up
-    dplyr::filter(near(as.numeric(public), as.numeric(input$property_type), tol =.51) & 
+    dplyr::filter(near(as.numeric(public), as.numeric(input$property_type), tol = 0.51) &
                     #use 5 or 15 minute intervals, with 10 for both, with a tolerance of 5.1 
                     #so if 10 is selected, 5 and 15 are picked up
                     near(interval_min, as.numeric(input$interval_filter), tol = 5.1) &
@@ -747,114 +735,6 @@ server <- function(input, output, session){
     }
   })
   
- # SRT ####
-  
-  #use reactive values to read in table, and see which wells already exist at the SMP
-  rv_srt <- reactiveValues()
-  srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.srt WHERE system_id = '", input$system_id, "'"))
-  rv_srt$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
-  
-  rv_srt$srt_table <- reactive(rv_srt$srt_table_db() %>% 
-                                 left_join(srt_types, by = "srt_type_lookup_uid") %>%
-                                      mutate("srt_date" = as.character(srt_date), 
-                                             "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                                 dplyr::select("srt_uid", "system_id", "srt_date", "type", "srt_volume_ft3", "srt_stormsize_in", "srt_summary"))
-  
-  rv_srt$type <- reactive(srt_types %>% dplyr::filter(type == input$srt_type) %>% 
-                                  select(srt_type_lookup_uid) %>% pull())
-  
-  #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
-  observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 & nchar(input$srt_type) >0))
-  
-  #update Impervous Drainage Area
-  srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE system_id = '", input$system_id, "'"))
-  rv_srt$dcia <- reactive(odbc::dbGetQuery(poolConn, srt_dcia_query()) %>% dplyr::pull())
-  observe(updateNumericInput(session, "dcia", value = rv_srt$dcia()))
-  
-  #update Equivalent Storm Size 
-  #DCIA (ft2) * 1/12 (ft/in)
-  rv_srt$one_inch_storm_vol_cf <- reactive(rv_srt$dcia()*1/12)
-  rv_srt$eq_storm_size_in <- reactive(input$test_volume/rv_srt$one_inch_storm_vol_cf())
-  observe(updateNumericInput(session, "storm_size", value = rv_srt$eq_storm_size_in()))
-  
-  output$srt_table <- renderDT(
-    rv_srt$srt_table(), 
-    selection = 'single',
-    style = 'bootstrap', 
-    class = 'table-responsive, table-hover', 
-    colnames = c('SRT UID', 'System ID', 'Test Date', 'Type', 'Volume (cf)', 'Storm Size (in)', 'Results Summary'), 
-    options = list(dom = 't')
-  )
-  
-  observeEvent(input$srt_table_rows_selected,{ 
-    #get facility id from table
-    #rv_ow$fac <- (rv_srt$srt_table()[input$srt_table_rows_selected, 4])
-    updateDateInput(session, "srt_date", value = rv_srt$srt_table()[input$srt_table_rows_selected, 3])
-    
-    #change from lookup uid to text type
-    
-    #update to values from selected row
-    updateSelectInput(session, "srt_type", selected = rv_srt$srt_table()[input$srt_table_rows_selected, 4])
-    updateNumericInput(session, "test_volume", value = rv_srt$srt_table()[input$srt_table_rows_selected, 5])
-    #updateNumericInput(session, "storm_size", value = rv_srt$srt_table()[input$srt_table_rows_selected, 6])
-    updateTextAreaInput(session, "srt_summary", value = rv_srt$srt_table()[input$srt_table_rows_selected, 7])
-  })
-  
-  rv_srt$label <- reactive(if(length(input$srt_table_rows_selected) == 0) "Add New" else "Edit Selected")
-  observe(updateActionButton(session, "add_srt", label = rv_srt$label()))
-  
-  observeEvent(input$print_check, {
-    print(is.na(input$test_volume))
-    print(is.na(input$storm_size))
-    print(nchar(input$srt_summary) == 0)
-  })
-  
-  rv_srt$test_volume <- reactive(if(is.na(input$test_volume)) "NULL" else paste0("'", input$test_volume, "'"))
-  rv_srt$storm_size <- reactive(if(is.na(input$storm_size)) "NULL" else paste0("'", input$storm_size, "'"))
-  rv_srt$srt_summary <- reactive(if(nchar(input$srt_summary) == 0) "NULL" else paste0("'", input$srt_summary, "'"))
-  
-  observeEvent(input$add_srt, {
-               if(length(input$srt_table_rows_selected) == 0){
-                 add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, srt_date, srt_type_lookup_uid, 
-                      srt_volume_ft3, srt_stormsize_in, srt_summary) 
-  	                  VALUES ('", input$system_id, "','", input$srt_date, "',",  rv_srt$type(), ",", rv_srt$test_volume(), ",", 
-                                  rv_srt$storm_size(), ",", rv_srt$srt_summary(), ")"
-                 )
-                 odbc::dbGetQuery(poolConn, add_srt_query)
-                 print(add_srt_query)
-               }else{
-                 edit_srt_query <- paste0(
-                   "UPDATE fieldwork.srt SET system_id = '", input$system_id, "', srt_date = '", input$srt_date, 
-                   "', srt_type_lookup_uid = ",  rv_srt$type(),
-                   ", srt_volume_ft3 = ", rv_srt$test_volume(),
-                   ", srt_stormsize_in = ", rv_srt$storm_size(), 
-                   ", srt_summary = ", rv_srt$srt_summary(), "
-        WHERE srt_uid = '", rv_srt$srt_table()[input$srt_table_rows_selected, 1], "'")
-                 dbGetQuery(poolConn, edit_srt_query)
-               }
-               #update ow_table with new well
-               rv_srt$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
-               #upon click update the smp_id in the Deploy Sensor tab
-               #it needs to switch to NULL and then back to the input$smp_id to make sure the change is registered
-                 #reset("system_id")
-                 #updateSelectInput(session, "system_id", selected = input$system_id)
-                 reset("srt_date")
-                 reset("srt_type")
-                 reset("test_volume")
-                 reset("storm_size")
-                 reset("srt_summary")
-               })
-  
-  observeEvent(input$clear_srt, {
-    reset("srt_title")
-    reset("system_id")
-    reset("srt_date")
-    reset("srt_type")
-    reset("dcia")
-    reset("test_volume")
-    reset("storm_size")
-    reset("srt_summary")
-  })
 }
 
 shinyApp(ui, server)
