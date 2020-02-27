@@ -155,6 +155,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.2.1"),
+            h5("Updated the \"Deploy Sensor\" tab to help prevent accidental double deployment of the same sensor, and to clear inputs (other than SMP ID) and deselect rows following an add or edit."),
             h3("v0.2"), 
             h5("Some user feedback has been incorporated, including adding dialogue boxes to confirm actions on the \"Deploy Sensor\" tab. The public/private filter on the \"Collection Calendar\" tab has been updated to work properly."),
             h3("v0.1"), 
@@ -465,7 +467,7 @@ server <- function(input, output, session){
     #query for active deployments
     active_table_query <- reactive(paste0(
       "SELECT * FROM fieldwork.active_deployments
-        WHERE smp_id = '", input$smp_id_deploy, "'"))
+        WHERE smp_id = '", input$smp_id_deploy, "' ORDER BY deployment_dtime_est"))
     
     #create table as a reactive value based on query
     rv_deploy$active_table_db <- reactive(odbc::dbGetQuery(poolConn, active_table_query()))
@@ -494,17 +496,13 @@ server <- function(input, output, session){
     
     #query for previous deployments
     old_table_query <- reactive(paste0(
-      "SELECT te.deployment_uid, te.deployment_dtime_est, v.smp_id, v.ow_suffix, te.sensor_purpose, te.interval_min, te.collection_dtime_est, inv.sensor_serial
-       FROM fieldwork.deployment te
-        LEFT JOIN fieldwork.ow v ON te.ow_uid = v.ow_uid
-        LEFT JOIN fieldwork.inventory_sensors inv on te.inventory_sensors_uid = inv.inventory_sensors_uid
-        WHERE v.smp_id = '", input$smp_id_deploy, "' AND te.collection_dtime_est IS NOT NULL"))
+      "SELECT * FROM fieldwork.previous_deployments
+        WHERE smp_id = '", input$smp_id_deploy, "' ORDER BY deployment_dtime_est"))
     
     #create table as a reactive value based on query
     rv_deploy$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query()))
     rv_deploy$old_table <- reactive(rv_deploy$old_table_db() %>% 
         mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
-          left_join(y = deployment_lookup, by = c("sensor_purpose" = "sensor_purpose_lookup_uid")) %>% 
         dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, interval_min) %>% 
         dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
                       "Purpose" = "type", "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
@@ -556,8 +554,6 @@ server <- function(input, output, session){
     
     observe(updateActionButton(session, "deploy_sensor", label = rv_deploy$label()))
   
-    #rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0) rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected] else if(length(input$prev_deployment_rows_selected) > 0) rv_deploy$old_table_db()$deployment_uid[input$current_deployment_rows_selected] else 0)
-    
     rv_deploy$update_deployment_uid <- reactive(if(length(input$current_deployment_rows_selected) > 0){
       rv_deploy$active_table_db()$deployment_uid[input$current_deployment_rows_selected]
     }else if(length(input$prev_deployment_rows_selected) > 0){
@@ -623,6 +619,16 @@ server <- function(input, output, session){
     
     #query collection table
     rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
+    
+    #clear entries
+    dataTableProxy('current_deployment') %>% selectRows(NULL)
+    dataTableProxy('prev_deployment') %>% selectRows(NULL)
+    reset("sensor_id")
+    reset("sensor_purpose")
+    reset("interval")
+    reset("deploy_date")
+    reset("collect_date")
+    reset("well_name")
     removeModal()
     })
     
@@ -631,8 +637,11 @@ server <- function(input, output, session){
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
                          nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 &
-                         (!(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial) | length(input$collect_date) > 0 |
-                            length(input$current_deployment_rows_selected) > 0 | length(input$prev_deployment_rows_selected) > 0))})
+                         (!(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial) | 
+                            (length(input$collect_date) > 0 & rv_deploy$redeploy() == TRUE & !(input$sensor_id %in% rv_collect$collect_table_db$sensor_serial)) |
+                            (length(input$collect_date) >0 & rv_deploy$redeploy() == FALSE) |
+                            length(input$current_deployment_rows_selected) > 0 | 
+                            length(input$prev_deployment_rows_selected) > 0))})
             
   #clear all fields
   observeEvent(input$clear_deploy_fields, {
