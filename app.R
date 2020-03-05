@@ -5,7 +5,8 @@ library(tidyverse)
 library(shinythemes)
 library(lubridate)
 library(shinyjs)
-library(DT)  
+library(DT)
+library(reactable)
 
 options(DT.options = list(pageLength = 15))
 
@@ -140,46 +141,54 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     ), 
   
   #SRT ###
-  tabPanel("SRT", value = "srt_tab", 
-           titlePanel("Add SRT"), 
-           fluidRow(
-             column(width = 5,
-                    #split layout with left and right
-           sidebarPanel(width = 12, 
-                        splitLayout(
-             selectInput("system_id", "System ID", choices = c("", sys_id), selected = NULL), 
-             selectInput("flow_data_rec", "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
-             splitLayout(
-             dateInput("srt_date", "Test Date", value = as.Date(NA)), 
-             selectInput("water_level_rec", "Water Level Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
-             splitLayout(
-             selectInput("srt_type", "SRT Type", choices = c("", srt_types$type), selected = NULL),
-             selectInput("photos_uploaded", "Photos Uploaded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
-             splitLayout(
-             numericInput("test_volume", "Test Volume (cf)",  value = NA, min = 0), 
-             textInput("sensor_collect_date", "Sensor Collection Date")),
-             splitLayout(
-             numericInput("dcia", "Impervious Drainage Area (sf)", value = NA),
-             selectInput("qaqc_complete", "QA/QC Complete", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
-             splitLayout(
-             disabled(numericInput("storm_size", "Equivalent Storm Size (in)",  value = NA, min = 0)), 
-             dateInput("srt_summary_date", "SRT Summary Report Sent", value = as.Date(NA))),
-             textAreaInput("srt_summary", "Results Summary", height = '125px'), 
-             actionButton("add_srt", "Add SRT"),
-             actionButton("clear_srt", "Clear All Fields"), 
-             tags$head(tags$style(HTML("
-    .shiny-split-layout > div {
-      overflow: visible;
-    }
-  ")))
-           )
-           ),
-           column(width = 7,
-             h4("List of SRTs at this System"), 
-             DTOutput("srt_table")
-           )
-  )
-  ),
+  navbarMenu("SRT", 
+    tabPanel("Add/Edit SRT", value = "srt_tab", 
+             titlePanel("Add SRT"), 
+             fluidRow(
+               column(width = 5,
+                      #split layout with left and right
+             sidebarPanel(width = 12, 
+                          splitLayout(
+               selectInput("system_id", "System ID", choices = c("", sys_id), selected = NULL), 
+               selectInput("flow_data_rec", "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+               splitLayout(
+               dateInput("srt_date", "Test Date", value = as.Date(NA)), 
+               selectInput("water_level_rec", "Water Level Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+               splitLayout(
+               selectInput("srt_type", "SRT Type", choices = c("", srt_types$type), selected = NULL),
+               selectInput("photos_uploaded", "Photos Uploaded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
+               splitLayout(
+               numericInput("test_volume", "Test Volume (cf)",  value = NA, min = 0), 
+               textInput("sensor_collect_date", "Sensor Collection Date")),
+               splitLayout(
+               numericInput("dcia", "Impervious Drainage Area (sf)", value = NA),
+               selectInput("qaqc_complete", "QA/QC Complete", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+               splitLayout(
+               disabled(numericInput("storm_size", "Equivalent Storm Size (in)",  value = NA, min = 0)), 
+               dateInput("srt_summary_date", "SRT Summary Report Sent", value = as.Date(NA))),
+               textAreaInput("srt_summary", "Results Summary", height = '125px'), 
+               actionButton("add_srt", "Add SRT"),
+               actionButton("clear_srt", "Clear All Fields"), 
+               tags$head(tags$style(HTML("
+      .shiny-split-layout > div {
+        overflow: visible;
+      }
+    ")))
+             )
+             ),
+             column(width = 7,
+               h4("List of SRTs at this System"), 
+               DTOutput("srt_table")
+             )
+    )
+    ),
+    tabPanel("View SRTs", value = "view_SRT", 
+             titlePanel("All Simulated Runoff Tests"),
+             mainPanel(
+               reactableOutput("all_srt_table")
+             ))
+    ),
+  
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
            titlePanel("MARS Fieldwork Database v0.1"), 
@@ -703,7 +712,7 @@ server <- function(input, output, session){
     removeModal()
   })
   
-  # SRT ####
+  # Add SRT ####
   
   #use reactive values to read in table, and see which wells already exist at the SMP
   rv_srt <- reactiveValues()
@@ -825,12 +834,13 @@ server <- function(input, output, session){
         " WHERE srt_uid = '", rv_srt$srt_table()[input$srt_table_rows_selected, 1], "'")
       dbGetQuery(poolConn, edit_srt_query)
     }
-    #update ow_table with new well
+    #update ow_table with new srt
     rv_srt$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
-    #upon click update the smp_id in the Deploy Sensor tab
-    #it needs to switch to NULL and then back to the input$smp_id to make sure the change is registered
-    #reset("system_id")
-    #updateSelectInput(session, "system_id", selected = input$system_id)
+    
+    #update srt view with new/edited srt
+    rv_srt$all_srt_table <- reactive(dbGetQuery(poolConn, all_srt_table_query) %>% 
+                                       mutate_at(c("srt_date", "srt_summary_date"), as.character))
+    
     reset("srt_date")
     reset("srt_type")
     reset("test_volume")
@@ -859,6 +869,65 @@ server <- function(input, output, session){
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
+  })
+
+
+  # View SRTs ---------------------------------------------------------------
+  
+  #query srt table
+  all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY srt_uid DESC"
+  rv_srt$all_srt_table <- reactive(dbGetQuery(poolConn, all_srt_table_query) %>% 
+    mutate_at(c("srt_date", "srt_summary_date"), as.character))
+  
+  
+  output$all_srt_table <- renderReactable(
+    reactable(rv_srt$all_srt_table()[, 1:14], 
+              columns = list(
+               srt_uid = colDef(name = "SRT UID"),
+               system_id  = colDef(name = "System ID"),
+               srt_date  = colDef(name = "Test Date"),
+               type = colDef(name = "Type"),
+               srt_volume_ft3  = colDef(name = "Volume (cf)"),
+               dcia_ft2  = colDef(name = "DCIA (sf)"),
+               srt_stormsize_in = colDef(name = "Storm Size (in)"),
+               flow_data_recorded = colDef(name = "Flow Data Recorded"),
+               water_level_recorded = colDef(name = "Water Level Recorded"),
+               photos_uploaded = colDef(name = "Photos Uploaded"),
+               sensor_collection_date  = colDef(name = "Sensor Collection Date"),
+               qaqc_complete = colDef(name = "QA/QC Complete"),
+               srt_summary_date = colDef(name = "Summary Date"),
+               turnaround_days = colDef(name = "Turnaround (days)")
+              ),
+              fullWidth = FALSE,
+              selection = "single",
+              onClick = "select",
+              selectionId = "srt_selected",
+              searchable = TRUE,
+              showPageSizeOptions = TRUE,
+              pageSizeOptions = c(10, 25, 50),
+              defaultPageSize = 10,
+              height = 850,
+              details = function(index){
+      nest <- rv_srt$all_srt_table()[rv_srt$all_srt_table()$srt_uid == rv_srt$all_srt_table()$srt_uid[index], ][15]
+      htmltools::div(style = "padding:16px", 
+                     reactable(nest, 
+                               columns = list(srt_summary = colDef(name = "Results Summary")))
+      )
+    })
+  )
+  
+  observeEvent(input$srt_selected, {
+    updateSelectInput(session, "system_id", selected = "")
+    updateSelectInput(session, "system_id", selected = rv_srt$all_srt_table()$system_id[input$srt_selected])
+    updateTabsetPanel(session, "inTabset", selected = "srt_tab")
+  })
+    
+  
+  observeEvent(rv_srt$srt_table_db(), {
+    if(length(input$srt_selected) > 0){
+      srt_row <- which(rv_srt$srt_table_db()$srt_uid == rv_srt$all_srt_table()$srt_uid[input$srt_selected], arr.ind = TRUE)
+      dataTableProxy('srt_table') %>% selectRows(srt_row)
+    }
   })
   
   
