@@ -192,7 +192,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
   
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v0.1"), 
+           titlePanel("MARS Fieldwork Database v0.3"), 
            column(width = 5,
              h2("User Guide"),
              h3("Collection Calendar"),
