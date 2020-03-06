@@ -202,10 +202,17 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              h3("Add Sensor"), 
              h5("Add a new sensor to the inventory by entering sensor serial number and model number. Purchase date is optional. Edit existing sensors by entering the sensor serial number, or clicking on the desired table row. The table can be sorted and searched. Click \"Deploy this Sensor\" to go to the \"Deploy Sensor\" tab with the sensor selected.", style = "margin-left: 20px"),
              h3("Deploy Sensor"), 
-             h5("Add a new sensor deployment by filling out SMP ID, well name, sensor serial number, purpose (baro or level), interval (5 or 15 mintues), and deployment date. Collection date is optional. New deployments can not be added for sensors that are already deployed elsewhere. Edit existing deployments by clicking on either the active or previous deployments table. Once a collection date is added, a checkbox is presented with the option to redeploy the sensor. If selected, then upon deployment, two entries to the database will be made: one for the collected deployment (which could be an edit of a previous active deployment), one for the new active deployment. The tables will instantly update with new deployments.", style = "margin-left: 20px")
+             h5("Add a new sensor deployment by filling out SMP ID, well name, sensor serial number, purpose (baro or level), interval (5 or 15 mintues), and deployment date. Collection date is optional. New deployments can not be added for sensors that are already deployed elsewhere. Edit existing deployments by clicking on either the active or previous deployments table. Once a collection date is added, a checkbox is presented with the option to redeploy the sensor. If selected, then upon deployment, two entries to the database will be made: one for the collected deployment (which could be an edit of a previous active deployment), one for the new active deployment. The tables will instantly update with new deployments.", style = "margin-left: 20px"), 
+             h3("Simulated Runoff Tests"), 
+             h4("Add/Edit SRT"),
+             h5("Add or edit an SRT record. System ID, Test Date, and SRT Type are required fields. Edit by selecting an System ID from the drop-down, and then clicking on one of the table rows to the right. All previously recorded fields (including those not shown in the table) will autofill."), 
+             h4("View SRTs"),
+             h5("View all recorded SRTs. The table is searchable and records per page can be adjusted. Similar to the Collection Calendar, clicking on a row goes to the \"Add/Edit SRT\" tab where the same record will be selected and ready to edit.")
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.3"), 
+            h5("Added SRT tab for Simulated Runoff Tests, which includes the \"Add SRT\" page and \"View All SRTs\" page."),
             h3("v0.2.1"),
             h5("Updated the \"Deploy Sensor\" tab to help prevent accidental double deployment of the same sensor, and to clear inputs (other than SMP ID) and deselect rows following an add or edit."),
             h3("v0.2"), 
@@ -888,7 +895,7 @@ server <- function(input, output, session){
   rv_srt$all_srt_table <- reactive(rv_srt$all_srt_table_db() %>% 
     mutate_at(c("srt_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
     mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-    mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded")), 
+    mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded", "qaqc_complete")), 
               funs(case_when(. == 1 ~ "Yes", 
                              . == 0 ~ "No"))))
     
@@ -918,7 +925,7 @@ server <- function(input, output, session){
               showPageSizeOptions = TRUE,
               pageSizeOptions = c(10, 25, 50),
               defaultPageSize = 10,
-              height = 850,
+              height = 750,
               details = function(index){
       nest <- rv_srt$all_srt_table()[rv_srt$all_srt_table()$srt_uid == rv_srt$all_srt_table()$srt_uid[index], ][15]
       htmltools::div(style = "padding:16px", 
