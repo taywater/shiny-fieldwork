@@ -48,6 +48,7 @@ options(DT.options = list(pageLength = 15))
     dplyr::pull()
   srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
     
+  yes_no_lookup <- data.frame(value = c("1", "0"), text = c("Yes", "No"))
   
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
@@ -159,7 +160,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                selectInput("photos_uploaded", "Photos Uploaded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
                splitLayout(
                numericInput("test_volume", "Test Volume (cf)",  value = NA, min = 0), 
-               textInput("sensor_collect_date", "Sensor Collection Date")),
+               dateInput("sensor_collect_date", "Sensor Collection Date", value = as.Date(NA))),
                splitLayout(
                numericInput("dcia", "Impervious Drainage Area (sf)", value = NA),
                selectInput("qaqc_complete", "QA/QC Complete", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
@@ -220,9 +221,11 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                  </ul></h5>"), 
             h3("Potential Updates"), 
             h5("Add validation to catch and present backend SQL errors. Add database tables and user tabs for SRTs and dye tests. On the backend, modularize Shiny scripts.")
-           ))
+          ))
+)
   
-  )
+  
+  
 
 
   
@@ -712,7 +715,7 @@ server <- function(input, output, session){
     removeModal()
   })
   
-  # Add SRT ####
+  # Add SRT ########################
   
   #use reactive values to read in table, and see which wells already exist at the SMP
   rv_srt <- reactiveValues()
@@ -791,12 +794,13 @@ server <- function(input, output, session){
   rv_srt$flow_data_rec <- reactive(if(nchar(input$flow_data_rec) == 0 | input$flow_data_rec == "N/A") "NULL" else paste0("'", input$flow_data_rec, "'"))
   rv_srt$water_level_rec <- reactive(if(nchar(input$water_level_rec) == 0 | input$water_level_rec == "N/A") "NULL" else paste0("'", input$water_level_rec, "'"))
   rv_srt$photos_uploaded <- reactive(if(nchar(input$photos_uploaded) == 0 | input$photos_uploaded == "N/A") "NULL" else paste0("'", input$photos_uploaded, "'"))
-  rv_srt$sensor_collect_date <- reactive(if(nchar(input$sensor_collect_date) == 0) "NULL" else paste0("'", input$sensor_collect_date, "'"))
+  rv_srt$sensor_collect_date <- reactive(if(length(input$sensor_collect_date) == 0) "NULL" else paste0("'", input$sensor_collect_date, "'"))
   rv_srt$qaqc_complete <- reactive(if(nchar(input$qaqc_complete) == 0 | input$qaqc_complete == "N/A") "NULL" else paste0("'", input$qaqc_complete, "'"))
   rv_srt$srt_summary_date <- reactive(if(length(input$srt_summary_date) == 0) "NULL" else paste0("'", input$srt_summary_date, "'"))
   
-  #assure tha the summary date does not precede the srt date
+  #assure that the summary date does not precede the srt date
   observe(updateDateInput(session, "srt_summary_date", min = input$srt_date))
+  observe(updateDateInput(session, "sensor_collect_date", min = input$srt_date))
   
   #when button is clicked
   #add to srt table
@@ -807,14 +811,15 @@ server <- function(input, output, session){
       add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, srt_date, srt_type_lookup_uid, 
                       srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary) 
   	                  VALUES ('", input$system_id, "','", input$srt_date, "',",  rv_srt$type(), ",", rv_srt$test_volume(), ",", 
-                              rv_srt$dcia_write(), ", ", rv_srt$storm_size(), ",", rv_srt$srt_summary(), ");
-                              INSERT INTO fieldwork.srt_metadata (srt_uid, flow_data_recorded, water_level_recorded, photos_uploaded, 
+                              rv_srt$dcia_write(), ", ", rv_srt$storm_size(), ",", rv_srt$srt_summary(), ")")
+      
+      add_srt_meta_query <- paste0("INSERT INTO fieldwork.srt_metadata (srt_uid, flow_data_recorded, water_level_recorded, photos_uploaded, 
                               sensor_collection_date, qaqc_complete, srt_summary_date)
                               VALUES ((SELECT MAX(srt_uid) FROM fieldwork.srt), ", rv_srt$flow_data_rec(), ",", rv_srt$water_level_rec(), ",",  
-                              rv_srt$photos_uploaded(), ",", rv_srt$sensor_collect_date(), ",", rv_srt$qaqc_complete(), ",", rv_srt$srt_summary_date(), ")"
-      )
+                              rv_srt$photos_uploaded(), ",", rv_srt$sensor_collect_date(), ",", rv_srt$qaqc_complete(), ",", rv_srt$srt_summary_date(), ")")
       #print(add_srt_query)
       odbc::dbGetQuery(poolConn, add_srt_query)
+      odbc::dbGetQuery(poolConn, add_srt_meta_query)
     #else update srt table
     }else{
       edit_srt_query <- paste0(
@@ -824,22 +829,24 @@ server <- function(input, output, session){
         ", dcia_ft2 = " , rv_srt$dcia_write(),
         ", srt_stormsize_in = ", rv_srt$storm_size(), 
         ", srt_summary = ", rv_srt$srt_summary(), "
-        WHERE srt_uid = '", rv_srt$srt_table()[input$srt_table_rows_selected, 1], "';
-        UPDATE fieldwork.srt_metadata  SET flow_data_recorded = ", rv_srt$flow_data_rec(), 
+        WHERE srt_uid = '", rv_srt$srt_table()[input$srt_table_rows_selected, 1], "'")
+      
+      edit_srt_meta_query <- paste0("UPDATE fieldwork.srt_metadata  SET flow_data_recorded = ", rv_srt$flow_data_rec(), 
         ", water_level_recorded = ", rv_srt$water_level_rec(), 
         ", photos_uploaded = ", rv_srt$photos_uploaded(), 
         ", sensor_collection_date = ", rv_srt$sensor_collect_date(),
         ", qaqc_complete = ", rv_srt$qaqc_complete(),
         ", srt_summary_date = ", rv_srt$srt_summary_date(), 
         " WHERE srt_uid = '", rv_srt$srt_table()[input$srt_table_rows_selected, 1], "'")
+      
       dbGetQuery(poolConn, edit_srt_query)
+      dbGetQuery(poolConn, edit_srt_meta_query)
     }
     #update ow_table with new srt
     rv_srt$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
     
     #update srt view with new/edited srt
-    rv_srt$all_srt_table <- reactive(dbGetQuery(poolConn, all_srt_table_query) %>% 
-                                       mutate_at(c("srt_date", "srt_summary_date"), as.character))
+    rv_srt$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
     
     reset("srt_date")
     reset("srt_type")
@@ -876,10 +883,15 @@ server <- function(input, output, session){
   
   #query srt table
   all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY srt_uid DESC"
-  rv_srt$all_srt_table <- reactive(dbGetQuery(poolConn, all_srt_table_query) %>% 
-    mutate_at(c("srt_date", "srt_summary_date"), as.character))
+  rv_srt$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
   
-  
+  rv_srt$all_srt_table <- reactive(rv_srt$all_srt_table_db() %>% 
+    mutate_at(c("srt_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
+    mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
+    mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded")), 
+              funs(case_when(. == 1 ~ "Yes", 
+                             . == 0 ~ "No"))))
+    
   output$all_srt_table <- renderReactable(
     reactable(rv_srt$all_srt_table()[, 1:14], 
               columns = list(
