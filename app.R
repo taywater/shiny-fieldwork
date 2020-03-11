@@ -796,7 +796,8 @@ server <- function(input, output, session){
   rv_srt$test_volume <- reactive(if(is.na(input$test_volume)) "NULL" else paste0("'", input$test_volume, "'"))
   rv_srt$dcia_write <- reactive(if(is.na(input$dcia)) "NULL" else paste0("'", input$dcia, "'"))
   rv_srt$storm_size <- reactive(if(is.na(input$storm_size)) "NULL" else paste0("'", input$storm_size, "'"))
-  rv_srt$srt_summary <- reactive(if(nchar(input$srt_summary) == 0) "NULL" else paste0("'", input$srt_summary, "'"))
+  rv_srt$srt_summary_step <- reactive(gsub('\'', '\'\'', input$srt_summary))
+  rv_srt$srt_summary <- reactive(if(nchar(rv_srt$srt_summary_step()) == 0) "NULL" else paste0("'", rv_srt$srt_summary_step(), "'"))
   
   rv_srt$flow_data_rec <- reactive(if(nchar(input$flow_data_rec) == 0 | input$flow_data_rec == "N/A") "NULL" else paste0("'", input$flow_data_rec, "'"))
   rv_srt$water_level_rec <- reactive(if(nchar(input$water_level_rec) == 0 | input$water_level_rec == "N/A") "NULL" else paste0("'", input$water_level_rec, "'"))
