@@ -41,14 +41,15 @@ options(DT.options = list(pageLength = 15))
   deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
   
 
-# Setup for SRT -----------------------------------------------------------
+# Setup for SRT and PPT -----------------------------------------------------------
 
   sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpid_facilityid_componentid")) %>% 
     dplyr::arrange(system_id) %>% 
     dplyr::pull()
   srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
     
-  yes_no_lookup <- data.frame(value = c("1", "0"), text = c("Yes", "No"))
+  surface_type <- dbGetQuery(poolConn, "select * from fieldwork.surface_type_lookup")
+  
   
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
@@ -76,8 +77,8 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     tabPanel(title = "Add OW", value = "add_ow",  
       titlePanel("Add Observation Well"),
       sidebarPanel(
-        selectInput("smp_id", "Select an SMP ID", choices = c("", smp_id), selected = NULL),
-        selectInput("component_id", "Select a Component ID", choices = c("", "")),
+        selectInput("smp_id", "SMP ID", choices = c("", smp_id), selected = NULL),
+        selectInput("component_id", "Component ID", choices = c("", "")),
         textInput("ow_suffix", "OW Suffix"), 
         disabled(textInput("facility_id", "Facility ID")),
         actionButton("add_ow", "Add New"), 
@@ -85,7 +86,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
         actionButton("clear_ow", "Clear All Fields")
         ),
       mainPanel(
-        h4("List of Observation Wells at this SMP"), 
+        h4("Observation Wells at this SMP"), 
         DTOutput("ow_table")
         )
       ),
@@ -116,7 +117,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     fluidRow(
       column(width = 4, 
         sidebarPanel(width = 12, 
-          selectInput("smp_id_deploy", "Select an SMP ID", choices = c("", smp_id), selected = NULL), 
+          selectInput("smp_id_deploy", "SMP ID", choices = c("", smp_id), selected = NULL), 
           selectInput("well_name", "Well Name", choices = ""), 
           selectInput("sensor_id", paste("Sensor ID"), choices = c("", ""), selected = NULL),
           selectInput("sensor_purpose", "Sensor Purpose", choices = c("", "BARO", "LEVEL"), selected = NULL),
@@ -178,7 +179,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              )
              ),
              column(width = 7,
-               h4("List of SRTs at this System"), 
+               h4("SRTs at this System"), 
                DTOutput("srt_table")
              )
     )
@@ -189,6 +190,31 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                reactableOutput("all_srt_table")
              ))
     ),
+  
+  
+  #Porous Pavement
+  navbarMenu("Porous Pavement", 
+             tabPanel("Add/Edit Porous Pavement Test", value = "ppt_tab", 
+                      titlePanel("Add/Edit Porous Pavement Test"), 
+                      sidebarPanel(selectInput("ppt_smp_id", "SMP ID", choices = c("", smp_id), selected = NULL), 
+                                   dateInput("ppt_date", "Test Date", value = as.Date(NA)), 
+                                   selectInput("surface_type", "Surface Type", choices = c("", surface_type$surface_type), selected = NULL), 
+                                   textInput("ppt_location", "Test Location"), 
+                                   selectInput("ppt_data", "Data in Spreadsheet", choices = c("","Yes" = "1", "No" = "0"), selected = NULL), 
+                                   selectInput("ppt_folder", "Test Location Map in Site Folder", choices = c("","Yes" = "1", "No" = "0"), selected = NULL),
+                                   actionButton("add_ppt", "Add Porous Pavement Test"), 
+                                   actionButton("clear_ppt", "Clear All Fields"),
+                                   actionButton("print_check", "Print Check")
+                                   ), 
+                      mainPanel(h4("Porous Pavement Tests at this SMP"), 
+                                DTOutput("ppt_table"))
+             ), 
+             tabPanel("View Porous Pavement Tests", value = "view_ppt", 
+                      titlePanel("All Porous Pavement Tests"), 
+                      mainPanel(
+                        DTOutput("all_ppt_table")
+                      ))
+  ),
   
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
@@ -766,11 +792,8 @@ server <- function(input, output, session){
   )
   
   observeEvent(input$srt_table_rows_selected,{ 
-    #get facility id from table
     #rv_ow$fac <- (rv_srt$srt_table()[input$srt_table_rows_selected, 4])
     updateDateInput(session, "srt_date", value = rv_srt$srt_table()[input$srt_table_rows_selected, 3])
-    
-    #change from lookup uid to text type
     
     #update to values from selected row
     updateSelectInput(session, "srt_type", selected = rv_srt$srt_table()[input$srt_table_rows_selected, 4])
@@ -922,7 +945,7 @@ server <- function(input, output, session){
               selection = "single",
               onClick = "select",
               selectionId = "srt_selected",
-              searchable = TRUE,
+              #searchable = TRUE,
               showPageSizeOptions = TRUE,
               pageSizeOptions = c(10, 25, 50),
               defaultPageSize = 10,
@@ -950,6 +973,152 @@ server <- function(input, output, session){
     }
   })
   
+
+  # Porous Pavement ---------------------------------------------------------
+
+  #initialize porous pavement testing (ppt) reactiveValues
+  rv_ppt <- reactiveValues()
+  
+  #query full porous pavement view
+  rv_ppt$query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full WHERE smp_id = '", input$ppt_smp_id, "'"))
+  
+  rv_ppt$ppt_table_db <- reactive(dbGetQuery(poolConn, rv_ppt$query()))
+  
+  #adjust table for viewing
+  rv_ppt$ppt_table <- reactive(rv_ppt$ppt_table_db() %>% mutate_at("test_date", as.character) %>% dplyr::select(2:5))
+  
+  
+  #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
+  observe(toggleState(id = "add_ppt", condition = nchar(input$ppt_smp_id) > 0 & length(input$ppt_date) > 0 & 
+                        nchar(input$surface_type) >0 & nchar(input$ppt_location) > 0))
+  
+  #render datatable  for porous pavement
+  output$ppt_table <- renderDT(
+    rv_ppt$ppt_table(), 
+    selection = 'single', 
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Test Location'),
+    options = list(dom = 't')
+  )
+  
+  observeEvent(input$ppt_table_rows_selected,{ 
+    
+    #update to values from selected row
+    updateDateInput(session, "ppt_date", value = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 2])
+    updateSelectInput(session, "surface_type", selected = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 4])
+    updateNumericInput(session, "ppt_location", value = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 5])
+    updateTextAreaInput(session, "ppt_summary", value = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 8])
+    
+    #update metadata values
+    updateSelectInput(session, "ppt_data", selected = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 6])
+    updateSelectInput(session, "ppt_folder", selected = rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 7])
+    
+  })
+  
+  #change type from text to uid
+  rv_ppt$surface_type <- reactive(surface_type %>% dplyr::filter(surface_type == input$surface_type) %>% 
+                            select(surface_type_lookup_uid) %>% pull())
+  
+  #set inputs to reactive values so "NULL" can be entered
+  #important to correctly place quotations
+  rv_ppt$type <- reactive(if(nchar(rv_ppt$surface_type()) == 0) "NULL" else paste0("'", rv_ppt$surface_type(), "'"))
+  rv_srt$ppt_location_step <- reactive(gsub('\'', '\'\'', input$ppt_location))
+  rv_ppt$test_location <- reactive(if(nchar(rv_srt$ppt_location_step()) == 0) "NULL" else paste0("'", rv_srt$ppt_location_step(), "'"))
+  rv_ppt$ppt_data <- reactive(if(nchar(input$ppt_data) == 0 | input$ppt_data == "N/A") "NULL" else paste0("'", input$ppt_data, "'"))
+  rv_ppt$ppt_folder <- reactive(if(nchar(input$ppt_folder) == 0 | input$ppt_folder == "N/A") "NULL" else paste0("'", input$ppt_folder, "'"))
+  
+  #add/edit button toggle
+  rv_ppt$label <- reactive(if(length(input$ppt_table_rows_selected) == 0) "Add New" else "Edit Selected")
+  observe(updateActionButton(session, "add_ppt", label = rv_ppt$label()))
+  
+  #on click
+  observeEvent(input$add_ppt, {
+    
+    if(length(input$ppt_table_rows_selected) == 0){
+      #add to porous_pavement
+      add_ppt_query <- paste0("INSERT INTO fieldwork.porous_pavement (test_date, smp_id, surface_type_lookup_uid, 
+                        test_location)
+    	                  VALUES ('", input$ppt_date, "','", input$ppt_smp_id, "',",  rv_ppt$type(), ",", rv_ppt$test_location(), ")") 
+      
+      #add to porous_pavement_metadata
+      add_ppt_meta_query <- paste0("INSERT INTO fieldwork.porous_pavement_metadata (porous_pavement_uid, data_in_spreadsheet, map_in_site_folder)
+                                VALUES ((SELECT MAX(porous_pavement_uid) FROM fieldwork.porous_pavement), ", rv_ppt$ppt_data(), ",", rv_ppt$ppt_folder(), ")")
+      #print(add_srt_query)
+      odbc::dbGetQuery(poolConn, add_ppt_query)
+      odbc::dbGetQuery(poolConn, add_ppt_meta_query)
+      
+    }else{
+      edit_ppt_query <- paste0(
+        "UPDATE fieldwork.porous_pavement SET smp_id = '", input$ppt_smp_id, "', test_date = '", input$ppt_date, 
+        "', surface_type_lookup_uid = ",  rv_ppt$type(),
+        ", test_location = ", rv_ppt$test_location(),"
+        WHERE porous_pavement_uid = '", rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 1], "'")
+      
+      edit_ppt_meta_query <- paste0("UPDATE fieldwork.porous_pavement_metadata  SET data_in_spreadsheet = ", rv_ppt$ppt_data(), 
+                                    ", map_in_site_folder = ", rv_ppt$ppt_folder(), 
+                                    " WHERE porous_pavement_uid = '", rv_ppt$ppt_table_db()[input$ppt_table_rows_selected, 1], "'")
+      
+      dbGetQuery(poolConn, edit_ppt_query)
+      dbGetQuery(poolConn, edit_ppt_meta_query)
+    }
+    
+      #re-run query
+      rv_ppt$ppt_table_db <- reactive(dbGetQuery(poolConn, rv_ppt$query()))
+      
+      rv_ppt$all_ppt_table_db <- reactive(dbGetQuery(poolConn, rv_ppt$all_query())) 
+      
+      #clear fields
+      reset("ppt_date")
+      reset("surface_type")
+      reset("ppt_location")
+      reset("ppt_data")
+      reset("ppt_folder")
+  })
+  
+  #clear fields on click
+  observeEvent(input$clear_ppt, {
+    reset("ppt_smp_id")
+    reset("ppt_date")
+    reset("surface_type")
+    reset("ppt_location")
+    reset("ppt_data")
+    reset("ppt_folder")
+  })
+  
+  #View all Porous Pavement
+  
+  #query full porous pavement view
+  rv_ppt$all_query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full ORDER BY test_date DESC"))
+  
+  rv_ppt$all_ppt_table_db <- reactive(dbGetQuery(poolConn, rv_ppt$all_query())) 
+  
+  rv_ppt$all_ppt_table <- reactive(rv_ppt$all_ppt_table_db() %>% mutate_at("test_date", as.character) %>% 
+                                     mutate_at(vars(one_of("data_in_spreadsheet", "map_in_site_folder")), 
+                                               funs(case_when(. == 1 ~ "Yes", 
+                                                              . == 0 ~ "No"))) %>% 
+                                    dplyr::select(2:7))
+  
+  output$all_ppt_table <- renderDT(
+    rv_ppt$all_ppt_table(), 
+    selection = 'single', 
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Test Location', 'Data in Spreadsheet', 'Map in Site Folder')
+  )
+  
+  observeEvent(input$all_ppt_table_rows_selected, {
+    updateSelectInput(session, "ppt_smp_id", selected = "")
+    updateSelectInput(session, "ppt_smp_id", selected = rv_ppt$all_ppt_table()$smp_id[input$all_ppt_table_rows_selected])
+    updateTabsetPanel(session, "inTabset", selected = "ppt_tab")
+  })
+  
+  observeEvent(rv_ppt$ppt_table_db(), {
+    if(length(input$all_ppt_table_rows_selected) > 0){
+      ppt_row <- which(rv_ppt$ppt_table_db()$porous_pavement_uid == rv_ppt$all_ppt_table_db()$porous_pavement_uid[input$all_ppt_table_rows_selected], arr.ind = TRUE)
+      dataTableProxy('ppt_table') %>% selectRows(ppt_row)
+    }
+  })
   
  # Collection Calendar -----------------------------------------------------
 
