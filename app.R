@@ -944,7 +944,7 @@ server <- function(input, output, session){
               selection = "single",
               onClick = "select",
               selectionId = "srt_selected",
-              searchable = TRUE,
+              #searchable = TRUE,
               showPageSizeOptions = TRUE,
               pageSizeOptions = c(10, 25, 50),
               defaultPageSize = 10,
@@ -1021,8 +1021,9 @@ server <- function(input, output, session){
   
   #set inputs to reactive values so "NULL" can be entered
   #important to correctly place quotations
-  rv_ppt$type <- reactive(if(nchar(rv_ppt$surface_type) == 0) "NULL" else paste0("'", rv_ppt$surface_type, "'"))
-  rv_ppt$test_location <- reactive(if(nchar(input$ppt_location) == 0) "NULL" else paste0("'", input$ppt_location, "'"))
+  rv_ppt$type <- reactive(if(nchar(rv_ppt$surface_type()) == 0) "NULL" else paste0("'", rv_ppt$surface_type(), "'"))
+  rv_srt$ppt_location_step <- reactive(gsub('\'', '\'\'', input$ppt_location))
+  rv_ppt$test_location <- reactive(if(nchar(rv_srt$ppt_location_step()) == 0) "NULL" else paste0("'", rv_srt$ppt_location_step(), "'"))
   rv_ppt$ppt_data <- reactive(if(nchar(input$ppt_data) == 0 | input$ppt_data == "N/A") "NULL" else paste0("'", input$ppt_data, "'"))
   rv_ppt$ppt_folder <- reactive(if(nchar(input$ppt_folder) == 0 | input$ppt_folder == "N/A") "NULL" else paste0("'", input$ppt_folder, "'"))
   
@@ -1087,7 +1088,7 @@ server <- function(input, output, session){
   #View all Porous Pavement
   
   #query full porous pavement view
-  rv_ppt$all_query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full"))
+  rv_ppt$all_query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full ORDER BY test_date DESC"))
   
   rv_ppt$all_ppt_table_db <- reactive(dbGetQuery(poolConn, rv_ppt$all_query())) 
   
