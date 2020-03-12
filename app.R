@@ -96,7 +96,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     titlePanel("Add Sensor to Inventory"), 
     
     sidebarPanel(
-      textInput("serial_no", "Sensor Serial Number"), 
+      numericInput("serial_no", "Sensor Serial Number", value = NA), 
       selectInput("model_no", "Sensor Model Number", choices = hobo_options, selected = NULL), 
       dateInput("date_purchased", "Purchase Date", value = as.Date(NA)), 
       actionButton("add_sensor", "Add Sensor"), 
@@ -203,8 +203,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
                                    selectInput("ppt_data", "Data in Spreadsheet", choices = c("","Yes" = "1", "No" = "0"), selected = NULL), 
                                    selectInput("ppt_folder", "Test Location Map in Site Folder", choices = c("","Yes" = "1", "No" = "0"), selected = NULL),
                                    actionButton("add_ppt", "Add Porous Pavement Test"), 
-                                   actionButton("clear_ppt", "Clear All Fields"),
-                                   actionButton("print_check", "Print Check")
+                                   actionButton("clear_ppt", "Clear All Fields")
                                    ), 
                       mainPanel(h4("Porous Pavement Tests at this SMP"), 
                                 DTOutput("ppt_table"))
@@ -218,7 +217,7 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
   
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v0.3"), 
+           titlePanel("MARS Fieldwork Database v0.3.1"), 
            column(width = 5,
              h2("User Guide"),
              h3("Collection Calendar"),
@@ -233,12 +232,19 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              h4("Add/Edit SRT"),
              h5("Add or edit an SRT record. System ID, Test Date, and SRT Type are required fields. Edit by selecting an System ID from the drop-down, and then clicking on one of the table rows to the right. All previously recorded fields (including those not shown in the table) will autofill."), 
              h4("View SRTs"),
-             h5("View all recorded SRTs. The table is searchable and records per page can be adjusted. Similar to the Collection Calendar, clicking on a row goes to the \"Add/Edit SRT\" tab where the same record will be selected and ready to edit.")
+             h5("View all recorded SRTs. Records per page can be adjusted and records can be sorted by clicking on the column header. Clicking the triangle on the left will show the SRT summary. Similar to the Collection Calendar, clicking on a row goes to the \"Add/Edit SRT\" tab where the same record will be selected and ready to edit."), 
+             h3("Porous Pavement Tests"), 
+             h4("Add/Edit Porous Pavement Tests"), 
+             h5("Add or edit a Porous Pavement Test record. SMP ID, Test Date, and Surface Type are required fields. Edit by selecting an SMP ID from the drop-down, and then clicking on one of the table rows to the right. All previously recorded fields (including those not shown in the table) will autofill."), 
+             h4("View Porous Pavement Tests"), 
+             h5("View all recorded Porous Pavement Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Porous Pavement Test\" tab where the same record will be selected and ready to edit.")
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.3.1"), 
+            h5("Added Porous Pavement tab for Porous Pavement Tests, which includes the \"Add/Edit Porous Pavement Tests\" page and \"View Porous Pavement Tests\" page."),
             h3("v0.3"), 
-            h5("Added SRT tab for Simulated Runoff Tests, which includes the \"Add SRT\" page and \"View All SRTs\" page."),
+            h5("Added SRT tab for Simulated Runoff Tests, which includes the \"Add/Edit SRT\" page and \"View All SRTs\" page."),
             h3("v0.2.1"),
             h5("Updated the \"Deploy Sensor\" tab to help prevent accidental double deployment of the same sensor, and to clear inputs (other than SMP ID) and deselect rows following an add or edit."),
             h3("v0.2"), 
@@ -388,8 +394,6 @@ server <- function(input, output, session){
   })
   
   rv_ow$toggle_suffix <- reactive(!(input$ow_suffix %in% rv_ow$ow_table()$ow_suffix) | length(input$ow_table_rows_selected) > 0)
-  #rv_ow$toggle_component_id <- reactive(!input$facility_id %in% rv_ow$ow_table()$facility_id | 
-     #                                     length(input$ow_table_rows_selected) > 0)
                                           
   #toggle state (enable/disable) buttons based on whether smp id, component id, and ow suffix are selected (this is shinyjs)
   observe({toggleState(id = "add_ow", condition = nchar(input$smp_id) > 0 & nchar(input$component_id) > 0 & nchar(input$ow_suffix) >0 &
@@ -398,20 +402,20 @@ server <- function(input, output, session){
   observe(updateActionButton(session, "add_ow", label = rv_ow$label()))
   observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
   
+  rv_ow$ow_suffix <- reactive(gsub('\'', '\'\'', input$ow_suffix))
+  
   #Write to database when button is clicked
   #update if editing
   observeEvent(input$add_ow, {
     if(length(input$ow_table_rows_selected) == 0){
       odbc::dbGetQuery(poolConn, paste0(
       "INSERT INTO fieldwork.ow (smp_id, ow_suffix, facility_id) 
-  	      VALUES ('", input$smp_id, "','", input$ow_suffix, "','",  facility_id(), "')"
+  	      VALUES ('", input$smp_id, "','", rv_ow$ow_suffix(), "','",  facility_id(), "')"
       ))
     }else{
       edit_ow_query <- paste0(
-        "UPDATE fieldwork.ow SET ow_suffix = '", input$ow_suffix, "', facility_id = '", facility_id(), "' 
-        WHERE smp_id = '", input$smp_id, "'
-        AND ow_suffix = '", rv_ow$ow_table()[input$ow_table_rows_selected, 3], "' 
-        AND facility_id = '", rv_ow$ow_table()[input$ow_table_rows_selected, 4], "'")
+        "UPDATE fieldwork.ow SET ow_suffix = '", rv_ow$ow_suffix(), "', facility_id = '", facility_id(), "' 
+        WHERE ow_uid = '", rv_ow$ow_table()[input$ow_table_rows_selected, 1], "'")
       dbGetQuery(poolConn, edit_ow_query)
     }
     #update ow_table with new well
@@ -428,7 +432,6 @@ server <- function(input, output, session){
     rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
     
   })
-  
   
   #upon click of "Deploy Sensor at this SMP" update the smp_id in the Deploy Sensor tab, and switch tabs
   #it needs to switch to NULL and then back to the input$smp_id to make sure the change is registered
@@ -848,7 +851,7 @@ server <- function(input, output, session){
                               sensor_collection_date, qaqc_complete, srt_summary_date)
                               VALUES ((SELECT MAX(srt_uid) FROM fieldwork.srt), ", rv_srt$flow_data_rec(), ",", rv_srt$water_level_rec(), ",",  
                               rv_srt$photos_uploaded(), ",", rv_srt$sensor_collect_date(), ",", rv_srt$qaqc_complete(), ",", rv_srt$srt_summary_date(), ")")
-      #print(add_srt_query)
+
       odbc::dbGetQuery(poolConn, add_srt_query)
       odbc::dbGetQuery(poolConn, add_srt_meta_query)
     #else update srt table
@@ -1044,7 +1047,7 @@ server <- function(input, output, session){
       #add to porous_pavement_metadata
       add_ppt_meta_query <- paste0("INSERT INTO fieldwork.porous_pavement_metadata (porous_pavement_uid, data_in_spreadsheet, map_in_site_folder)
                                 VALUES ((SELECT MAX(porous_pavement_uid) FROM fieldwork.porous_pavement), ", rv_ppt$ppt_data(), ",", rv_ppt$ppt_folder(), ")")
-      #print(add_srt_query)
+      
       odbc::dbGetQuery(poolConn, add_ppt_query)
       odbc::dbGetQuery(poolConn, add_ppt_meta_query)
       
