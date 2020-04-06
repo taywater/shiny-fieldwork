@@ -36,3 +36,15 @@ high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_ef
 html_req <- function(label){
   HTML(paste(label, tags$span(style="color:red", "*")))
 }
+
+#monitoring stats
+current_fy <- lubridate::today() %m+% months(6) %>% year()
+start_fy <- 2012
+years <- start_fy:current_fy %>% sort(decreasing = TRUE)
+
+fy_quarters <- c("Q1", "Q2", "Q3", "Q4")
+quarter_starts <- c("7/1", "10/1", "1/1", "4/1")
+quarter_ends <- c("9/30", "12/31", "3/31", "6/30")
+
+df_quarters <- data.frame(fy_quarters, quarter_starts, quarter_ends)
+
