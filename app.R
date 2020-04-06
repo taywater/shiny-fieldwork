@@ -13,8 +13,9 @@ options(DT.options = list(pageLength = 15))
 # Setup for adding observation well ---------------------------------------
 
   #set database connection
-  #conn <- odbc::dbConnect(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
-  poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  #conn <- odbc::dbConnect(odbc(), dsn = "mars_testing")#, uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  poolConn <- dbPool(odbc(), dsn = "mars_testing")
+  #poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
   #query all SMP IDs
   smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
     dplyr::arrange(smp_id) %>% 
@@ -41,7 +42,7 @@ options(DT.options = list(pageLength = 15))
   deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
   
 
-# Setup for SRT and PPT -----------------------------------------------------------
+# Setup for SRT, PPT, and CET -----------------------------------------------------------
 
   sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpid_facilityid_componentid")) %>% 
     dplyr::arrange(system_id) %>% 
@@ -50,6 +51,7 @@ options(DT.options = list(pageLength = 15))
     
   surface_type <- dbGetQuery(poolConn, "select * from fieldwork.surface_type_lookup")
   
+  high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
   
 # UI ----------------------------------------------------------------------
 ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #create a navigation bar at top of page, called inTabset
@@ -186,16 +188,15 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
     ),
     tabPanel("View SRTs", value = "view_SRT", 
              titlePanel("All Simulated Runoff Tests"),
-             mainPanel(
                reactableOutput("all_srt_table")
-             ))
+             )
     ),
   
   
   #Porous Pavement
   navbarMenu("Porous Pavement", 
              tabPanel("Add/Edit Porous Pavement Test", value = "ppt_tab", 
-                      titlePanel("Add/Edit Porous Pavement Test"), 
+                      titlePanel("Add Porous Pavement Test"), 
                       sidebarPanel(selectInput("ppt_smp_id", "SMP ID", choices = c("", smp_id), selected = NULL), 
                                    dateInput("ppt_date", "Test Date", value = as.Date(NA)), 
                                    selectInput("surface_type", "Surface Type", choices = c("", surface_type$surface_type), selected = NULL), 
@@ -210,14 +211,41 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              ), 
              tabPanel("View Porous Pavement Tests", value = "view_ppt", 
                       titlePanel("All Porous Pavement Tests"), 
-                      mainPanel(
                         DTOutput("all_ppt_table")
-                      ))
+                      )
   ),
   
+  navbarMenu("Capture Efficiency",
+              tabPanel("Add/Edit Capture Efficiency Test", value = "cet_tab", 
+                       titlePanel("Add Capture Efficiency Test"), 
+                       sidebarPanel(splitLayout(
+                                    selectInput("cet_system_id", "System ID", choices = c("", sys_id), selected = NULL), 
+                                    selectInput("cet_comp_id", "Component ID", choices = c(""), selected = NULL)), 
+                                    dateInput("cet_date", "Test Date", value = as.Date(NA)), 
+                                    selectInput("low_flow_bypass", "Low Flow Bypass Observed", choices = c("", "Yes" = "1", "No" = "0"), selected = NULL), 
+                                    numericInput("low_flow_efficiency", "Low Flow Efficiency %", value = NA, min = 0, max = 100),
+                                    selectInput("est_high_flow_efficiency", "Estimated High Flow Efficiency ", 
+                                                choices = c("", high_flow_type$est_high_flow_efficiency), selected = NULL),
+                                    numericInput("high_flow_efficiency", "High Flow Efficiency %", value = NA, min = 0, max = 100), 
+                                    textAreaInput("cet_notes", "Notes", height = '90px'), 
+                                    actionButton("add_cet", "Add Capture Efficiency Test"), 
+                                    actionButton("clear_cet", "Clear All Fields"), 
+                                    actionButton("print_check", "print_check")
+                       ), 
+                       mainPanel(h4("Capture Efficiency Tests at this SMP"), 
+                                 h6("1) Low flow using truck water tank, flow estimated at 2-5 CFM \n"),
+                                 h6("2) If no hydrant is nearby to test high flow, efficiency is simply predicted"), 
+                                 h6("3) High flow uisng nearby hydrant, flow estimated at 20-25 CFM"),
+                                 DTOutput("cet_table"))
+            ),
+            tabPanel("View Capture Efficiency Tests", value = "view_cet", 
+                     titlePanel("All Capture Efficiency Tests"), 
+                       DTOutput("all_cet_table")
+                     )
+  ),   
   #Documentation ###    
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v0.3.1"), 
+           titlePanel("MARS Fieldwork Database v0.3.2"), 
            column(width = 5,
              h2("User Guide"),
              h3("Collection Calendar"),
@@ -237,10 +265,17 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
              h4("Add/Edit Porous Pavement Tests"), 
              h5("Add or edit a Porous Pavement Test record. SMP ID, Test Date, and Surface Type are required fields. Edit by selecting an SMP ID from the drop-down, and then clicking on one of the table rows to the right. All previously recorded fields (including those not shown in the table) will autofill."), 
              h4("View Porous Pavement Tests"), 
-             h5("View all recorded Porous Pavement Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Porous Pavement Test\" tab where the same record will be selected and ready to edit.")
+             h5("View all recorded Porous Pavement Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Porous Pavement Test\" tab where the same record will be selected and ready to edit."), 
+             h3("Capture Efficiency Tests"), 
+             h4("Add/Edit Capture Efficiency Test"), 
+             h5("Add or edit a Capture Efficiency Test record. System ID, Component ID, and Test Date are required fields. Edit by selecting SMP from the drop-down, and then clicking on one of the table rows. All previously recorded fields will autofill."), 
+             h4("View Capture Efficiency Tests"), 
+             h5("View all recorded Capture Efficiency Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Capture Efficiency Test\" tab where the same record will be selected and ready to edit.")
            ), 
           column(width = 5, offset = 1,
             h2("Current Status"), 
+            h3("v0.3.2"), 
+            h5("Added Capture Efficiency tab."),
             h3("v0.3.1"), 
             h5("Added Porous Pavement tab for Porous Pavement Tests, which includes the \"Add/Edit Porous Pavement Tests\" page and \"View Porous Pavement Tests\" page."),
             h3("v0.3"), 
@@ -263,10 +298,6 @@ ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset", #
           ))
 )
   
-  
-  
-
-
   
 # Server ------------------------------------------------------------------
 server <- function(input, output, session){
@@ -776,7 +807,8 @@ server <- function(input, output, session){
   
   #update Impervous Drainage Area
   srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE system_id = '", input$system_id, "'"))
-  rv_srt$dcia <- reactive(odbc::dbGetQuery(poolConn, srt_dcia_query()) %>% dplyr::pull())
+  rv_srt$dcia_x <- reactive(odbc::dbGetQuery(poolConn, srt_dcia_query()) %>% dplyr::pull())
+  rv_srt$dcia <- reactive(as.numeric(rv_srt$dcia_x()))
   observe(updateNumericInput(session, "dcia", value = rv_srt$dcia()))
   
   #update Equivalent Storm Size 
@@ -896,6 +928,13 @@ server <- function(input, output, session){
   })
   
   observeEvent(input$clear_srt, {
+    showModal(modalDialog(title = "Clear All Fields", 
+                          "Are you sure you want to clear all fields on this tab?", 
+                          modalButton("No"), 
+                          actionButton("confirm_clear_srt", "Yes")))
+  })
+  
+  observeEvent(input$confirm_clear_srt, {
     reset("srt_title")
     reset("system_id")
     reset("srt_date")
@@ -910,6 +949,7 @@ server <- function(input, output, session){
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
+    removeModal()
   })
 
 
@@ -1081,12 +1121,20 @@ server <- function(input, output, session){
   
   #clear fields on click
   observeEvent(input$clear_ppt, {
+      showModal(modalDialog(title = "Clear All Fields", 
+                            "Are you sure you want to clear all fields on this tab?", 
+                            modalButton("No"), 
+                            actionButton("confirm_clear_ppt", "Yes")))
+    })
+  
+  observeEvent(input$confirm_clear_ppt, {
     reset("ppt_smp_id")
     reset("ppt_date")
     reset("surface_type")
     reset("ppt_location")
     reset("ppt_data")
     reset("ppt_folder")
+    removeModal()
   })
   
   #View all Porous Pavement
@@ -1109,7 +1157,7 @@ server <- function(input, output, session){
     class = 'table-responsive, table-hover', 
     colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Test Location', 'Data in Spreadsheet', 'Map in Site Folder')
   )
-  
+ 
   observeEvent(input$all_ppt_table_rows_selected, {
     updateSelectInput(session, "ppt_smp_id", selected = "")
     updateSelectInput(session, "ppt_smp_id", selected = rv_ppt$all_ppt_table()$smp_id[input$all_ppt_table_rows_selected])
@@ -1123,13 +1171,161 @@ server <- function(input, output, session){
     }
   })
   
+
+
+  # Capture Efficiency ------------------------------------------------------
+  
+  rv_cet <- reactiveValues()
+  #adjust query to accurately target NULL values once back on main server
+  rv_cet$component_id_query <- reactive(paste0("SELECT component_id FROM smpid_facilityid_componentid WHERE system_id = '", input$cet_system_id, "' AND component_id != 'NULL'"))
+  rv_cet$component_id <- reactive(odbc::dbGetQuery(poolConn, rv_cet$component_id_query()) %>% pull())
+  
+  observe(updateSelectInput(session, "cet_comp_id", choices = c("", rv_cet$component_id())))
+  
+  rv_cet$cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency WHERE system_id = '", input$cet_system_id, "'"))
+  rv_cet$cet_table_db <- reactive(dbGetQuery(poolConn, rv_cet$cet_table_query()))
+  rv_cet$cet_table <- reactive(rv_cet$cet_table_db() %>% mutate_at("test_date", as.character) %>% 
+                                 mutate_at(vars(one_of("low_flow_bypass_observed")), 
+                                           funs(case_when(. == 1 ~ "Yes", 
+                                                          . == 0 ~ "No"))) %>% 
+                                 left_join(high_flow_type, by = "est_high_flow_efficiency_lookup_uid") %>% 
+                                 dplyr::select(2,3,4,5,6,10,8,9))
+  
+  
+  observe(toggleState(id = "add_cet", condition = nchar(input$cet_system_id) > 0 & length(input$cet_date) > 0 & 
+                        nchar(input$cet_comp_id) >0))
+  
+  
+  #change type from text to uid
+  rv_cet$est_high_flow_efficiency <- reactive(high_flow_type %>% dplyr::filter(est_high_flow_efficiency == input$est_high_flow_efficiency) %>% 
+                                    select(est_high_flow_efficiency_lookup_uid) %>% pull())
+  
+  output$cet_table <- renderDT(
+    datatable(rv_cet$cet_table(), 
+    colnames = c('System ID', 'Component ID', 'Test Date', 'Low Flow Bypass Observed', 
+                                 'Low Flow<span style="color:DodgerBlue"><sup>1</sup></span style="color:DodgerBlue"> Efficiency %', 
+                 'Est. High Flow<span style="color:DodgerBlue"><sup>2</sup></span style="color:DodgerBlue"> Efficiency', 
+                 'High Flow<span style="color:DodgerBlue"><sup>3</sup></span style="color:DodgerBlue"> Efficiency %', 'Notes'),
+    selection = 'single', 
+    style = 'bootstrap',
+    class = 'table-responsive, table-hover', 
+    escape = FALSE
+  ))
+  
+  observeEvent(input$cet_table_rows_selected, {
+   # updateSelectInput(session, "cet_system_id", selected = rv_cet$cet_table_db()[input$cet_table_rows_selected, 2])
+    updateSelectInput(session, "cet_comp_id", selected = rv_cet$cet_table_db()[input$cet_table_rows_selected, 3])
+    updateDateInput(session, "cet_date", value = rv_cet$cet_table_db()[input$cet_table_rows_selected, 4])
+    updateSelectInput(session, "low_flow_bypass", selected = rv_cet$cet_table_db()[input$cet_table_rows_selected, 5])
+    updateNumericInput(session, "low_flow_efficiency", value = rv_cet$cet_table_db()[input$cet_table_rows_selected, 6])
+    updateSelectInput(session, "est_high_flow_efficiency", selected = rv_cet$cet_table()[input$cet_table_rows_selected, 6])
+    updateNumericInput(session, "high_flow_efficiency", value = rv_cet$cet_table_db()[input$cet_table_rows_selected, 8])
+    updateTextAreaInput(session, "cet_notes", value = rv_cet$cet_table_db()[input$cet_table_rows_selected, 9])
+  })
+  
+  
+  #set inputs to reactive values so "NULL" can be entered
+  #important to correctly place quotations
+  rv_cet$est_hfe <- reactive(if(length(rv_cet$est_high_flow_efficiency()) == 0) "NULL" else paste0("'", rv_cet$est_high_flow_efficiency(), "'"))
+  rv_cet$cet_notes_step <- reactive(gsub('\'', '\'\'', input$cet_notes))
+  rv_cet$cet_notes <- reactive(if(nchar(rv_cet$cet_notes_step()) == 0) "NULL" else paste0("'", rv_cet$cet_notes_step(), "'"))
+  
+  rv_cet$low_flow_bypass <- reactive(if(nchar(input$low_flow_bypass) == 0 | input$low_flow_bypass == "N/A") "NULL" else paste0("'", input$low_flow_bypass, "'"))
+  rv_cet$low_flow_efficiency <- reactive(if(is.na(input$low_flow_efficiency)) "NULL" else paste0("'", input$low_flow_efficiency, "'"))
+  rv_cet$high_flow_efficiency <- reactive(if(is.na(input$high_flow_efficiency)) "NULL" else paste0("'", input$high_flow_efficiency, "'"))
+  
+  #add/edit button toggle
+  rv_cet$label <- reactive(if(length(input$cet_table_rows_selected) == 0) "Add New" else "Edit Selected")
+  observe(updateActionButton(session, "add_cet", label = rv_cet$label()))
+  
+  #add and edit capture efficiency records
+  observeEvent(input$add_cet, {
+    if(length(input$cet_table_rows_selected) == 0){
+      #add to capture efficiency
+      add_cet_query <- paste0("INSERT INTO fieldwork.capture_efficiency (system_id, component_id, test_date, low_flow_bypass_observed,
+      low_flow_efficiency_pct, est_high_flow_efficiency_lookup_uid, high_flow_efficiency_pct, notes)
+    	                  VALUES ('", input$cet_system_id, "','", input$cet_comp_id, "','",  input$cet_date, "',", rv_cet$low_flow_bypass(), ",
+                              ", rv_cet$low_flow_efficiency(), ", ", rv_cet$est_hfe(), ", ", rv_cet$high_flow_efficiency(), ", 
+                              ", rv_cet$cet_notes(), ")")
+      
+      odbc::dbGetQuery(poolConn, add_cet_query)
+    }else{
+    #edit capture efficiency
+      edit_cet_query <- paste0("UPDATE fieldwork.capture_efficiency SET system_id = '", input$cet_system_id, "', component_id = '", input$cet_comp_id, "', 
+                               test_date = '", input$cet_date, "', low_flow_bypass_observed = ", rv_cet$low_flow_bypass(), ", 
+                               low_flow_efficiency_pct = ", rv_cet$low_flow_efficiency(), ", 
+                               est_high_flow_efficiency_lookup_uid = ", rv_cet$est_hfe(), ", 
+                               high_flow_efficiency_pct = ", rv_cet$high_flow_efficiency(), ", 
+                               notes = ", rv_cet$cet_notes(), "
+                               WHERE capture_efficiency_uid = '", rv_cet$cet_table_db()[input$cet_table_rows_selected, 1], "'")
+      
+      dbGetQuery(poolConn, edit_cet_query)
+    }
+      rv_cet$cet_table_db <- reactive(dbGetQuery(poolConn, rv_cet$cet_table_query()))
+      rv_cet$all_cet_table_db <- reactive(dbGetQuery(poolConn, rv_cet$all_query()))
+  })
+  
+  observeEvent(input$clear_cet, {
+    showModal(modalDialog(title = "Clear All Fields", 
+                          "Are you sure you want to clear all fields on this tab?", 
+                          modalButton("No"), 
+                          actionButton("confirm_clear_cet", "Yes")))
+  })
+  
+  observeEvent(input$confirm_clear_cet, {
+    reset("cet+comp_id")
+    reset("cet_system_id")
+    reset("cet_date")
+    reset("low_flow_bypass")
+    reset("low_flow_efficiency")
+    reset("low_flow_efficiency")
+    reset("est_high_flow_efficiency")
+    reset("high_flow_efficiency")
+    reset("cet_notes")
+    removeModal()
+  })
+  
+  # View all CETs ---
+  
+  rv_cet$all_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency ORDER BY test_date DESC"))
+  rv_cet$all_cet_table_db <- reactive(dbGetQuery(poolConn, rv_cet$all_query())) 
+  rv_cet$all_cet_table <- reactive(rv_cet$all_cet_table_db() %>% 
+                                     mutate_at("test_date", as.character) %>% 
+                                     mutate_at(vars(one_of("low_flow_bypass_observed")),
+                                               funs(case_when(. == 1 ~ "Yes", 
+                                                              . == 0 ~ "No"))) %>% 
+                                     left_join(high_flow_type, by = "est_high_flow_efficiency_lookup_uid") %>% 
+                                     dplyr::select(2,3,4,5,6,10,8,9))
+  
+  output$all_cet_table <- renderDT(
+    rv_cet$all_cet_table(),
+    selection = 'single', 
+    style = 'bootstrap',
+    class = 'table-responsive, table-hover',
+    colnames = c('System ID', 'Component ID', 'Test Date', 'Low Flow Bypass Observed',
+              'Low Flow Efficiency %', 'Est. High Flow Efficiency', 'High Flow Efficiency %', 'Notes')
+  )
+  
+  observeEvent(input$all_cet_table_rows_selected, {
+    updateSelectInput(session, "cet_system_id", selected = "")
+    updateSelectInput(session, "cet_system_id", selected = rv_cet$all_cet_table()$system_id[input$all_cet_table_rows_selected])
+    updateTabsetPanel(session, "inTabset", selected = "cet_tab")
+  })
+  
+  observeEvent(rv_cet$cet_table_db(), {
+    if(length(input$all_cet_table_rows_selected) > 0){
+      cet_row <- which(rv_cet$cet_table_db()$capture_efficiency_uid == rv_cet$all_cet_table_db()$capture_efficiency_uid[input$all_cet_table_rows_selected], arr.ind = TRUE)
+      dataTableProxy('cet_table') %>% selectRows(cet_row)
+    }
+  })
+  
  # Collection Calendar -----------------------------------------------------
 
   rv_collect <- reactiveValues()  
   
   #query the collection calendar and arrange by deployment_uid
   collect_query <- "select ac.*, own.public from fieldwork.active_deployments ac left join fieldwork.ow_ownership own on ac.ow_uid = own.ow_uid"
-  rv_collect$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
+  rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
   #arrange and filtered the collection calendar
   rv_collect$collect_table_filter <- reactive(rv_collect$collect_table_db %>% 
     dplyr::arrange(deployment_uid) %>% 
