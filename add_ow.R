@@ -1,4 +1,4 @@
-add_owUI <- function(id, label = "add_ow"){
+add_owUI <- function(id, label = "add_ow", smp_id, html_req){
   ns <- NS(id)
   tabPanel(title = "Add OW", value = "add_ow",  
            titlePanel("Add Observation Well"),
@@ -18,7 +18,7 @@ add_owUI <- function(id, label = "add_ow"){
   )
 }
 
-add_ow <- function(input, output, session, parent_session) {
+add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   
   #define ns to use in modals
   ns <- session$ns

@@ -1,0 +1,12 @@
+name: mars_fieldwork
+title:
+username: nick.manna
+account: nick.manna
+server: pwdrstudio
+hostUrl: http://pwdrstudio/rsconnect/__api__
+appId: 105
+bundleId: 634
+url: http://pwdrstudio:80/rsconnect/content/105/
+when: 1588282018.61394
+asMultiple: FALSE
+asStatic: FALSE

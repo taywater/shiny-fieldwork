@@ -20,7 +20,7 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
   )
 }
 
-collection_calendar <- function(input, output, session, parent_session, ow, deploy) {
+collection_calendar <- function(input, output, session, parent_session, ow, deploy, poolConn) {
   #define ns to use in modals
   ns <- session$ns
   

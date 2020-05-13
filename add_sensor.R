@@ -1,4 +1,4 @@
-add_sensorUI <- function(id, label = "add_sensor"){
+add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req){
   ns <- NS(id)
   
   tabPanel(title = "Add Sensor", value = "add_sensor",
@@ -18,7 +18,7 @@ add_sensorUI <- function(id, label = "add_sensor"){
   )
 }
 
-add_sensor <- function(input, output, session, parent_session){
+add_sensor <- function(input, output, session, parent_session, poolConn){
   #define ns to use in modals
   ns <- session$ns
   #start reactiveValues for this section

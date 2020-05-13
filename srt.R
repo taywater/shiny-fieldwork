@@ -1,4 +1,4 @@
-SRTUI <- function(id, label = "srt"){
+SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, html_req){
   ns <- NS(id)
   navbarMenu("SRT", 
              tabPanel("Add/Edit SRT", value = "srt_tab", 
@@ -7,11 +7,12 @@ SRTUI <- function(id, label = "srt"){
                         column(width = 5,
                                #split layout with left and right
                                sidebarPanel(width = 12, 
-                                            splitLayout(
                                               selectInput(ns("system_id"), html_req("System ID"), choices = c("", sys_id), selected = NULL), 
-                                              selectInput(ns("flow_data_rec"), "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
                                               dateInput(ns("srt_date"), html_req("Test Date"), value = as.Date(NA)), 
+                                              selectInput(ns("flow_data_rec"), "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+                                            splitLayout(
+                                              selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL),
                                               selectInput(ns("water_level_rec"), "Water Level Recorded", 
                                                           choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
@@ -26,7 +27,7 @@ SRTUI <- function(id, label = "srt"){
                                             splitLayout(
                                               disabled(numericInput(ns("storm_size"), "Equivalent Storm Size (in)",  value = NA, min = 0)), 
                                               dateInput(ns("srt_summary_date"), "SRT Summary Report Sent", value = as.Date(NA))),
-                                            textAreaInput(ns("srt_summary"), "Results Summary", height = '125px'), 
+                                            textAreaInput(ns("srt_summary"), "Results Summary", height = '85px'), 
                                             actionButton(ns("add_srt"), "Add SRT"),
                                             actionButton(ns("clear_srt"), "Clear All Fields"), 
                                             tags$head(tags$style(HTML("
@@ -49,31 +50,37 @@ SRTUI <- function(id, label = "srt"){
   )
 }
 
-SRT <- function(input, output, session, parent_session){
+SRT <- function(input, output, session, parent_session, poolConn, srt_types, con_phase){
   
   #define ns to use in modals
   ns <- session$ns
   
   #use reactive values to read in table, and see which wells already exist at the SMP
   rv <- reactiveValues()
-  srt_table_query <- reactive(paste0("SELECT srt.srt_uid, srt.system_id, srt.srt_date, srt.srt_type_lookup_uid, srt.srt_volume_ft3, srt.dcia_ft2,
-                                     srt.srt_stormsize_in, srt.srt_summary, md.srt_metadata_uid, md.flow_data_recorded, md.water_level_recorded, 
-                                     md.photos_uploaded, md.sensor_collection_date, md.qaqc_complete, md.srt_summary_date FROM fieldwork.srt srt LEFT JOIN fieldwork.srt_metadata md ON srt.srt_uid = md.srt_uid WHERE system_id = '", input$system_id, "'"))
+  # srt_table_query <- reactive(paste0("SELECT srt.srt_uid, srt.system_id, srt.srt_date, srt.srt_type_lookup_uid, srt.srt_volume_ft3, srt.dcia_ft2,
+  #                                    srt.srt_stormsize_in, srt.srt_summary, md.srt_metadata_uid, md.flow_data_recorded, md.water_level_recorded, 
+  #                                    md.photos_uploaded, md.sensor_collection_date, md.qaqc_complete, md.srt_summary_date FROM fieldwork.srt srt LEFT JOIN fieldwork.srt_metadata md ON srt.srt_uid = md.srt_uid WHERE system_id = '", input$system_id, "'"))
+
+  srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.srt_full WHERE system_id = '", input$system_id, "'"))
   rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
   
   rv$srt_table <- reactive(rv$srt_table_db() %>% 
-                             left_join(srt_types, by = "srt_type_lookup_uid") %>%
+                             #left_join(srt_types, by = "srt_type_lookup_uid") %>%
                              mutate("srt_date" = as.character(srt_date), 
                                     "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                             dplyr::select("srt_uid", "system_id", "srt_date", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
+                             dplyr::select("srt_uid", "system_id", "srt_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
   
   rv$srt_metadata <- reactive(rv$srt_table_db() %>% mutate("srt_summary_date" = as.character(srt_summary_date)))
   
   rv$type <- reactive(srt_types %>% dplyr::filter(type == input$srt_type) %>% 
                         select(srt_type_lookup_uid) %>% pull())
   
+  rv$phase <- reactive(con_phase %>% dplyr::filter(phase == input$con_phase) %>% 
+                         select(con_phase_lookup_uid) %>% pull())
+  
   #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
-  observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 & nchar(input$srt_type) >0))
+  observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 &
+                        nchar(input$srt_type) >0 & nchar(input$con_phase) > 0))
   
   #update Impervous Drainage Area
   srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE system_id = '", input$system_id, "'"))
@@ -92,7 +99,7 @@ SRT <- function(input, output, session, parent_session){
     selection = 'single',
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('SRT UID', 'System ID', 'Test Date', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Results Summary'), 
+    colnames = c('SRT UID', 'System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Results Summary'), 
     options = list(dom = 't')
   )
   
@@ -101,18 +108,19 @@ SRT <- function(input, output, session, parent_session){
     updateDateInput(session, "srt_date", value = rv$srt_table()[input$srt_table_rows_selected, 3])
     
     #update to values from selected row
-    updateSelectInput(session, "srt_type", selected = rv$srt_table()[input$srt_table_rows_selected, 4])
-    updateNumericInput(session, "test_volume", value = rv$srt_table()[input$srt_table_rows_selected, 5])
-    #updateNumericInput(session, "storm_size", value = rv$srt_table()[input$srt_table_rows_selected, 6])
-    updateTextAreaInput(session, "srt_summary", value = rv$srt_table()[input$srt_table_rows_selected, 8])
+    updateSelectInput(session, "con_phase", selected = rv$srt_table()[input$srt_table_rows_selected, 4])
+    updateSelectInput(session, "srt_type", selected = rv$srt_table()[input$srt_table_rows_selected, 5])
+    updateNumericInput(session, "test_volume", value = rv$srt_table()[input$srt_table_rows_selected, 6])
+    #updateNumericInput(session, "storm_size", value = rv$srt_table()[input$srt_table_rows_selected, 7])
+    updateTextAreaInput(session, "srt_summary", value = rv$srt_table()[input$srt_table_rows_selected, 9])
     
     #update metadata values
-    updateSelectInput(session, "flow_data_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 10])
-    updateSelectInput(session, "water_level_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 11])
-    updateSelectInput(session, "photos_uploaded", selected = rv$srt_metadata()[input$srt_table_rows_selected, 12])
-    updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 13])
-    updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()[input$srt_table_rows_selected, 14])
-    updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 15])
+    updateSelectInput(session, "flow_data_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 9])
+    updateSelectInput(session, "water_level_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 10])
+    updateSelectInput(session, "photos_uploaded", selected = rv$srt_metadata()[input$srt_table_rows_selected, 11])
+    updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 12])
+    updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()[input$srt_table_rows_selected, 13])
+    updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 14])
     
   })
   
@@ -144,9 +152,9 @@ SRT <- function(input, output, session, parent_session){
   #use the MAX(srt_uid) from srt table to get the SRT UID of the most recent addition to the table (calculated by SERIAL), which is the current addition
   observeEvent(input$add_srt, {
     if(length(input$srt_table_rows_selected) == 0){
-      add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, srt_date, srt_type_lookup_uid, 
+      add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, srt_date, con_phase_lookup_uid, srt_type_lookup_uid, 
                       srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary) 
-  	                  VALUES ('", input$system_id, "','", input$srt_date, "',",  rv$type(), ",", rv$test_volume(), ",", 
+  	                  VALUES ('", input$system_id, "','", input$srt_date, "','", rv$phase(), "', ",  rv$type(), ",", rv$test_volume(), ",", 
                               rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ")")
       
       add_srt_meta_query <- paste0("INSERT INTO fieldwork.srt_metadata (srt_uid, flow_data_recorded, water_level_recorded, photos_uploaded, 
@@ -160,8 +168,9 @@ SRT <- function(input, output, session, parent_session){
     }else{
       edit_srt_query <- paste0(
         "UPDATE fieldwork.srt SET system_id = '", input$system_id, "', srt_date = '", input$srt_date, 
-        "', srt_type_lookup_uid = ",  rv$type(),
-        ", srt_volume_ft3 = ", rv$test_volume(),
+        "', con_phase_lookup_uid = '", rv$phase(),
+        "', srt_type_lookup_uid = '",  rv$type(),
+        "', srt_volume_ft3 = ", rv$test_volume(),
         ", dcia_ft2 = " , rv$dcia_write(),
         ", srt_stormsize_in = ", rv$storm_size(), 
         ", srt_summary = ", rv$srt_summary(), "
@@ -185,6 +194,7 @@ SRT <- function(input, output, session, parent_session){
     rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
     
     reset("srt_date")
+    reset("con_phase")
     reset("srt_type")
     reset("test_volume")
     reset("storm_size")
@@ -208,6 +218,7 @@ SRT <- function(input, output, session, parent_session){
     reset("srt_title")
     reset("system_id")
     reset("srt_date")
+    reset("con_phase")
     reset("srt_type")
     reset("dcia")
     reset("test_volume")
@@ -234,11 +245,12 @@ SRT <- function(input, output, session, parent_session){
                                                           . == 0 ~ "No"))))
   
   output$all_srt_table <- renderReactable(
-    reactable(rv$all_srt_table()[, 1:14], 
+    reactable(rv$all_srt_table()[, 1:15], 
               columns = list(
                 srt_uid = colDef(name = "SRT UID"),
                 system_id  = colDef(name = "System ID"),
                 srt_date  = colDef(name = "Test Date"),
+                phase = colDef(name = "Phase"),
                 type = colDef(name = "Type"),
                 srt_volume_ft3  = colDef(name = "Volume (cf)"),
                 dcia_ft2  = colDef(name = "DCIA (sf)"),
@@ -261,7 +273,7 @@ SRT <- function(input, output, session, parent_session){
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_srt_table()[rv$all_srt_table()$srt_uid == rv$all_srt_table()$srt_uid[index], ][15]
+                nest <- rv$all_srt_table()[rv$all_srt_table()$srt_uid == rv$all_srt_table()$srt_uid[index], ][16]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(srt_summary = colDef(name = "Results Summary")))

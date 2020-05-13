@@ -1,4 +1,4 @@
-deployUI <- function(id, label = "deploy"){
+deployUI <- function(id, label = "deploy", smp_id, html_req){
   ns <- NS(id)
   tabPanel("Deploy Sensor", value = "deploy_tab",
            titlePanel("Deploy Sensor"), 
@@ -33,7 +33,7 @@ deployUI <- function(id, label = "deploy"){
   )
 }
 
-deploy <- function(input, output, session, parent_session, ow, collect, sensor){
+deploy <- function(input, output, session, parent_session, ow, collect, sensor, poolConn){
   
   #define ns to use in modals
   ns <- session$ns
