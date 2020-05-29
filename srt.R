@@ -66,9 +66,9 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   
   rv$srt_table <- reactive(rv$srt_table_db() %>% 
                              #left_join(srt_types, by = "srt_type_lookup_uid") %>%
-                             mutate("srt_date" = as.character(srt_date), 
+                             mutate("test_date" = as.character(test_date), 
                                     "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                             dplyr::select("srt_uid", "system_id", "srt_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
+                             dplyr::select("srt_uid", "system_id", "test_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
   
   rv$srt_metadata <- reactive(rv$srt_table_db() %>% mutate("srt_summary_date" = as.character(srt_summary_date)))
   
@@ -152,7 +152,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   #use the MAX(srt_uid) from srt table to get the SRT UID of the most recent addition to the table (calculated by SERIAL), which is the current addition
   observeEvent(input$add_srt, {
     if(length(input$srt_table_rows_selected) == 0){
-      add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, srt_date, con_phase_lookup_uid, srt_type_lookup_uid, 
+      add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, test_date, con_phase_lookup_uid, srt_type_lookup_uid, 
                       srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary) 
   	                  VALUES ('", input$system_id, "','", input$srt_date, "','", rv$phase(), "', ",  rv$type(), ",", rv$test_volume(), ",", 
                               rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ")")
@@ -167,7 +167,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
       #else update srt table
     }else{
       edit_srt_query <- paste0(
-        "UPDATE fieldwork.srt SET system_id = '", input$system_id, "', srt_date = '", input$srt_date, 
+        "UPDATE fieldwork.srt SET system_id = '", input$system_id, "', test_date = '", input$srt_date, 
         "', con_phase_lookup_uid = '", rv$phase(),
         "', srt_type_lookup_uid = '",  rv$type(),
         "', srt_volume_ft3 = ", rv$test_volume(),
@@ -238,7 +238,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
   
   rv$all_srt_table <- reactive(rv$all_srt_table_db() %>% 
-                                 mutate_at(c("srt_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
+                                 mutate_at(c("test_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
                                  mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
                                  mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded", "qaqc_complete")), 
                                            funs(case_when(. == 1 ~ "Yes", 
@@ -249,7 +249,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
               columns = list(
                 srt_uid = colDef(name = "SRT UID"),
                 system_id  = colDef(name = "System ID"),
-                srt_date  = colDef(name = "Test Date"),
+                test_date  = colDef(name = "Test Date"),
                 phase = colDef(name = "Phase"),
                 type = colDef(name = "Type"),
                 srt_volume_ft3  = colDef(name = "Volume (cf)"),

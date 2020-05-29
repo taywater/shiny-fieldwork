@@ -24,7 +24,6 @@ sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpi
   dplyr::pull()
 
 #disconnect from db on stop 
-#db connection may be replaced with POOL soon 
 onStop(function(){
   poolClose(poolConn)
 })
@@ -82,8 +81,8 @@ html_req <- function(label){
                  SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
                  porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
                  capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
-                 documentationUI("documentation")
-                 # useShinyjs()
+                 documentationUI("documentation"),
+                 useShinyjs()
   )
   
   server <- function(input, output, session) {
