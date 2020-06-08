@@ -12,7 +12,9 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
              selectInput(ns("property_type"), "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
              selectInput(ns("interval_filter"), "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
              selectInput(ns("capacity_used"), "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
-             selectInput(ns("purpose_filter"), "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2))
+             selectInput(ns("purpose_filter"), "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2)),
+             selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3)),
+             selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1))
            ), 
            mainPanel(
              DTOutput(ns("collection"))
@@ -40,6 +42,8 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
   })
   
+  rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3)} else {input$term_filter})
+  
   #arrange and filtered the collection calendar
   rv$collect_table_filter <- reactive(rv$collect_table_db %>% 
                                         dplyr::arrange(deployment_uid) %>% 
@@ -60,11 +64,20 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
                                                         #so if 10 is selected, 5 and 15 are picked up
                                                         near(interval_min, as.numeric(input$interval_filter), tol = 5.1) &
                                                         near(sensor_purpose, as.numeric(input$purpose_filter), tol = .51) &
+                                                        long_term_lookup_uid %in% rv$term_filter() &
                                                         filter_80 == 1))
+  
+  rv$collect_table_filter2 <- reactive(if(input$research_filter == 1.5){
+    rv$collect_table_filter()
+    }else{
+      rv$collect_table_filter() %>% 
+        dplyr::filter(research_lookup_uid == input$research_filter)})
+  
   #select and rename columns to show in app
-  rv$collect_table <- reactive(rv$collect_table_filter() %>% 
-                                 dplyr::select(smp_id, ow_suffix, type, deployment_dtime_est,date_80percent,date_100percent)  %>% 
-                                 rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Purpose" = "type", "Deploy Date" = "deployment_dtime_est", 
+  rv$collect_table <- reactive(rv$collect_table_filter2() %>% 
+                                 dplyr::select(smp_id, ow_suffix, type, term, research, deployment_dtime_est,date_80percent,date_100percent)  %>% 
+                                 rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Purpose" = "type", 
+                                        "Term" = "term", "Research" = "research",  "Deploy Date" = "deployment_dtime_est", 
                                         "80% Full Date" = "date_80percent", "100% Full Date" = "date_100percent"))
   
   output$collection <- renderDT(

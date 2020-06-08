@@ -10,6 +10,8 @@ deployUI <- function(id, label = "deploy", smp_id, html_req){
                                  selectInput(ns("well_name"), html_req("Well Name"), choices = ""), 
                                  selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", ""), selected = NULL),
                                  selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", "BARO", "LEVEL"), selected = NULL),
+                                 selectInput(ns("term"), html_req("Term"), choices = c("", "Short", "Long", "SRT", "NA"), selected = NULL),
+                                 selectInput(ns("research"), "Research", choices = c("", "USEPA STAR"), selected = NULL),
                                  selectInput(ns("interval"), html_req("Measurement Interval (min)"), choices = c("", 5, 15), selected = NULL),
                                  dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA)),
                                  dateInput(ns("collect_date"), "Collection Date", value = as.Date(NA)), 
@@ -20,7 +22,9 @@ deployUI <- function(id, label = "deploy", smp_id, html_req){
                                                   h6("Redeploy sensor in the same well on this collection date")
                                  ),
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
-                                 actionButton(ns("clear_deploy_fields"), "Clear All Fields")
+                                 actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
+                                 actionButton(ns("print_check"), "Print input$term"),
+                                 actionButton(ns("print_check2"), "Print rv$term")
                     )
              ),
              column(width = 8,
@@ -68,12 +72,12 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     updateSelectInput(session, "smp_id_deploy", selected = collect$smp_id())
   })
 
-    observeEvent(rv$active_table_db(), {
-      if(length(collect$rows_selected()) > 0){
-        rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
-        dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
-      }
-    })
+  observeEvent(rv$active_table_db(), {
+    if(length(collect$rows_selected()) > 0){
+      rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
+      dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
+    }
+  })
   
   ## sensor panel
   
@@ -83,7 +87,25 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$inventory_sensors_uid <- reactive(odbc::dbGetQuery(poolConn, paste0(
     "SELECT inventory_sensors_uid FROM fieldwork.inventory_sensors WHERE sensor_serial = '", input$sensor_id, "'"
   )))
+  
+  #rv$term <- reactive(long_term_lookup %>% dplyr::filter(type == input$term) %>% 
+  #                         select(long_term_lookup_uid) %>% pull())
+  
+  rv$term <- reactive(odbc::dbGetQuery(poolConn, paste0("Select long_term_lookup_uid FROM fieldwork.long_term_lookup WHERE type = '", input$term, "'")) %>% pull)
+  
+  rv$research <- reactive(odbc::dbGetQuery(poolConn, paste0("select research_lookup_uid FROM fieldwork.research_lookup WHERE type = '", input$research, "'")) %>%  pull)
+  
+  observeEvent(input$print_check, {
+    print(input$term)
+  })
+  
+  observeEvent(input$print_check2, {
+    print(rv$term())
+  })
+  
+  
   rv$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
+  rv$research_lookup_uid <- reactive(if(length(rv$research()) == 0) "NULL" else paste0("'", rv$research(), "'"))
   
   ## show tables
   #query for active deployments
@@ -96,9 +118,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   #select columns to show in app, and rename
   rv$active_table <- reactive(rv$active_table_db() %>% 
                                 mutate_at(c("deployment_dtime_est", "date_80percent", "date_100percent"), as.character) %>% 
-                                dplyr::select(deployment_dtime_est, smp_id, ow_suffix, type, interval_min, date_80percent, date_100percent) %>% 
+                                dplyr::select(deployment_dtime_est, smp_id, ow_suffix, type, term, research, interval_min, date_80percent, date_100percent) %>% 
                                 dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
-                                              "OW" = "ow_suffix", "Purpose" = "type", "Interval (min)" = "interval_min", 
+                                              "OW" = "ow_suffix", "Purpose" = "type", "Term" = "term",
+                                              "Research" = "research", "Interval (min)" = "interval_min", 
                                               "80% Full Date" = "date_80percent", "100% Full Date" = "date_100percent"))
   
   #when a row in active deployments table is clicked
@@ -125,9 +148,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query()))
   rv$old_table <- reactive(rv$old_table_db() %>% 
                              mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
-                             dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, interval_min) %>% 
+                             dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, term, research, interval_min) %>% 
                              dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
-                                           "Purpose" = "type", "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
+                                           "Purpose" = "type", "Term" = "term", "Research" = "research",
+                                           "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
   
   #render datatable
   output$prev_deployment <- renderDT(
@@ -148,6 +172,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$well_name <- reactive(if(length(rv$active()) > 0) rv$active_table_db()$ow_suffix[rv$active()] else if(length(rv$prev()) > 0) rv$old_table_db()$ow_suffix[rv$prev()])
   rv$sensor_id <- reactive(if(length(rv$active()) > 0) rv$active_table_db()$sensor_serial[rv$active()] else if(length(rv$prev()) > 0) rv$old_table_db()$sensor_serial[rv$prev()])
   rv$sensor_purpose <- reactive(if(length(rv$active()) > 0) rv$active_table()$`Purpose`[rv$active()] else if(length(rv$prev()) > 0) rv$old_table()$`Purpose`[rv$prev()])
+  rv$term_step <- reactive(if(length(rv$active()) > 0) rv$active_table()$`Term`[rv$active()] else if(length(rv$prev()) > 0) rv$old_table()$`Term`[rv$prev()])
+  rv$research_step <- reactive(if(length(rv$active()) > 0) rv$active_table()$`Research`[rv$active()] else if(length(rv$prev()) > 0) rv$old_table()$`Research`[rv$prev()])
   rv$mea_int <- reactive(if(length(rv$active()) > 0) rv$active_table_db()$interval_min[rv$active()] else if(length(rv$prev()) > 0) rv$old_table()$interval_min[rv$prev()])
   rv$deploy_date <- reactive(if(length(rv$active()) > 0) rv$active_table_db()$deployment_dtime_est[rv$active()] else if(length(rv$prev()) > 0) rv$old_table_db()$deployment_dtime_est[rv$prev()])
   rv$collect <- reactive(if(length(rv$active()) > 0) NA else if(length(rv$prev()) > 0) rv$old_table_db()$collection_dtime_est[rv$prev()])
@@ -157,6 +183,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     updateSelectInput(session, "well_name", selected = rv$well_name())
     updateSelectInput(session, "sensor_id", selected = rv$sensor_id())
     updateSelectInput(session, "sensor_purpose", selected = rv$sensor_purpose())
+    updateSelectInput(session, "term", selected = rv$term_step())
+    updateSelectInput(session, "research", selected = rv$research_step())
     updateSelectInput(session, "interval", selected = rv$mea_int())
     updateDateInput(session, "deploy_date", value = rv$deploy_date())
     updateDateInput(session, "collect_date", value = rv$collect())
@@ -214,16 +242,18 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       #write new deployment
       odbc::dbGetQuery(poolConn,
                        paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
-     inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
+     inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est)
         VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), '",
-                              rv$inventory_sensors_uid(), "','", rv$purpose(), "','",input$interval, "',", rv$collect_date(),")"))
+                              rv$inventory_sensors_uid(), "','", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),")"))
     }else{
       #update existing deployment
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.deployment SET deployment_dtime_est = '", input$deploy_date, "', 
                        ow_uid = fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), 
                               inventory_sensors_uid = '",  rv$inventory_sensors_uid(), "', 
-                              sensor_purpose = '", rv$purpose(), "', 
+                              sensor_purpose = '", rv$purpose(), "',
+                              long_term_lookup_uid = '", rv$term(), "',
+                              research_lookup_uid = ", rv$research_lookup_uid(), ",
                               interval_min = '", input$interval, "',
                               collection_dtime_est = ", rv$collect_date(), " WHERE 
                               deployment_uid = '", rv$update_deployment_uid(), "'"))
@@ -231,9 +261,9 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     #write redeployment
     if(rv$redeploy() == TRUE){
       dbGetQuery(poolConn, paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
-     inventory_sensors_uid, sensor_purpose, interval_min, collection_dtime_est)
+     inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est)
         VALUES (", rv$collect_date(), ", fieldwork.get_ow_uid_fieldwork('",input$smp_id_deploy,"', '", input$well_name, "'), '",
-                                  rv$inventory_sensors_uid(), "','", rv$purpose(), "','",input$interval, "', NULL)"))
+                                  rv$inventory_sensors_uid(), "','", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "', NULL)"))
     }
     #query active table
     rv$active_table_db  <- reactive(odbc::dbGetQuery(poolConn, active_table_query())) 
@@ -249,6 +279,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     dataTableProxy('prev_deployment') %>% selectRows(NULL)
     reset("sensor_id")
     reset("sensor_purpose")
+    reset("term")
+    reset("research")
     reset("interval")
     reset("deploy_date")
     reset("collect_date")
@@ -257,10 +289,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   })
   
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
-  #also check to make sure the sesnor is not already deployed, or the collection has a sensor date, or a row selected
+  #also check to make sure the sensor is not already deployed, or the collection has a sensor date, or a row selected
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id_deploy) > 0 &
                          nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
-                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 &
+                         nchar(input$interval) > 0 & length(input$deploy_date) > 0 & nchar(input$term) > 0 &
                          (!(input$sensor_id %in% collect$sensor_serial()) |
                             (length(input$collect_date) > 0 & rv$redeploy() == TRUE & !(input$sensor_id %in% collect$sensor_serial())) |
                             (length(input$collect_date) >0 & rv$redeploy() == FALSE) |
@@ -279,6 +311,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     reset("sensor_id")
     reset("sensor_purpose")
     reset("interval")
+    reset("term")
+    reset("research")
     reset("deploy_date")
     reset("collect_date")
     reset("smp_id_deploy")

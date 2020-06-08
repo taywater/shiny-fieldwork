@@ -25,10 +25,14 @@ documentationUI <- function(id, label = "documentation"){
                   h4("Add/Edit Capture Efficiency Test"),
                   h5("Add or edit a Capture Efficiency Test record. System ID, Component ID, and Test Date are required fields. Edit by selecting SMP from the drop-down, and then clicking on one of the table rows. All previously recorded fields will autofill."),
                   h4("View Capture Efficiency Tests"),
-                  h5("View all recorded Capture Efficiency Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Capture Efficiency Test\" tab where the same record will be selected and ready to edit.")
+                  h5("View all recorded Capture Efficiency Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Capture Efficiency Test\" tab where the same record will be selected and ready to edit."), 
+                  h3("Monitoring Stats"), 
+                  h5("Analyze records for a selected date range, or look through all records to date. Select whether to look for post-construction or construction records. Check box for capture efficiency statistics parameters Once a table is genarated, it shows in the main panel. The \"Download\" button downloads the table shown. When parameters are changed, the table must be generated again before downloading.")
            ), 
            column(width = 5, offset = 1,
                   h2("Current Status"), 
+                  h3("v0.4"),
+                  h5("Added Monitoring Stats and made updates to Deploy, Collection Calendar, and Capture Efficiency."),
                   h3("v0.3.2"),
                   h5("Added Capture Efficiency tab."),
                   h3("v0.3.1"),

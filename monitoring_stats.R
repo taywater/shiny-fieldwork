@@ -1,25 +1,24 @@
-library(shiny)
-library(pool)
-library(odbc)
-library(tidyverse)
-library(shinythemes)
-library(lubridate)
-library(shinyjs)
-library(DT)
-library(reactable)
+# library(shiny)
+# library(pool)
+# library(odbc)
+# library(tidyverse)
+# library(shinythemes)
+# library(lubridate)
+# library(shinyjs)
+# library(DT)
+# library(reactable)
+# 
+# options(DT.options = list(dom = 't'))
 
-options(DT.options = list(dom = 't'))
-
-source("setup.R")
+#source("setup.R")
 
 #add collapsible checkboxes for each breakdown 
 #select all or certain stats to be generated
 #table needs to be broken up sensibly
 
-m_statsUI <- function(id, label = "stats"){
-  useShinyjs()
+m_statsUI <- function(id, label = "stats", current_fy, years){
   ns <- NS(id)
-  tabPanel("Monitoring Stats",
+  tabPanel("Stats",
              titlePanel("Monitoring Stats"),
               sidebarPanel(
                 selectInput(ns("date_range"), "Date Range", choices = c("To-Date", "Select Range")),
@@ -41,17 +40,17 @@ m_statsUI <- function(id, label = "stats"){
                 fluidRow(column(8,
                         actionButton(ns("table_button"), "Generate System and SMP Stats")),
                         column(4, 
-                        downloadButton(ns("download_table"), "Download"))),
+                        shinyjs::disabled(downloadButton(ns("download_table"), "Download")))),
                 fluidRow(column(8,
                           actionButton(ns("postcon_button"), "Generate Post-Construction Stats")),
                          column(4, 
-                                downloadButton(ns("download_postcon"), "Download"))),
+                                disabled(downloadButton(ns("download_postcon"), "Download")))),
                 conditionalPanel(condition = "input.cet_checkbox", 
                                  ns = ns, 
                                  fluidRow(column(8, 
                                           actionButton(ns("cet_button"), "Generate Capture Efficiency Stats")), 
                                           column(4,
-                                          downloadButton(ns("download_cet"), "Download"))))
+                                          disabled(downloadButton(ns("download_cet"), "Download")))))
                 
               ), 
            mainPanel(
@@ -68,7 +67,7 @@ m_statsUI <- function(id, label = "stats"){
   )
 }
 
-m_stats <- function(input, output, session){
+m_stats <- function(input, output, session, parent_session, current_fy, poolConn){
   
   #define ns to use in modals
   ns <- session$ns
@@ -85,8 +84,8 @@ m_stats <- function(input, output, session){
   
   #system and smp
   observeEvent(input$table_button, {
+    enable("download_table")
     if(input$date_range == "To-Date"){
-      print("starting_to_date")
       rv$table_name <- "CWL To Date"
       output$table_name <- renderText(rv$table_name)
       rv$cwl_to_date_table <- bind_rows(
@@ -103,6 +102,8 @@ m_stats <- function(input, output, session){
           rv$public_systems_monitored(),
           rv$public_smps_monitored(),
           rv$private_systems_monitored(),
+          rv$long_term_systems_monitored(),
+          rv$short_term_systems_monitored(),
           rv$new_systems_monitored(),
           rv$new_smps_monitored(),
           rv$hobos_deployed()
@@ -122,7 +123,7 @@ m_stats <- function(input, output, session){
   
   #post con
   observeEvent(input$postcon_button, {
-    print(input$date_range)
+    enable("download_postcon")
     rv$postcon_name <- paste(input$phase, "Tests", rv$select_range_tests_title_text())
       output$postcon <- renderText(rv$postcon_name)
       rv$postcon_table <- bind_rows(
@@ -146,6 +147,8 @@ m_stats <- function(input, output, session){
   
   #cet
   observeEvent(input$cet_button, {
+    #print("starting_cet")
+    enable("download_cet")
     rv$cet_name <- paste(rv$unique_inlet_title_text(), input$phase, input$inlet_type, "Capture Efficiency Stats", rv$select_range_tests_title_text())
     output$cet_name <- renderText(rv$cet_name)
     rv$cet_table <- bind_rows(
@@ -201,6 +204,32 @@ m_stats <- function(input, output, session){
   
   rv$public_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$public_systems_monitored_q()))
   rv$public_systems_monitored <- reactive(data.frame(Metric = as.character("Public Systems Monitored"), Count = rv$public_systems_monitored_value()))
+  
+  #No. of longterm systems monitored
+  rv$long_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(ow.smp_id)) FROM ow_leveldata_raw lvl 
+                                                LEFT JOIN fieldwork.ow ow on lvl.ow_uid = ow.ow_uid
+                                                LEFT JOIN fieldwork.ow_ownership own on lvl.ow_uid = own.ow_uid
+                                                LEFT JOIN fieldwork.deployment de on lvl.ow_uid = de.ow_uid
+                                                LEFT JOIN fieldwork.long_term_lookup lt on de.long_term_lookup_uid = lt.long_term_lookup_uid
+                                                WHERE dtime_est >= '", rv$start_date(), "'
+                                                AND dtime_est <= '", rv$end_date(), "'
+                                                AND lt.type = 'Long'"))
+  
+  rv$long_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$long_term_systems_monitored_q()))
+  rv$long_term_systems_monitored <- reactive(data.frame(Metric = as.character("Long Term Systems Monitored"), Count = rv$long_term_systems_monitored_value()))
+  
+  #No. of short term systems monitored
+  rv$short_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(ow.smp_id)) FROM ow_leveldata_raw lvl 
+                                                LEFT JOIN fieldwork.ow ow on lvl.ow_uid = ow.ow_uid
+                                                LEFT JOIN fieldwork.ow_ownership own on lvl.ow_uid = own.ow_uid
+                                                LEFT JOIN fieldwork.deployment de on lvl.ow_uid = de.ow_uid
+                                                LEFT JOIN fieldwork.long_term_lookup lt on de.long_term_lookup_uid = lt.long_term_lookup_uid
+                                                WHERE dtime_est >= '", rv$start_date(), "'
+                                                AND dtime_est <= '", rv$end_date(), "'
+                                                AND lt.type = 'Short'"))
+  
+  rv$short_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$short_term_systems_monitored_q()))
+  rv$short_term_systems_monitored <- reactive(data.frame(Metric = as.character("Short Term Systems Monitored"), Count = rv$short_term_systems_monitored_value()))
   
   #No. of new systems monitored
   rv$new_systems_monitored_q <- reactive(paste0("SELECT count(distinct smp_to_system(dada.smp_id)) FROM 
@@ -432,12 +461,12 @@ m_stats <- function(input, output, session){
                                                 Count = rv$cet_10pct_hf_bypass_value()))
 }
 
-ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
-                 m_statsUI("stats")
-)
-
-server <- function(input, output, session) {
-  callModule(m_stats, "stats")
-}
-
-shinyApp(ui, server)
+# ui <- navbarPage("Fieldwork",  theme = shinytheme("cerulean"), id = "inTabset",
+#                  m_statsUI("stats"), useShinyjs()
+# )
+# 
+# server <- function(input, output, session) {
+#   callModule(m_stats, "stats")
+# }
+# 
+# shinyApp(ui, server)

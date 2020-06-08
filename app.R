@@ -34,6 +34,10 @@ hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
 #Deployment purpose lookup table
 deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
 
+long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.long_term_lookup")
+
+research_lookup <- dbGetQuery(poolConn, "select * from fieldwork.research_lookup")
+
 #srt_types & con phase
 srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
 con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
@@ -48,18 +52,10 @@ html_req <- function(label){
   HTML(paste(label, tags$span(style="color:red", "*")))
 }
 
-#cat(file=stderr(), smp_id)
-# #monitoring stats
-# current_fy <- lubridate::today() %m+% months(6) %>% year()
-# start_fy <- 2012
-# years <- start_fy:current_fy %>% sort(decreasing = TRUE)
-# 
-# fy_quarters <- c("Q1", "Q2", "Q3", "Q4")
-# quarter_starts <- c("7/1", "10/1", "1/1", "4/1")
-# quarter_ends <- c("9/30", "12/31", "3/31", "6/30")
-# 
-# df_quarters <- data.frame(fy_quarters, quarter_starts, quarter_ends)
-
+#monitoring stats
+current_fy <- lubridate::today() %m+% months(6) %>% year()
+start_fy <- 2012
+years <- start_fy:current_fy %>% sort(decreasing = TRUE)
 
 ######  
   #source("setup.R")
@@ -70,6 +66,7 @@ html_req <- function(label){
   source("srt.R")
   source("porous_pavement.R")
   source("capture_efficiency.R")
+  source("monitoring_stats.R")
   source("documentation.R")
 
   
@@ -81,6 +78,7 @@ html_req <- function(label){
                  SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
                  porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
                  capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
+                 m_statsUI("stats", current_fy = current_fy, years = years),
                  documentationUI("documentation"),
                  useShinyjs()
   )
@@ -93,7 +91,7 @@ html_req <- function(label){
     callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
     callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
     callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
-    
+    callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   
   shinyApp(ui, server)

@@ -1,12 +1,13 @@
 name: mars_fieldwork
-title:
+title: MARS Fieldwork
 username: nick.manna
 account: nick.manna
 server: pwdrstudio
 hostUrl: http://pwdrstudio/rsconnect/__api__
-appId: 105
-bundleId: 647
-url: http://pwdrstudio:80/rsconnect/content/105/
-when: 1590612157.78021
+appId: 107
+bundleId: 650
+url: http://pwdrstudio:80/rsconnect/content/107/
+when: 1590769839.4461
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: .RData|monitoring_stats.R|setup.R
