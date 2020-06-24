@@ -1,3 +1,13 @@
+#6/24/2020 - Nick Manna, AKRF, Inc.
+#This file, app.R, works with all sourced files to run the PWD GSI MARS Fieldwork App
+#The app is run through app.R
+#when naming input variables, ns("name") is needed
+#often, I import a table as "x_table_db" - that's a copy of the table that is in the database, and 
+#it's easier and better to reference columns directly from the db
+#then i'll modify it as "x_table", and that's the table that I feed to dt or reactable to show in the app 
+#these modifications could be changing dates to characters, to show better, rounding decimals, or changing boolean values to be Yes or No
+
+#load libraries
 library(shiny)
 library(pool)
 library(odbc)
@@ -8,7 +18,9 @@ library(shinyjs)
 library(DT)
 library(reactable)
 
+#set default page length for datatables
 options(DT.options = list(pageLength = 15))
+
 #set db connection
 poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
 
@@ -48,6 +60,7 @@ surface_type <- dbGetQuery(poolConn, "select * from fieldwork.surface_type_looku
 # #capture efficiency high flow types
 high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
 
+#this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
 html_req <- function(label){
   HTML(paste(label, tags$span(style="color:red", "*")))
 }
@@ -58,6 +71,7 @@ start_fy <- 2012
 years <- start_fy:current_fy %>% sort(decreasing = TRUE)
 
 ######  
+ #source scripts. each script contains a module, which includes UI and server code
   #source("setup.R")
   source("collection_calendar.R")
   source("add_ow.R")
@@ -69,28 +83,30 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   source("monitoring_stats.R")
   source("documentation.R")
 
-  
+
+  #call all the UI functions
   ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                  collection_calendarUI("collection_calendar"),
                  add_owUI("add_ow", smp_id = smp_id, html_req = html_req),
                  add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req),
                  deployUI("deploy", smp_id = smp_id, html_req = html_req),
-                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
-                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
-                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
-                 m_statsUI("stats", current_fy = current_fy, years = years),
-                 documentationUI("documentation"),
+                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
+                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
+                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
+                m_statsUI("stats", current_fy = current_fy, years = years),
+                documentationUI("documentation"),
                  useShinyjs()
   )
   
+  #call modules, referencing the UI names above. These are functions, so any data originating outside the function needs to be named as an argument, whether it is lookup data, or from another tab
   server <- function(input, output, session) {
     collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
     ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
     sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn)
-    deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn)
-    callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
-    callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
-    callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
+    deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
+   callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
+   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
+   callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
     callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   

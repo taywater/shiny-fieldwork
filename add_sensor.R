@@ -1,3 +1,6 @@
+#Add Sensor tab
+#This page is adding a new sensor to the database, so it can be used for deployments
+
 add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req){
   ns <- NS(id)
   

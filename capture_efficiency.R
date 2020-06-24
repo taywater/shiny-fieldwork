@@ -1,3 +1,6 @@
+#Capture Efficiency Test (CET) tabs
+#This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
+
 capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, html_req, con_phase){
   ns <- NS(id)
   navbarMenu("Capture Efficiency",
@@ -22,11 +25,14 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
                         actionButton(ns("add_cet"), "Add Capture Efficiency Test"), 
                         actionButton(ns("clear_cet"), "Clear All Fields"),
                       ), 
-                      mainPanel(h4("Capture Efficiency Tests at this SMP"), 
+                      mainPanel(
+                        conditionalPanel(condition = "input.cet_system_id", 
+                                         ns  = ns, 
+                        h4(textOutput(ns("header"))), #("Capture Efficiency Tests at this SMP"), 
                                 h6("1) Low flow using truck water tank, flow estimated at 2-5 CFM \n"),
                                 h6("2) If no hydrant is nearby to test high flow, efficiency is simply predicted"), 
                                 h6("3) High flow uisng nearby hydrant, flow estimated at 20-25 CFM"),
-                                DTOutput(ns("cet_table")))
+                                DTOutput(ns("cet_table"))))
              ),
              tabPanel("View Capture Efficiency Tests", value = "view_cet", 
                       titlePanel("All Capture Efficiency Tests"), 
@@ -41,6 +47,17 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   ns <- session$ns
   
   rv <- reactiveValues()
+  
+  #Get the Project name, combine it with System ID, and create a reactive header
+  rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$cet_system_id, "'")))
+  
+  rv$sys_and_name <- reactive(paste(rv$sys_and_name_step()$system_id[1], rv$sys_and_name_step()$project_name[1]))
+  
+  output$header <- renderText(
+    paste("Capture Efficiency Tests at", rv$sys_and_name())
+  )
+  
+  
   #adjust query to accurately target NULL values once back on main server
   rv$component_and_asset_query <- reactive(paste0("SELECT component_id, asset_type FROM smpid_facilityid_componentid_inlets WHERE system_id = '", input$cet_system_id, "' AND component_id != 'NULL'"))
   rv$component_and_asset <- reactive(odbc::dbGetQuery(poolConn, rv$component_and_asset_query()))

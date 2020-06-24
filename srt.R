@@ -1,3 +1,6 @@
+#SRT tabs
+#This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
+
 SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, html_req){
   ns <- NS(id)
   navbarMenu("SRT", 
@@ -38,8 +41,11 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, html_req){
                                )
                         ),
                         column(width = 7,
-                               h4("SRTs at this System"), 
-                               DTOutput(ns("srt_table"))
+                               conditionalPanel(condition = "input.system_id", 
+                                                ns = ns, 
+                                                 h4(textOutput(ns("system_header"))), #("SRTs at this System"), 
+                                                 DTOutput(ns("srt_table"))
+                               )
                         )
                       )
              ),
@@ -55,12 +61,22 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   #define ns to use in modals
   ns <- session$ns
   
-  #use reactive values to read in table, and see which wells already exist at the SMP
+  #use reactive values to read in table, and see which tests already exist at the system
   rv <- reactiveValues()
   # srt_table_query <- reactive(paste0("SELECT srt.srt_uid, srt.system_id, srt.srt_date, srt.srt_type_lookup_uid, srt.srt_volume_ft3, srt.dcia_ft2,
   #                                    srt.srt_stormsize_in, srt.srt_summary, md.srt_metadata_uid, md.flow_data_recorded, md.water_level_recorded, 
   #                                    md.photos_uploaded, md.sensor_collection_date, md.qaqc_complete, md.srt_summary_date FROM fieldwork.srt srt LEFT JOIN fieldwork.srt_metadata md ON srt.srt_uid = md.srt_uid WHERE system_id = '", input$system_id, "'"))
 
+  #Get the Project name, combine it with System ID, and create a reactive header
+  rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
+  
+  rv$sys_and_name <- reactive(paste(rv$sys_and_name_step()$system_id[1], rv$sys_and_name_step()$project_name[1]))
+  
+  output$system_header <- renderText(
+    paste("SRTs at", rv$sys_and_name())
+  )
+  
+  
   srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.srt_full WHERE system_id = '", input$system_id, "'"))
   rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
   
@@ -237,6 +253,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY srt_uid DESC"
   rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
   
+  #convert 1s and 0s to yes and no, make dates characters so they show properly, and round storm size
   rv$all_srt_table <- reactive(rv$all_srt_table_db() %>% 
                                  mutate_at(c("test_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
                                  mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 

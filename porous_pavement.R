@@ -1,3 +1,6 @@
+#Porous pavement tabs
+#This has a tab dropdown with two tabs, one for adding PPTs and one for viewing all PPTs
+
 porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, con_phase){
   ns <- NS(id)
   navbarMenu("Porous Pavement", 
@@ -13,8 +16,11 @@ porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, s
                                    actionButton(ns("add_ppt"), "Add Porous Pavement Test"), 
                                    actionButton(ns("clear_ppt"), "Clear All Fields")
                       ), 
-                      mainPanel(h4("Porous Pavement Tests at this SMP"), 
-                                DTOutput(ns("ppt_table")))
+                      mainPanel(
+                        conditionalPanel(condition = "input.smp_id",
+                                         ns = ns, 
+                                         h4(textOutput(ns("header"))), 
+                                         DTOutput(ns("ppt_table"))))
              ), 
              tabPanel("View Porous Pavement Tests", value = ns("view_ppt"), 
                       titlePanel("All Porous Pavement Tests"), 
@@ -32,6 +38,15 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   
   #initialize porous pavement testing (ppt) reactiveValues
   rv <- reactiveValues()
+  
+  #Get the Project name, combine it with SMP ID, and create a reactive header
+  rv$smp_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select smp_id, project_name from project_names where smp_id = '", input$smp_id, "'")))
+  
+  rv$smp_and_name <- reactive(paste(rv$smp_and_name_step()$smp_id[1], rv$smp_and_name_step()$project_name[1]))
+  
+  output$header <- renderText(
+    paste("Porous Pavement Tests at", rv$smp_and_name())
+  )
   
   #query full porous pavement view
   rv$query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full WHERE smp_id = '", input$smp_id, "'"))

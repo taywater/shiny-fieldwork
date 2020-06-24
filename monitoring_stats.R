@@ -1,20 +1,6 @@
-# library(shiny)
-# library(pool)
-# library(odbc)
-# library(tidyverse)
-# library(shinythemes)
-# library(lubridate)
-# library(shinyjs)
-# library(DT)
-# library(reactable)
-# 
-# options(DT.options = list(dom = 't'))
-
-#source("setup.R")
-
-#add collapsible checkboxes for each breakdown 
-#select all or certain stats to be generated
-#table needs to be broken up sensibly
+#Monitoring Stats
+#Exports a csv for each table
+#use reactive variables to create a new query for each combination
 
 m_statsUI <- function(id, label = "stats", current_fy, years){
   ns <- NS(id)
@@ -33,6 +19,7 @@ m_statsUI <- function(id, label = "stats", current_fy, years){
                         ), 
                 selectInput(ns("phase"), "Construction Phase", choices = c("Construction", "Post-Construction"), selected = "Post-Construction"),
                 checkboxInput(ns("cet_checkbox"), "Capture Efficiency Test Options"), 
+                #show options for capture efficiency if the box is checked
                 conditionalPanel(condition = "input.cet_checkbox", 
                                  ns = ns, 
                                  selectInput(ns("inlet_type"), "Inlets", choices = c("All", "Inlets", "Curbcuts")), 
@@ -45,6 +32,7 @@ m_statsUI <- function(id, label = "stats", current_fy, years){
                           actionButton(ns("postcon_button"), "Generate Post-Construction Stats")),
                          column(4, 
                                 disabled(downloadButton(ns("download_postcon"), "Download")))),
+                #show options for capture efficiency if the box is checked
                 conditionalPanel(condition = "input.cet_checkbox", 
                                  ns = ns, 
                                  fluidRow(column(8, 
@@ -93,7 +81,8 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
         rv$private_systems_monitored_to_date()
       )
       output$table <- renderDT(
-        rv$cwl_to_date_table
+        rv$cwl_to_date_table,
+        options = list(dom = 't')
       )
     }else{
       rv$table_name <- paste("CWL", sf(rv$start_date()), "to", sf(rv$end_date()))
@@ -109,7 +98,8 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
           rv$hobos_deployed()
         )
       output$table <- renderDT(
-        rv$cwl_table
+        rv$cwl_table,
+        options = list(dom = 't')
       )
        }
     }
@@ -135,7 +125,8 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
         rv$systems_tested_cet()
       )
       output$postcon_table <- renderDT(
-        rv$postcon_table
+        rv$postcon_table, 
+        options = list(dom = 't')
       )
   })
 
@@ -160,7 +151,8 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
       rv$cet_10pct_hf_bypass()
     )
     output$cet_table <- renderDT(
-      rv$cet_table
+      rv$cet_table,
+      options = list(dom = 't')
     )
   } )
   
@@ -460,13 +452,3 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   rv$cet_10pct_hf_bypass <- reactive(data.frame(Metric = "Capture Efficiency Tests with > 10% High Flow Bypass", 
                                                 Count = rv$cet_10pct_hf_bypass_value()))
 }
-
-# ui <- navbarPage("Fieldwork",  theme = shinytheme("cerulean"), id = "inTabset",
-#                  m_statsUI("stats"), useShinyjs()
-# )
-# 
-# server <- function(input, output, session) {
-#   callModule(m_stats, "stats")
-# }
-# 
-# shinyApp(ui, server)

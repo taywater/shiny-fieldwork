@@ -1,12 +1,17 @@
+#Documentation tab
+#Two columns 
+#one with description of each page
+#one with each update
+
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v0.3.2"), 
+           titlePanel("MARS Fieldwork Database v0.5"), 
            column(width = 5,
                   h2("User Guide"),
                   h3("Collection Calendar"),
                   h5("The Collection Calendar tab presents a table of all active deployments. The sidebar has filters for property type, interval, and capacity. The table is searchable, and the \"80% Full Date\" column is highlighted yellow if that date has passed. The \"100% Full Date\" column is highlighted red if that date has passed. Click a row to go to the \"Deploy Sensor\" tab, where the same deployment will be selected and available to edit.", style = "margin-left: 20px"), 
                   h3("Add Observation Well"), 
-                  h5("Select an SMP ID to give options for Component ID. A suggested OW Suffix (ie, OW1) is autofilled, which can be overwritten if needed. Facility ID is autofilled based on the selected Component ID. If the selected feature does not have a component ID, the facility ID of the SMP will be used. Once all field are complete, and the new observation does not already exist, add the observation well. Click a row on the table to enable editing of an observation well." , style = "margin-left: 20px"), 
+                  h5("Select an SMP ID to give options for Component ID. A suggested OW Suffix (ie, OW1) is autofilled, which can be overwritten if needed. Facility ID is autofilled based on the selected Component ID. If the selected feature does not have a component ID, the facility ID of the SMP will be used. Once all field are in the top sidebar are complete, and the new observation does not already exist, add the observation well. Click a row on the table to enable editing of an observation well. Use the lower sidebar to add or edit well measurements for the observation well noted in the top sidebar." , style = "margin-left: 20px"), 
                   h3("Add Sensor"), 
                   h5("Add a new sensor to the inventory by entering sensor serial number and model number. Purchase date is optional. Edit existing sensors by entering the sensor serial number, or clicking on the desired table row. The table can be sorted and searched. Click \"Deploy this Sensor\" to go to the \"Deploy Sensor\" tab with the sensor selected.", style = "margin-left: 20px"),
                   h3("Deploy Sensor"), 
@@ -27,10 +32,14 @@ documentationUI <- function(id, label = "documentation"){
                   h4("View Capture Efficiency Tests"),
                   h5("View all recorded Capture Efficiency Tests. Table can be searched, sorted, and adjusted. Clicking on a row goes to the \"Add/Edit Capture Efficiency Test\" tab where the same record will be selected and ready to edit."), 
                   h3("Monitoring Stats"), 
-                  h5("Analyze records for a selected date range, or look through all records to date. Select whether to look for post-construction or construction records. Check box for capture efficiency statistics parameters Once a table is genarated, it shows in the main panel. The \"Download\" button downloads the table shown. When parameters are changed, the table must be generated again before downloading.")
+                  h5("Analyze records for a selected date range, or look through all records to date. Select whether to look for post-construction or construction records. Check box for capture efficiency statistics parameters Once a table is genarated, it shows in the main panel. The \"Download\" button downloads the table shown. When parameters are changed, the table must be generated again before downloading. Generating SMP/System stats is the slowest, and may take upwards of 30-60 seconds.")
            ), 
            column(width = 5, offset = 1,
                   h2("Current Status"), 
+                  h3("v0.5"), 
+                  h5("Added the ability to view, add, and edit well measurements on the \"Add OW\" tab. Users should enter their deployment and collection info here and in the \"Current Monitoring Sites\" spreadsheet and give feedback to Nick; once updates are made, CMS can be partially phased out."),
+                  h3("v0.4.1"),
+                  h5("Added new deployment attributes and updated collection calendar; added reactive headers."),
                   h3("v0.4"),
                   h5("Added Monitoring Stats and made updates to Deploy, Collection Calendar, and Capture Efficiency."),
                   h3("v0.3.2"),
