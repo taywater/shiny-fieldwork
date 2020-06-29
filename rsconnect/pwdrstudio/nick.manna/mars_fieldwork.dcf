@@ -5,9 +5,9 @@ account: nick.manna
 server: pwdrstudio
 hostUrl: http://pwdrstudio/rsconnect/__api__
 appId: 107
-bundleId: 662
+bundleId: 666
 url: http://pwdrstudio:80/rsconnect/mars-fieldwork/
-when: 1592941984.29225
+when: 1593465667.14708
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: .RData|setup.R
+ignoredFiles: .RData

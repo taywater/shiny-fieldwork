@@ -3,22 +3,29 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
   ns <- NS(id)
   useShinyjs()
   #create a tabPanel for each tab
-  tabPanel("Collection Calendar", value = "calendar_tab", 
-           #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
-           
-           titlePanel("Collection Calendar"), 
-           useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
-           sidebarPanel(
-             selectInput(ns("property_type"), "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
-             selectInput(ns("interval_filter"), "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
-             selectInput(ns("capacity_used"), "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
-             selectInput(ns("purpose_filter"), "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2)),
-             selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3)),
-             selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1))
-           ), 
-           mainPanel(
-             DTOutput(ns("collection"))
-           )
+  navbarMenu("Upcoming", 
+    tabPanel("Collection Calendar", value = "calendar_tab", 
+             #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
+             
+             titlePanel("Collection Calendar"), 
+             useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
+             sidebarPanel(
+               selectInput(ns("property_type"), "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
+               selectInput(ns("interval_filter"), "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
+               selectInput(ns("capacity_used"), "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
+               selectInput(ns("purpose_filter"), "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2)),
+               selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3)),
+               selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1))
+             ), 
+             mainPanel(
+               DTOutput(ns("collection"))
+             )
+    ), 
+    tabPanel("Future Deployments", value = "future_tab", 
+             
+             titlePanel("Future Deployments"), 
+                DTOutput(ns("future"))
+    )
   )
 }
 
@@ -32,14 +39,20 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   collect_query <- "select * from fieldwork.active_deployments"
   rv$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   
+  #query the future deployment table
+  future_query <- "select * from fieldwork.future_deployments_full"
+  rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
+  
   #upon editing a row in add_ow
   observeEvent(ow$refresh_collect(),{
     rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
+    rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
   })
   
   #upon adding or editing a deployment in deploy
   observeEvent(deploy$refresh_collect(),{
     rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
+    rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
   })
   
   rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3)} else {input$term_filter})
@@ -113,15 +126,33 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   )
   
   rv$deploy_refresh <- 0
+  rv$future_deploy_refresh <- 0
   
   #this is a two-step observeEvent
   #when a line in the calendar is clicked, go toggle and update "smp_id_deploy", and switch tabs
   observeEvent(input$collection_rows_selected, {
     rv$deploy_refresh <- rv$deploy_refresh + 1
-    #updateSelectInput(session, "smp_id_deploy", selected = "")
-    #updateSelectInput(session, "smp_id_deploy", selected = rv$collect_table_filter()$smp_id[input$collection_rows_selected])
     updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
   })
+  
+  ##Future table details
+  rv$future_table <- reactive(rv$future_table_db %>% 
+                                dplyr::select("smp_id", "ow_suffix", "project_name", "term") %>% 
+                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Term" = "term")
+  )
+  
+  output$future <- renderDT(
+    rv$future_table(),
+      selection = "single", 
+      style = 'bootstrap', 
+      class = 'table-responsive, table-hover'
+  )
+  
+  observeEvent(input$future_rows_selected, {
+    rv$future_deploy_refresh <- rv$future_deploy_refresh + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+  })
+  
   
   return(
     list(
@@ -129,7 +160,11 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
       smp_id = reactive(rv$collect_table_filter()$smp_id[input$collection_rows_selected]),
       deploy_refresh = reactive(rv$deploy_refresh),
       rows_selected = reactive(input$collection_rows_selected),
-      row = reactive(rv$collect_table_filter()$deployment_uid[input$collection_rows_selected])
+      row = reactive(rv$collect_table_filter()$deployment_uid[input$collection_rows_selected]), 
+      future_smp_id = reactive(rv$future_table_db$smp_id[input$future_rows_selected]), 
+      future_deploy_refresh = reactive(rv$future_deploy_refresh), 
+      future_rows_selected = reactive(input$future_rows_selected), 
+      future_row = reactive(rv$future_table_db$future_deployment_uid[input$future_rows_selected])
       )
     )
   

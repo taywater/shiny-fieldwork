@@ -4,8 +4,8 @@
 
 add_owUI <- function(id, label = "add_ow", smp_id, html_req){
   ns <- NS(id)
-  tabPanel(title = "Add OW", value = "add_ow",  
-           titlePanel("Add Observation Well"),
+  tabPanel(title = "Add Location", value = "add_ow",  
+           titlePanel("Add Monitoring Location"),
            fluidRow(
              column(width = 4, 
              #put 
@@ -400,6 +400,23 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
     reset("ow_suffix")
     reset("component_id")
     reset("smp_id")
+    reset("well_depth")
+    reset("sensor_one_in")
+    reset("weir")
+    reset("cth")
+    reset("hts")
+    reset("ctw")
+    reset("cto")
+    reset("wts")
+    reset("wto")
+    reset("ots")
+    reset("start_date")
+    reset("end_date")
+  })
+  
+  #clear well measurements when smp_id changes
+  
+  observeEvent(input$smp_id, {
     reset("well_depth")
     reset("sensor_one_in")
     reset("weir")
