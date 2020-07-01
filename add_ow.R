@@ -254,14 +254,14 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   rv$add_ow_label <- reactive(if(length(input$ow_table_rows_selected) == 0) "Add New OW" else "Edit Selected OW")
   observe(updateActionButton(session, "add_ow", label = rv$add_ow_label()))
   #add well measurement
-  rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(well_measurements_at_ow_uid()) == 0) "Add Well Measurements" else "Edit Selected Well Measurements")
+  rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0) "Add Well Measurements" else "Edit Selected Well Measurements")
   observe(updateActionButton(session, "add_well_meas", label = rv$add_meas_label()))
   observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
   
   rv$ow_suffix <- reactive(gsub('\'', '\'\'', input$ow_suffix))
   ###### second part
   #update installation height to show in UI
-  rv$install_height <- reactive(if(input$sensor_one_in == "Yes"){
+  rv$install_height <- reactive(if(input$sensor_one_in == 1){
     1/12
   }else{
     input$well_depth - (input$cth+input$hts)
@@ -330,22 +330,26 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   #query well measurements at each oW from db
   #if there aren't any, and a row is selected, Add the measurement
   #if there are, and the row is selected, edit measurement
-  well_measurements_at_ow_query <- reactive(paste0("select ow_uid from fieldwork.well_measurements 
-                                                   where ow_uid = get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "')"))
-  well_measurements_at_ow_uid <- reactive(if(length(input$smp_id) > 0 & length(rv$ow_suffix()) > 0){
-    reactive(odbc::dbGetQuery(poolConn, well_measurements_at_ow_query()))
+  ##rv$well_measurements_at_ow_query <- reactive(paste0("select ow_uid from fieldwork.well_measurements 
+  ##                                                 where ow_uid = fieldwork.get_ow_uid_fieldwork('", input$smp_id, "', '", rv$ow_suffix(), "')"))
+  rv$well_measurements_at_ow_uid <- reactive(if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
+    odbc::dbGetQuery(poolConn, paste0("select well_measurements_uid from fieldwork.ow_plus_measurements 
+                                                   where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
+                                      well_measurements_uid is not null")) %>% pull()
   }else{
     NULL
   })
   
+  observe(updateDateInput(session, "end_date", min = input$start_date))
+  
   #write to table
   observeEvent(input$add_well_meas, {
-    if(length(input$ow_table_rows_selected) == 0 | length(well_measurements_at_ow_uid()) == 0){
+    if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0){
       odbc::dbGetQuery(poolConn, paste0(
         "INSERT INTO fieldwork.well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                   sensor_one_inch_off_bottom, cap_to_hook_ft, hook_to_sensor_ft, 
                                                   cap_to_weir_ft, cap_to_orifice_ft, weir)
-        VALUES(get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
+        VALUES(fieldwork.get_ow_uid_fieldwork('", input$smp_id, "', '", rv$ow_suffix(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
         '", input$sensor_one_in, "', ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "')"
       ))
     }else{
@@ -358,7 +362,8 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
         hook_to_sensor_ft = ", rv$hts(), ", 
         cap_to_weir_ft = ", rv$ctw(), ", 
         cap_to_orifice_ft = ", rv$cto(), ", 
-        weir = '", input$weir, "'"))
+        weir = '", input$weir, "' 
+        WHERE ow_uid = '", rv$ow_view_db()[input$ow_table_rows_selected, 1], "'"))
     }
     #update table with edit
     rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -412,6 +417,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
     reset("ots")
     reset("start_date")
     reset("end_date")
+    removeModal()
   })
   
   #clear well measurements when smp_id changes
