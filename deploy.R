@@ -1,7 +1,5 @@
-#Deploy Sensor tab
 
-
-deployUI <- function(id, label = "deploy", smp_id, html_req){
+deployUI <- function(id, label = "deploy", smp_id, sensor_serial, html_req){
   ns <- NS(id)
   tabPanel("Deploy Sensor", value = "deploy_tab",
            titlePanel("Deploy Sensor"), 
@@ -10,10 +8,10 @@ deployUI <- function(id, label = "deploy", smp_id, html_req){
                     sidebarPanel(width = 12, 
                                  fluidRow(
                                    column(6,selectInput(ns("smp_id"), html_req(html_req("SMP ID")), choices = c("", smp_id), selected = NULL)), 
-                                   column(6,selectInput(ns("well_name"), html_req(html_req("Well Name")), choices = ""))), 
+                                   column(6,selectInput(ns("well_name"), html_req(html_req("Location")), choices = ""))), 
                                  fluidRow(
-                                   column(6,selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", ""), selected = NULL)),
-                                   column(6, selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", "BARO", "LEVEL"), selected = NULL))),
+                                   column(6,selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", sensor_serial), selected = NULL)),
+                                   column(6, selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", "BARO", "LEVEL", "DATALOGGER"), selected = NULL))),
                                  fluidRow(
                                    column(6, selectInput(ns("term"), html_req("Term"), choices = c("", "Short", "Long", "SRT", "NA"), selected = NULL)),
                                    column(6, selectInput(ns("research"), "Research", choices = c("", "USEPA STAR"), selected = NULL))),
@@ -35,19 +33,21 @@ deployUI <- function(id, label = "deploy", smp_id, html_req){
                                                   ns = ns, 
                                                   actionButton(ns("future_deploy"), "Add Future Deployment")),
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
-                                 actionButton(ns("clear_deploy_fields"), "Clear All Fields")
-                    )
+                                 actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
+                    ), 
+                    h5("Only SMP ID and Location are required for Future Deployments; Sensor ID is not required if the sensor purpose is DATALOGGER; for all other deployments, all fields with a red star are required.")
+                    
              ),
              column(width = 8,
                     #show tables when an smp id is selected
                     conditionalPanel(condition = "input.smp_id",
                                      ns = ns, 
-                                      h4(textOutput(ns("future_text"))), 
-                                      DTOutput(ns("future_deployment")), 
-                                      h4(textOutput(ns("active_text"))),
-                                      DTOutput(ns("current_deployment")), 
-                                      h4(textOutput(ns("previous_text"))),
-                                      DTOutput(ns("prev_deployment"))
+                                     h4(textOutput(ns("future_text"))), 
+                                     DTOutput(ns("future_deployment")), 
+                                     h4(textOutput(ns("active_text"))),
+                                     DTOutput(ns("current_deployment")), 
+                                     h4(textOutput(ns("previous_text"))),
+                                     DTOutput(ns("prev_deployment"))
                     )
              )
            )
@@ -58,12 +58,13 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   #define ns to use in modals
   ns <- session$ns
-  #update sensor id choices based on the hobo list
-  observe(updateSelectInput(session, inputId = "sensor_id", choices = c("", sensor$sensor_serial()), selected = NULL))
   
   #start reactiveValues for this section/tab
   rv <- reactiveValues()
+  
   ## well panel
+  #update sensor id choices based on the hobo list
+  observe(updateSelectInput(session, inputId = "sensor_id", choices = c("", sensor$sensor_serial()), selected = NULL))
   #query ow_suffixes based on smp_id
   rv$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
     "select ow_suffix from fieldwork.ow where smp_id = '", input$smp_id, "'")) %>% dplyr::pull())
@@ -88,7 +89,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     updateSelectInput(session, "smp_id", selected = "")
     updateSelectInput(session, "smp_id", selected = collect$smp_id())
   })
-
+  
   observeEvent(rv$active_table_db(), {
     if(length(collect$rows_selected()) > 0){
       rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
@@ -139,10 +140,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     "SELECT inventory_sensors_uid FROM fieldwork.inventory_sensors WHERE sensor_serial = '", input$sensor_id, "'"
   )))
   
-  rv$inventory_sensors_uid_null <- reactive(if(nchar(input$sensor_id) == 0) "NULL" else paste0(rv$inventory_sensors_uid()))
+  rv$inventory_sensors_uid_null <- reactive(if(nchar(input$sensor_id) == 0) "NULL" else paste0("'", rv$inventory_sensors_uid(), "'"))
   
   rv$interval_min <- reactive(if(nchar(input$interval) == 0) "NULL" else (paste0("'", input$interval, "'")))
-
+  
   #rv$term <- reactive(long_term_lookup %>% dplyr::filter(type == input$term) %>% 
   #                         select(long_term_lookup_uid) %>% pull())
   
@@ -159,8 +160,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   rv$download_error <- reactive(if(nchar(input$download_error) == 0 | length(input$collect_date) == 0){
     "NULL" 
-    }else{paste0("'", input$download_error, "'")
-    })
+  }else{paste0("'", input$download_error, "'")
+  })
   
   #set fields to "NULL" if they are empty
   rv$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
@@ -404,8 +405,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$update_future_deployment_uid <- reactive(if(length(input$future_deployment_rows_selected) > 0){
     rv$future_table_db()$future_deployment_uid[input$future_deployment_rows_selected]
   }else{
-      0
-    }
+    0
+  }
   )
   
   #relabel future deploy button if editing
@@ -431,14 +432,14 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       odbc::dbGetQuery(poolConn,
                        paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
      inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error)
-        VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid_fieldwork('",input$smp_id,"', '", input$well_name, "'), '",
-                              rv$inventory_sensors_uid(), "','", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", rv$notes(),",", rv$download_error(), ")"))
+        VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid_fieldwork('",input$smp_id,"', '", input$well_name, "'), ",
+                              rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", rv$notes(),",", rv$download_error(), ")"))
     }else{
       #update existing deployment
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.deployment SET deployment_dtime_est = '", input$deploy_date, "', 
                        ow_uid = fieldwork.get_ow_uid_fieldwork('",input$smp_id,"', '", input$well_name, "'), 
-                              inventory_sensors_uid = '",  rv$inventory_sensors_uid(), "', 
+                              inventory_sensors_uid = ",  rv$inventory_sensors_uid_null(), ", 
                               sensor_purpose = '", rv$purpose(), "',
                               long_term_lookup_uid = '", rv$term(), "',
                               research_lookup_uid = ", rv$research_lookup_uid(), ",
@@ -447,7 +448,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                               notes = ", rv$notes(), ", 
                               download_error = ", rv$download_error(), " WHERE 
                               deployment_uid = '", rv$update_deployment_uid(), "'"
-                              ))
+                       ))
     }
     #write redeployment
     if(rv$redeploy() == TRUE){
@@ -488,12 +489,12 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   observeEvent(input$future_deploy, {
     if(rv$add_new_future()){
-    odbc::dbGetQuery(poolConn,
-                     paste0("INSERT INTO fieldwork.future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
+      odbc::dbGetQuery(poolConn,
+                       paste0("INSERT INTO fieldwork.future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
 			interval_min, long_term_lookup_uid, research_lookup_uid, notes)
 			VALUES (fieldwork.get_ow_uid_fieldwork('",input$smp_id, "', '", input$well_name, "'), ", rv$inventory_sensors_uid_null(),
-                            ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
-                            ", ", rv$research_lookup_uid(), ", ", rv$notes(), ")"))
+                              ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
+                              ", ", rv$research_lookup_uid(), ", ", rv$notes(), ")"))
     }else{
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.future_deployment SET 
@@ -513,6 +514,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
   #logical to add to the toggleState below
+  #require "download error" if collection date is not 0
   rv$req_dl_error <- reactive(if(length(input$collect_date) == 0){
     TRUE
   }else if(nchar(input$download_error) > 0){
@@ -520,9 +522,21 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   }else{
     FALSE
   })
+  
+  observeEvent(input$well_name, {
+    if(startsWith(input$well_name, "DL")){
+      updateSelectInput(session, "sensor_purpose", selected = "DATALOGGER")
+      updateSelectInput(session, "sensor_id", selected = NULL)
+      disable("sensor_id")
+    }else{
+      enable("sensor_id")
+    }
+  })
+  
   #also check to make sure the sensor is not already deployed, or the collection has a sensor date, or a row selected
   observe({toggleState(id = "deploy_sensor", condition = nchar(input$smp_id) > 0 &
-                         nchar(input$well_name) > 0 & nchar(input$sensor_id) > 0 & nchar(input$sensor_purpose) > 0 &
+                         nchar(input$well_name) > 0 & (nchar(input$sensor_id) > 0 | input$sensor_purpose == "DATALOGGER") & 
+                         nchar(input$sensor_purpose) > 0 &
                          nchar(input$interval) > 0 & length(input$deploy_date) > 0 & nchar(input$term) > 0 &
                          rv$req_dl_error() &
                          (!(input$sensor_id %in% collect$sensor_serial()) |
@@ -560,8 +574,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   return(
     list(
-    refresh_collect = reactive(rv$refresh_collect),
-    dud = "dud"
-      )
+      refresh_collect = reactive(rv$refresh_collect),
+      dud = "dud"
+    )
   )
 }

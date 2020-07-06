@@ -43,6 +43,13 @@ onStop(function(){
 #Sensor Model Number options
 hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
 
+#Sensor Serial Number List
+hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
+                          left join fieldwork.deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
+                          left join fieldwork.ow ow on ow.ow_uid = d.ow_uid"
+hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
+sensor_serial <- hobo_list$sensor_serial
+
 #Deployment purpose lookup table
 deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
 
@@ -89,7 +96,7 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
                   collection_calendarUI("collection_calendar"),
                   add_owUI("add_ow", smp_id = smp_id, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req),
-                 deployUI("deploy", smp_id = smp_id, html_req = html_req),
+                 deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, html_req = html_req),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
