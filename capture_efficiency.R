@@ -12,11 +12,12 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
                         selectInput(ns("cet_comp_id"), "Component ID", choices = c(""), selected = NULL), 
                         textInput(ns("cet_comp_id_custom"), "Custom Component ID"),
                         disabled(textInput(ns("facility_id"), html_req("Facility ID"))),
-                        dateInput(ns("cet_date"), html_req("Test Date"), value = as.Date(NA)), 
-                        selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL),
                         fluidRow(
-                        column(6, selectInput(ns("low_flow_bypass"), "Low Flow Bypass Observed", choices = c("", "Yes" = "1", "No" = "0"), selected = NULL)), 
-                        column(6, numericInput(ns("low_flow_efficiency"), "Low Flow Efficiency %", value = NA, min = 0, max = 100))),
+                          column(6, dateInput(ns("cet_date"), html_req("Test Date"), value = as.Date(NA))), 
+                          column(6, selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL))),
+                        fluidRow(
+                        column(6, selectInput(ns("low_flow_bypass"), html_req("Low Flow Bypass Observed"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL)), 
+                        column(6, numericInput(ns("low_flow_efficiency"), html_req("Low Flow Efficiency %"), value = NA, min = 0, max = 100))),
                         fluidRow(
                         column(6, selectInput(ns("est_high_flow_efficiency"), "Estimated High Flow Efficiency ", 
                                     choices = c("", high_flow_type$est_high_flow_efficiency), selected = NULL)),
@@ -102,7 +103,8 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   
   #conditions need to be set up this way; changing them all to nchar, or all to length, or all to input != "" won't work
   observe(toggleState(id = "add_cet", condition = nchar(input$cet_system_id) > 0 & length(input$cet_date) > 0 & 
-                        (nchar(input$cet_comp_id) >0 | nchar(input$cet_comp_id_custom) > 0) & nchar(input$con_phase) > 0))
+                        (nchar(input$cet_comp_id) >0 | nchar(input$cet_comp_id_custom) > 0) & nchar(input$con_phase) > 0) &
+            length(input$low_flow_bypass) > 0 & length(input$low_flow_efficiency) > 0)
   
   observe(toggleState(id = "cet_comp_id_custom", condition = input$cet_comp_id == ""))
   

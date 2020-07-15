@@ -138,8 +138,9 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   
   ##Future table details
   rv$future_table <- reactive(rv$future_table_db %>% 
-                                dplyr::select("smp_id", "ow_suffix", "project_name", "term") %>% 
-                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Term" = "term")
+                                dplyr::select("smp_id", "ow_suffix", "project_name", "term", "notes") %>% 
+                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
+                                              "Term" = "term", "Notes" = "notes")
   )
   
   output$future <- renderDT(
@@ -153,7 +154,6 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     rv$future_deploy_refresh <- rv$future_deploy_refresh + 1
     updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
   })
-  
   
   return(
     list(
