@@ -183,7 +183,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                                 mutate_at(c("deployment_dtime_est", "date_80percent", "date_100percent"), as.character) %>% 
                                 dplyr::select(deployment_dtime_est, smp_id, ow_suffix, type, term, research, interval_min, date_80percent, date_100percent) %>% 
                                 dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", 
-                                              "OW" = "ow_suffix", "Purpose" = "type", "Term" = "term",
+                                              "Location" = "ow_suffix", "Purpose" = "type", "Term" = "term",
                                               "Research" = "research", "Interval (min)" = "interval_min", 
                                               "80% Full Date" = "date_80percent", "100% Full Date" = "date_100percent"))
   
@@ -217,7 +217,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$old_table <- reactive(rv$old_table_db() %>% 
                              mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
                              dplyr::select(deployment_dtime_est, collection_dtime_est, smp_id, ow_suffix, type, term, research, interval_min) %>% 
-                             dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "OW" = "ow_suffix", 
+                             dplyr::rename("Deploy Date" = "deployment_dtime_est", "SMP ID" = "smp_id", "Location" = "ow_suffix", 
                                            "Purpose" = "type", "Term" = "term", "Research" = "research",
                                            "Interval (min)" = "interval_min", "Collection Date" = "collection_dtime_est"))
   
@@ -238,7 +238,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   rv$future_table <- reactive(rv$future_table_db() %>% 
                                 dplyr::select(smp_id, ow_suffix, type, term, research, interval_min) %>% 
-                                dplyr::rename("SMP ID" = "smp_id", "OW" = "ow_suffix", 
+                                dplyr::rename("SMP ID" = "smp_id", "Location" = "ow_suffix", 
                                               "Purpose" = "type", "Term" = "term", "Research" = "research",
                                               "Interval (min)" = "interval_min", ))
   
@@ -523,6 +523,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     FALSE
   })
   
+  #set sensor purpose to datalogger and disable sensor id if a "DL" is selected
   observeEvent(input$well_name, {
     if(startsWith(input$well_name, "DL")){
       updateSelectInput(session, "sensor_purpose", selected = "DATALOGGER")

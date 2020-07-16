@@ -43,6 +43,8 @@ onStop(function(){
 #Sensor Model Number options
 hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
 
+sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup")
+
 #Sensor Serial Number List
 hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
                           left join fieldwork.deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
@@ -95,7 +97,7 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                   collection_calendarUI("collection_calendar"),
                   add_owUI("add_ow", smp_id = smp_id, html_req = html_req),
-                  add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req),
+                  add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                  deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, html_req = html_req),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
@@ -109,7 +111,7 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   server <- function(input, output, session) {
     collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
    ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
-    sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn)
+    sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup)
     deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
    callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
    callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)

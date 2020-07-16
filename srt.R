@@ -113,7 +113,10 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 &
                         nchar(input$srt_type) >0 & nchar(input$con_phase) > 0))
   
+  #toggle state for future srt
+  observe(toggleState(id = "future_srt", condition = nchar(input$system_id) > 0))
   
+  #toggle state for metadata depending on whether a test date is included
   observe(toggleState(id = "flow_data_rec", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "water_level_rec", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "photos_uploaded", condition = length(input$srt_date) > 0))
@@ -444,8 +447,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Notes'),
-    options = list(dom = 't')
+    colnames = c('System ID', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Notes')
   )
   
   observeEvent(input$all_future_srt_table_rows_selected, {

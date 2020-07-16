@@ -13,21 +13,28 @@ porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, s
                                    textInput(ns("location"), "Test Location"), 
                                    selectInput(ns("data"), "Data in Spreadsheet", choices = c("","Yes" = "1", "No" = "0"), selected = NULL), 
                                    selectInput(ns("folder"), "Test Location Map in Site Folder", choices = c("","Yes" = "1", "No" = "0"), selected = NULL),
+                                   conditionalPanel(condition = "input.date === null", 
+                                                    ns= ns, 
+                                                    actionButton(ns("future_ppt"), "Add Future Porous Pavement Test")),
                                    actionButton(ns("add_ppt"), "Add Porous Pavement Test"), 
                                    actionButton(ns("clear_ppt"), "Clear All Fields")
                       ), 
                       mainPanel(
                         conditionalPanel(condition = "input.smp_id",
                                          ns = ns, 
+                                         h4(textOutput(ns("future_header"))),
+                                         DTOutput(ns("future_ppt_table")),
                                          h4(textOutput(ns("header"))), 
                                          DTOutput(ns("ppt_table"))))
              ), 
              tabPanel("View Porous Pavement Tests", value = ns("view_ppt"), 
                       titlePanel("All Porous Pavement Tests"), 
                       DTOutput(ns("all_ppt_table"))
-             )
+             ), 
+             tabPanel("View Future Porous Pavement Tests", value = ns("view_future_ppt"), 
+                      titlePanel("All Future Porous Pavement Tests"), 
+                      DTOutput(ns("all_future_ppt_table")))
   )
-  
   
 }
 
@@ -48,6 +55,10 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     paste("Porous Pavement Tests at", rv$smp_and_name())
   )
   
+  output$future_header <- renderText(
+    paste("Future Porous Pavement Tests at", rv$smp_and_name())
+  )
+  
   #query full porous pavement view
   rv$query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full WHERE smp_id = '", input$smp_id, "'"))
   
@@ -61,6 +72,13 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   observe(toggleState(id = "add_ppt", condition = nchar(input$smp_id) > 0 & length(input$date) > 0 & 
                         nchar(input$surface_type) >0 & nchar(input$con_phase) > 0))
   
+  #toggle state for future cet depending on whether smp_id is selected
+  observe(toggleState(id = "future_ppt", condition = nchar(input$smp_id) > 0))
+  
+  #toggle state for metadata depending on whether a test date is included
+  observe(toggleState(id = "data", condition = length(input$date) > 0))
+  observe(toggleState(id = "folder", condition = length(input$date) > 0))
+  
   #render datatable  for porous pavement
   output$ppt_table <- renderDT(
     rv$ppt_table(), 
@@ -71,14 +89,47 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     options = list(dom = 't')
   )
   
+  #query future PPTs
+  future_ppt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_porous_pavement_full WHERE smp_id = '", input$smp_id, "'"))
+  rv$future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ppt_table_query()))
+  
+  rv$future_ppt_table <- reactive(rv$future_ppt_table_db() %>% 
+                                    dplyr::select("smp_id", "surface_type", "phase", "test_location"))
+  
+  output$future_ppt_table <- renderDT(
+    rv$future_ppt_table(), 
+    selection = 'single', 
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location'), 
+    options = list(dom = 't')
+  )
+  
+  observeEvent(input$future_ppt_table_rows_selected, {
+    #deselect other table
+    dataTableProxy('ppt_table') %>% selectRows(NULL)
+   
+    #update to values from selected row
+    updateSelectInput(session, "surface_type", selected = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 3])
+    updateSelectInput(session, "con_phase", selected = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 4])
+    updateNumericInput(session, "location", value = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 5])
+    
+    reset("date")
+    reset("data")
+    reset("folder")
+    
+  })
+  
   observeEvent(input$ppt_table_rows_selected,{ 
+    
+    #deselect other table
+    dataTableProxy('future_ppt_table') %>% selectRows(NULL)
     
     #update to values from selected row
     updateDateInput(session, "date", value = rv$ppt_table_db()[input$ppt_table_rows_selected, 2])
     updateSelectInput(session, "surface_type", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 4])
     updateSelectInput(session, "con_phase", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 5])
     updateNumericInput(session, "location", value = rv$ppt_table_db()[input$ppt_table_rows_selected, 6])
-    updateTextAreaInput(session, "ppt_summary", value = rv$ppt_table_db()[input$ppt_table_rows_selected, 9])
     
     #update metadata values
     updateSelectInput(session, "data", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 7])
@@ -93,9 +144,11 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   rv$phase <- reactive(con_phase %>% dplyr::filter(phase == input$con_phase) %>% 
                          select(con_phase_lookup_uid) %>% pull())
   
+  rv$phase_null <- reactive(if(nchar(input$con_phase) == 0) "NULL" else paste0("'", rv$phase(), "'"))
+  
   #set inputs to reactive values so "NULL" can be entered
   #important to correctly place quotations
-  rv$type <- reactive(if(nchar(rv$surface_type()) == 0) "NULL" else paste0("'", rv$surface_type(), "'"))
+  rv$type <- reactive(if(length(rv$surface_type()) == 0) "NULL" else paste0("'", rv$surface_type(), "'"))
   rv$location_step <- reactive(gsub('\'', '\'\'', input$location))
   rv$test_location <- reactive(if(nchar(rv$location_step()) == 0) "NULL" else paste0("'", rv$location_step(), "'"))
   rv$data <- reactive(if(nchar(input$data) == 0 | input$data == "N/A") "NULL" else paste0("'", input$data, "'"))
@@ -104,6 +157,38 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   #add/edit button toggle
   rv$label <- reactive(if(length(input$ppt_table_rows_selected) == 0) "Add New" else "Edit Selected")
   observe(updateActionButton(session, "add_ppt", label = rv$label()))
+  
+  rv$future_label <- reactive(if(length(input$future_ppt_table_rows_selected) == 0) "Add Future Porous Pavement Test" else "Edit Selected Future PPT")
+  observe(updateActionButton(session, "future_ppt", label = rv$future_label()))
+  
+  #on click 
+  observeEvent(input$future_ppt, {
+    if(length(input$future_ppt_table_rows_selected) == 0){
+      #add to future_porous_pavement
+      add_future_ppt_query <- paste0("INSERT INTO fieldwork.future_porous_pavement (smp_id, surface_type_lookup_uid, con_phase_lookup_uid, test_location)
+                                     VALUES ('", input$smp_id, "', ", rv$type(), ", ", rv$phase_null(), ", ", rv$test_location(), ")")
+      
+      odbc::dbGetQuery(poolConn, add_future_ppt_query)
+    }else{
+      edit_future_ppt_query <- paste0("UPDATE fieldwork.future_porous_pavement SET smp_id = '", input$smp_id, "', 
+                                       surface_type_lookup_uid = ", rv$type(),
+                                      ", con_phase_lookup_uid = ", rv$phase_null(),
+                                      ", test_location = ", rv$test_location(),"
+        WHERE future_porous_pavement_uid = '", rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 1], "'")
+      
+      odbc::dbGetQuery(poolConn, edit_future_ppt_query)
+    }
+    
+    rv$future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ppt_table_query()))
+    rv$all_future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ppt_query))
+    
+    reset("date")
+    reset("surface_type")
+    reset("con_phase")
+    reset("location")
+    reset("data")
+    reset("folder")
+  })
   
   #on click
   observeEvent(input$add_ppt, {
@@ -137,10 +222,17 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
       dbGetQuery(poolConn, edit_ppt_meta_query)
     }
     
+    if(length(input$future_ppt_table_rows_selected) > 0){
+      odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_porous_pavement 
+                                        WHERE future_porous_pavement_uid = '", rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 1], "'"))
+    }
+    
     #re-run query
     rv$ppt_table_db <- reactive(dbGetQuery(poolConn, rv$query()))
     
     rv$all_ppt_table_db <- reactive(dbGetQuery(poolConn, rv$all_query())) 
+    rv$future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ppt_table_query()))
+    rv$all_future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ppt_query))
     
     #clear fields
     reset("date")
@@ -170,7 +262,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     removeModal()
   })
   
-  #View all Porous Pavement
+  #View all Porous Pavement ------
   
   #query full porous pavement view
   rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.porous_pavement_full ORDER BY test_date DESC"))
@@ -204,5 +296,37 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
       dataTableProxy('ppt_table') %>% selectRows(ppt_row)
     }
   })
+  
+  
+  #View all Future Porous Pavement ----
+  rv$all_future_ppt_query <- "SELECT * FROM fieldwork.future_porous_pavement_full"
+  rv$all_future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ppt_query))
+  rv$all_future_ppt_table <- reactive(rv$all_future_ppt_table_db() %>% 
+                                        dplyr::select(-1))
+  
+  output$all_future_ppt_table <- renderDT(
+    rv$all_future_ppt_table(), 
+    selection = 'single', 
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location')
+  )
+  
+  #update smp id and change tabs
+  observeEvent(input$all_future_ppt_table_rows_selected, {
+    updateSelectInput(session, "smp_id", selected = "")
+    updateSelectInput(session, "smp_id", selected = rv$all_future_ppt_table()$smp_id[input$all_future_ppt_table_rows_selected])
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
+  })
+  
+  #then once the smp id is updated, select a test from a table
+  #this is broken into two steps so they happen in order
+  observeEvent(rv$future_ppt_table_db(), {
+    if(length(input$all_future_ppt_table_rows_selected)){
+      future_ppt_row <- which(rv$future_ppt_table_db()$future_porous_pavement_uid == rv$all_future_ppt_table_db()$future_porous_pavement_uid[input$all_future_ppt_table_rows_selected], arr.ind = TRUE)
+      dataTableProxy('future_ppt_table') %>% selectRows(future_ppt_row)
+    }
+  })
+  
   
 }
