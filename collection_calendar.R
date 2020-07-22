@@ -55,6 +55,7 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
   })
   
+  
   rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3)} else {input$term_filter})
   rv$purpose_filter <- reactive(if(input$purpose_filter == 1.5){c(0, 1, 2, 3)} else {input$purpose_filter})
   
@@ -92,9 +93,9 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   
   #select and rename columns to show in app
   rv$collect_table <- reactive(rv$collect_table_filter2() %>% 
-                                 dplyr::select(smp_id, ow_suffix, project_name, type, term, previous_download_error, #research, designation,
+                                 dplyr::select(smp_id, site_name, ow_suffix, project_name, type, term, previous_download_error, #research, designation,
                                                deployment_dtime_est,date_80percent,date_100percent)  %>% 
-                                 rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Purpose" = "type", 
+                                 rename("SMP ID" = "smp_id", "Site" = "site_name", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Purpose" = "type", 
                                         "Term" = "term", "Prev. DL Error" = "previous_download_error",
                                         #"Research" = "research", "Designation" = "designation",
                                         "Deploy Date" = "deployment_dtime_est", 
@@ -138,8 +139,8 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   
   ##Future table details
   rv$future_table <- reactive(rv$future_table_db %>% 
-                                dplyr::select("smp_id", "ow_suffix", "project_name", "term", "notes") %>% 
-                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
+                                dplyr::select("smp_id", "site_name", "ow_suffix", "project_name", "term", "notes") %>% 
+                                dplyr::rename("SMP ID" = "smp_id", "Site" = "site_name", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
                                               "Term" = "term", "Notes" = "notes")
   )
   
@@ -159,10 +160,12 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     list(
       sensor_serial = reactive(rv$collect_table_db$sensor_serial),
       smp_id = reactive(rv$collect_table_filter()$smp_id[input$collection_rows_selected]),
+      site_name = reactive(rv$collect_table_filter()$site_name[input$collection_rows_selected]),
       deploy_refresh = reactive(rv$deploy_refresh),
       rows_selected = reactive(input$collection_rows_selected),
       row = reactive(rv$collect_table_filter()$deployment_uid[input$collection_rows_selected]), 
       future_smp_id = reactive(rv$future_table_db$smp_id[input$future_rows_selected]), 
+      future_site_name = reactive(rv$future_table_db$site_name[input$future_rows_selected]), 
       future_deploy_refresh = reactive(rv$future_deploy_refresh), 
       future_rows_selected = reactive(input$future_rows_selected), 
       future_row = reactive(rv$future_table_db$future_deployment_uid[input$future_rows_selected])

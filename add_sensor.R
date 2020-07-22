@@ -29,7 +29,7 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
   rv <- reactiveValues()
   
   #Sensor Serial Number List
-  sensor_table_query <-  "select * from inventory_sensors_full"
+  sensor_table_query <-  "select * from fieldwork.inventory_sensors_full"
   rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
   
   #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
@@ -96,7 +96,7 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
   
   rv$sensor_table_display <- reactive(rv$sensor_table %>% mutate("date_purchased" = as.character(date_purchased)) %>% 
                                      rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
-                                            "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Location" = "ow_suffix", "Status" = "sensor_status"))
+                                            "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", "Location" = "ow_suffix", "Status" = "sensor_status"))
   
   output$sensor_table <- renderDT(
     rv$sensor_table_display(),

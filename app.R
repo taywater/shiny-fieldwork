@@ -35,6 +35,12 @@ sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpi
   dplyr::arrange(system_id) %>% 
   dplyr::pull()
 
+#query site names (non SMP)
+site_name_query <- "select * from fieldwork.site_name_lookup"
+site_names <- odbc::dbGetQuery(poolConn, site_name_query) %>% 
+                              dplyr::arrange(site_name) %>% 
+                              dplyr::pull()
+
 #disconnect from db on stop 
 onStop(function(){
   poolClose(poolConn)
@@ -96,9 +102,9 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   #call all the UI functions
   ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                   collection_calendarUI("collection_calendar"),
-                  add_owUI("add_ow", smp_id = smp_id, html_req = html_req),
+                  add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
-                 deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, html_req = html_req),
+                  deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
@@ -110,7 +116,7 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   #call modules, referencing the UI names above. These are functions, so any data originating outside the function needs to be named as an argument, whether it is lookup data, or from another tab
   server <- function(input, output, session) {
     collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
-   ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
+    ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
     sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup)
     deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
    callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
