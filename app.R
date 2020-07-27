@@ -65,6 +65,9 @@ long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.long_term_look
 
 research_lookup <- dbGetQuery(poolConn, "select * from fieldwork.research_lookup")
 
+#field test priority
+priority <- dbGetQuery(poolConn, "select * from fieldwork.field_test_priority_lookup")
+
 #srt_types & con phase
 srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
 con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
@@ -98,14 +101,13 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
   source("monitoring_stats.R")
   source("documentation.R")
 
-
   #call all the UI functions
   ui <- navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                   collection_calendarUI("collection_calendar"),
                   add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                   deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req),
-                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase),
+                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
                 m_statsUI("stats", current_fy = current_fy, years = years),

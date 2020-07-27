@@ -5,7 +5,7 @@
 
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v0.5.2"), 
+           titlePanel("MARS Fieldwork Database v0.6"), 
            column(width = 5,
                   h2("User Guide"),
                   h3("Upcoming"),
@@ -43,8 +43,8 @@ documentationUI <- function(id, label = "documentation"){
            ), 
            column(width = 5, offset = 1,
                   h2("Current Status"), 
-                  h3("v0.6.0"), 
-                  h5("An introduction to working with sites without and SMP ID. They will be referred to as \"Sites\", while locations with an SMP ID are \"SMPs\" or \"Systems\". You can add monitoring locations and deployments (future, active, and previous) at sites, and track them in the collection calendar like SMPs."),
+                  h3("v0.6"), 
+                  h5("An introduction to working with sites without an SMP ID. They will be referred to as \"Sites\", while locations with an SMP ID are \"SMPs\" or \"Systems\". You can add monitoring locations and deployments (future, active, and previous) at sites, and track them in the collection calendar like SMPs."),
                   h3("v0.5.2"), 
                   h5("Future SRTs, Porous Pavement Tests, and Capture Efficiency Tests can be added and edited."),
                   h3("v0.5.1"), 

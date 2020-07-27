@@ -111,7 +111,8 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   #read in ow prefixes and names
   ow_prefixes_db <- dbGetQuery(poolConn, "select * from fieldwork.ow_prefixes") %>% rename("asset_type" = "ow_name")
   new_and_ex_wells <- ow_prefixes_db %>% dplyr::select(ow_prefix, asset_type) 
-  new_wells <- ow_prefixes_db %>% dplyr::filter(componentless == 1) %>% dplyr::select(ow_prefix,asset_type)
+  new_wells <- reactive(ow_prefixes_db %>% dplyr::filter(componentless == 1) %>% dplyr::select(ow_prefix,asset_type) %>% dplyr::filter(!(asset_type %in% component_and_asset()$asset_type)))
+  
   
   #Add Observation Well  --
   #set component IDs based on SMP ID
@@ -124,7 +125,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   #set "asset comp code" to be shown in component ID combo box. asset comp code is a concat of asset type, ow_prefix, and component id 
   asset_comp <- reactive(component_and_asset() %>% 
                            dplyr::left_join(new_and_ex_wells, by = "asset_type") %>% 
-                           dplyr::bind_rows(new_wells) %>% 
+                           dplyr::bind_rows(new_wells()) %>% 
                            mutate(asset_comp_code = paste(component_id, ow_prefix, asset_type, sep = " | ")))
   
   asset_combo <- reactive(asset_comp()$asset_comp_code)
@@ -178,8 +179,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
     rv$ow_table(), 
     selection = 'single',
     style = 'bootstrap', 
-    class = 'table-responsive, table-hover', 
-    options = list(dom = 't')
+    class = 'table-responsive, table-hover'
   )
   
   rv$asset_comp_code_click <- 0
@@ -212,9 +212,14 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
     }else{
       ow_prefix_click <- gsub('\\d+', '', rv$ow_view_db()[input$ow_table_rows_selected, 4])
       asset_type_click <- new_and_ex_wells %>%  dplyr::filter(ow_prefix == ow_prefix_click) %>% dplyr::select(asset_type) %>% pull()
+      if(length(asset_type_click) > 0){
       
-      rv$asset_comp_code_click = paste("NA", ow_prefix_click, asset_type_click, sep = " | ")
-      updateSelectInput(session, "component_id", selected = rv$asset_comp_code_click)
+        rv$asset_comp_code_click = paste("NA", ow_prefix_click, asset_type_click, sep = " | ")
+        updateSelectInput(session, "component_id", selected = rv$asset_comp_code_click)
+      }else{
+        rv$asset_comp_code_click = paste("NA", "NA", "Stilling Well", sep = " | ")
+        updateSelectInput(session, "component_id", select = rv$asset_comp_code_click)
+      }
     }
     
     #update well depth based on selected row
@@ -269,7 +274,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   
   #get facility ID. Either use SMP footprint (for a new well) or the facility ID of the existing component
   facility_id <- reactive(if(input$component_id != "" & length(select_ow_prefix() > 0 )){
-    if(select_ow_prefix() %in% new_wells$ow_prefix) odbc::dbGetQuery(poolConn, paste0(
+    if(select_ow_prefix() %in% new_wells()$ow_prefix) odbc::dbGetQuery(poolConn, paste0(
       "SELECT facility_id FROM smpid_facilityid_componentid WHERE component_id IS NULL AND smp_id = '", input$smp_id, "'"))[1,1] else 
         odbc::dbGetQuery(poolConn, paste0(
           "SELECT facility_id from smpid_facilityid_componentid WHERE component_id = '", select_component_id(), "'"))[1,1]
@@ -285,9 +290,14 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   rv$well_count <- reactive(length(rv$existing_ow_prefixes()[rv$existing_ow_prefixes() == select_ow_prefix()]))
   
   #OW + (Count + 1) for suggested name of the new well 
-  rv$ow_suggested_pre <- reactive(paste0(select_ow_prefix(), (rv$well_count() + 1))) 
+  rv$ow_suggested_pre <- reactive(if(!is.na(select_ow_prefix())){
+    paste0(select_ow_prefix(), (rv$well_count() + 1))
+  }else{
+    NA
+  })
   
   #only show suggested suffix if there is a selected component id
+  #need to do the first "if" first to confirm that length is not 0 before checking if it is NA
   rv$ow_suggested <- reactive(if(nchar(input$component_id) == 0){
     NA
   }else if(length(input$ow_table_rows_selected) > 0 & rv$asset_comp_code_click == select_combo_row()$asset_comp_code){
@@ -425,6 +435,9 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   })
   
   ###### third part -------
+  
+  
+  
   #update installation height to show in UI
   rv$install_height <- reactive(if(input$sensor_one_in == 1){
     1/12

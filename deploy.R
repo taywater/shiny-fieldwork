@@ -12,6 +12,7 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  fluidRow(
                                    column(6,selectInput(ns("well_name"), html_req(html_req("Location")), choices = "")), 
                                    column(6,selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", sensor_serial), selected = NULL))),
+                                 textOutput(ns("sensor_warning")),
                                  fluidRow(
                                    column(6, selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", "BARO", "LEVEL", "DATALOGGER"), selected = NULL)),
                                    column(6, selectInput(ns("term"), html_req("Term"), choices = c("", "Short", "Long", "SRT", "NA"), selected = NULL))),
@@ -37,7 +38,7 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
                     ), 
-                    h5("Only SMP ID (or Site Name) and Location are required for Future Deployments; Sensor ID is not required if the sensor purpose is DATALOGGER; for all other deployments, all fields with a red star are required.")
+                    h5("Only SMP ID (or Site Name) and Location are required for Future Deployments; Sensor ID is not required if the sensor purpose is DATALOGGER; for all other deployments, all fields with a red star are required. If the \"Add New Deployment\" button is grayed out, but all required fields are full, check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")
                     
              ),
              column(width = 8,
@@ -264,9 +265,16 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   )
   
   #query for previous deployments
-  old_table_query <- reactive(paste0(
-    "SELECT * FROM fieldwork.previous_deployments
-        WHERE smp_id = ", rv$smp_id(), " ORDER BY deployment_dtime_est desc"))
+  old_table_query <- reactive(if(nchar(input$smp_id) > 0){
+    paste0(
+      "SELECT * FROM fieldwork.previous_deployments
+        WHERE smp_id = ", rv$smp_id(), " ORDER BY deployment_dtime_est desc")
+  }else{
+    paste0(
+      "SELECT * FROM fieldwork.previous_deployments
+        WHERE site_name = '", input$site_name, "' ORDER BY deployment_dtime_est desc")
+  })
+  
   
   #create table as a reactive value based on query
   rv$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query())%>% 
@@ -602,6 +610,17 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       enable("sensor_id")
     }
   })
+  
+  #sensor warning
+  rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0){
+    "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
+  }else{
+    NULL
+  })
+  
+  output$sensor_warning <- renderText(
+    rv$sensor_warning()
+  )
   
   #also check to make sure the sensor is not already deployed, or the sensor has a collection date, or a row selected
   observe({toggleState(id = "deploy_sensor", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
