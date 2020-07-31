@@ -350,6 +350,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
+    reset("priority")
   })
   
   observeEvent(input$clear_srt, {

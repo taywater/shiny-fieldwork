@@ -1,7 +1,7 @@
 #Porous pavement tabs
 #This has a tab dropdown with two tabs, one for adding PPTs and one for viewing all PPTs
 
-porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, con_phase){
+porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, priority, con_phase){
   ns <- NS(id)
   navbarMenu("Porous Pavement", 
              tabPanel("Add/Edit Porous Pavement Test", value = "ppt_tab", 
@@ -13,6 +13,10 @@ porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, s
                                    textInput(ns("location"), "Test Location"), 
                                    selectInput(ns("data"), "Data in Spreadsheet", choices = c("","Yes" = "1", "No" = "0"), selected = NULL), 
                                    selectInput(ns("folder"), "Test Location Map in Site Folder", choices = c("","Yes" = "1", "No" = "0"), selected = NULL),
+                                   conditionalPanel(condition = "input.date === null", 
+                                                    ns = ns, 
+                                                    selectInput(ns("priority"), "Future Test Priority", 
+                                                                choices = c("", priority$field_test_priority[1:3]), selected = NULL)),
                                    conditionalPanel(condition = "input.date === null", 
                                                     ns= ns, 
                                                     actionButton(ns("future_ppt"), "Add Future Porous Pavement Test")),
@@ -90,18 +94,24 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   )
   
   #query future PPTs
-  future_ppt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_porous_pavement_full WHERE smp_id = '", input$smp_id, "'"))
+  future_ppt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_porous_pavement_full 
+                                            WHERE smp_id = '", input$smp_id, "' 
+                                            order by field_test_priority_lookup_uid"))
   rv$future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ppt_table_query()))
   
   rv$future_ppt_table <- reactive(rv$future_ppt_table_db() %>% 
-                                    dplyr::select("smp_id", "surface_type", "phase", "test_location"))
+                                    dplyr::select("smp_id", "surface_type", "phase", "test_location", "field_test_priority"))
+  
+  rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
+  rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
+  rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
   
   output$future_ppt_table <- renderDT(
     rv$future_ppt_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location'), 
+    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location', 'Priority'), 
     options = list(dom = 't')
   )
   
@@ -110,9 +120,10 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     dataTableProxy('ppt_table') %>% selectRows(NULL)
    
     #update to values from selected row
-    updateSelectInput(session, "surface_type", selected = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 3])
-    updateSelectInput(session, "con_phase", selected = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 4])
-    updateNumericInput(session, "location", value = rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 5])
+    updateSelectInput(session, "surface_type", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 2])
+    updateSelectInput(session, "con_phase", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 3])
+    updateNumericInput(session, "location", value = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 4])
+    updateSelectInput(session, "priority", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 5])
     
     reset("date")
     reset("data")
@@ -165,15 +176,18 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   observeEvent(input$future_ppt, {
     if(length(input$future_ppt_table_rows_selected) == 0){
       #add to future_porous_pavement
-      add_future_ppt_query <- paste0("INSERT INTO fieldwork.future_porous_pavement (smp_id, surface_type_lookup_uid, con_phase_lookup_uid, test_location)
-                                     VALUES ('", input$smp_id, "', ", rv$type(), ", ", rv$phase_null(), ", ", rv$test_location(), ")")
+      add_future_ppt_query <- paste0("INSERT INTO fieldwork.future_porous_pavement (smp_id, surface_type_lookup_uid, 
+                                      con_phase_lookup_uid, test_location, field_test_priority_lookup_uid)
+                                     VALUES ('", input$smp_id, "', ", rv$type(), ", ", rv$phase_null(), ", ", rv$test_location(), ", ", 
+                                     rv$priority_lookup_uid(), ")")
       
       odbc::dbGetQuery(poolConn, add_future_ppt_query)
     }else{
       edit_future_ppt_query <- paste0("UPDATE fieldwork.future_porous_pavement SET smp_id = '", input$smp_id, "', 
                                        surface_type_lookup_uid = ", rv$type(),
                                       ", con_phase_lookup_uid = ", rv$phase_null(),
-                                      ", test_location = ", rv$test_location(),"
+                                      ", test_location = ", rv$test_location(),
+                                      ", field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), "
         WHERE future_porous_pavement_uid = '", rv$future_ppt_table_db()[input$future_ppt_table_rows_selected, 1], "'")
       
       odbc::dbGetQuery(poolConn, edit_future_ppt_query)
@@ -187,6 +201,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     reset("con_phase")
     reset("location")
     reset("data")
+    reset("priority")
     reset("folder")
   })
   
@@ -240,6 +255,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     reset("con_phase")
     reset("location")
     reset("data")
+    reset("priority")
     reset("folder")
   })
   
@@ -259,6 +275,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     reset("location")
     reset("data")
     reset("folder")
+    reset("priority")
     removeModal()
   })
   
@@ -299,17 +316,17 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   
   
   #View all Future Porous Pavement ----
-  rv$all_future_ppt_query <- "SELECT * FROM fieldwork.future_porous_pavement_full"
+  rv$all_future_ppt_query <- "SELECT * FROM fieldwork.future_porous_pavement_full order by field_test_priority_lookup_uid"
   rv$all_future_ppt_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ppt_query))
   rv$all_future_ppt_table <- reactive(rv$all_future_ppt_table_db() %>% 
-                                        dplyr::select(-1))
+                                        dplyr::select("smp_id", "project_name", "surface_type", "phase", "test_location", "field_test_priority"))
   
   output$all_future_ppt_table <- renderDT(
     rv$all_future_ppt_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location')
+    colnames = c('SMP ID', 'Project Name',  'Surface Type', 'Construction Phase', 'Test Location', 'Priority')
   )
   
   #update smp id and change tabs

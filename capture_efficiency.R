@@ -1,7 +1,7 @@
 #Capture Efficiency Test (CET) tabs
 #This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
 
-capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, html_req, con_phase){
+capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, priority, html_req, con_phase){
   ns <- NS(id)
   navbarMenu("Capture Efficiency",
              tabPanel("Add/Edit Capture Efficiency Test", value = "cet_tab", 
@@ -22,6 +22,10 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
                         column(6, selectInput(ns("est_high_flow_efficiency"), "Estimated High Flow Efficiency ", 
                                     choices = c("", high_flow_type$est_high_flow_efficiency), selected = NULL)),
                         column(6, numericInput(ns("high_flow_efficiency"), "High Flow Efficiency %", value = NA, min = 0, max = 100))), 
+                        conditionalPanel(condition = "input.cet_date === null", 
+                                         ns = ns, 
+                                         selectInput(ns("priority"), "Future Test Priority", 
+                                                     choices = c("", priority$field_test_priority), selected = NULL)),
                         textAreaInput(ns("cet_notes"), "Notes", height = '90px'), 
                         conditionalPanel(condition = "input.cet_date === null", 
                                          ns = ns, 
@@ -102,6 +106,10 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   }
   )
 
+  rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
+  rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
+  rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
+  
   observe(updateSelectInput(session, "facility_id", selected = rv$facility_id()))
   
   rv$cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full WHERE system_id = '", input$system_id, "'"))
@@ -155,18 +163,18 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     ))
   
   #query future CETs
-  future_cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_capture_efficiency_full WHERE system_id = '", input$system_id, "'"))
+  future_cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_capture_efficiency_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
   rv$future_cet_table_db <- reactive(odbc::dbGetQuery(poolConn, future_cet_table_query()))
   
   rv$future_cet_table <- reactive(rv$future_cet_table_db() %>% 
-                                    dplyr::select("system_id", "component_id", "facility_id", "phase", "notes"))
+                                    dplyr::select("system_id", "component_id", "facility_id", "phase", "field_test_priority", "notes"))
   
   output$future_cet_table <- renderDT(
     rv$future_cet_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Component ID', 'Facility ID', 'Phase', 'Notes'), 
+    colnames = c('System ID', 'Component ID', 'Facility ID', 'Phase', 'Priority', 'Notes'), 
     options = list(dom = 't')
   )
   
@@ -179,10 +187,11 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     #update to values from selected row
     updateSelectInput(session, 'con_phase', selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 4])
     
-    updateTextAreaInput(session, "cet_notes", value = rv$future_cet_table()[input$future_cet_table_rows_selected, 5])
+    updateSelectInput(session, "priority", selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 5])
+    updateTextAreaInput(session, "cet_notes", value = rv$future_cet_table()[input$future_cet_table_rows_selected, 6])
     
     #get facility id
-    rv$future_fac <- rv$future_cet_table_db()[input$future_cet_table_rows_selected, 4]
+    rv$future_fac <- rv$future_cet_table()[input$future_cet_table_rows_selected, 3]
     future_comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets where facility_id = '", rv$future_fac, "' 
         AND component_id IS NOT NULL")
     
@@ -296,15 +305,16 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   observeEvent(input$future_cet, {
     if(length(input$future_cet_table_rows_selected) == 0){
       add_future_cet_query <- paste0("INSERT INTO fieldwork.future_capture_efficiency (system_id, component_id, 
-                                     facility_id, con_phase_lookup_uid, notes) 
+                                     facility_id, con_phase_lookup_uid, notes, field_test_priority_lookup_uid) 
                                      VALUES ('", input$system_id, "',", rv$cet_comp_id(), ", '", rv$facility_id(), "', ", rv$phase_null(), "
-                                     ,", rv$cet_notes(), ")")
+                                     ,", rv$cet_notes(), ", ", rv$priority_lookup_uid(), ")")
       odbc::dbGetQuery(poolConn, add_future_cet_query)
     }else{
       edit_future_cet_query <- paste0("UPDATE fieldwork.future_capture_efficiency SET component_id = ", rv$cet_comp_id(), ", 
                                facility_id = '",rv$facility_id(), "',
                                con_phase_lookup_uid = ", rv$phase_null(), ", 
-                               notes = ", rv$cet_notes(), "
+                               notes = ", rv$cet_notes(), ",
+                               field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), "
                                       WHERE future_capture_efficiency_uid = '", rv$future_cet_table_db()[input$future_cet_table_rows_selected, 1], "'")
       
       odbc::dbGetQuery(poolConn, edit_future_cet_query)
@@ -323,6 +333,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     reset("est_high_flow_efficiency")
     reset("high_flow_efficiency")
     reset("cet_notes")
+    reset("priority")
   })
   
   #add and edit capture efficiency records
@@ -376,6 +387,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     reset("est_high_flow_efficiency")
     reset("high_flow_efficiency")
     reset("cet_notes")
+    reset("priority")
   })
   
   observeEvent(input$clear_cet, {
@@ -397,6 +409,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     reset("est_high_flow_efficiency")
     reset("high_flow_efficiency")
     reset("cet_notes")
+    reset("priority")
     removeModal()
   })
   
@@ -435,10 +448,10 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   
   #View all Future CETs
   #unclear why some things need to have () / be reactive and some don't but this works
-  rv$all_future_cet_query <- "SELECT * FROM fieldwork.future_capture_efficiency_full"
+  rv$all_future_cet_query <- "SELECT * FROM fieldwork.future_capture_efficiency_full order by field_test_priority_lookup_uid"
   rv$all_future_cet_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_cet_query))
   rv$all_future_cet_table <- reactive(rv$all_future_cet_table_db() %>% 
-                                        dplyr::select(-1))
+                                        dplyr::select("system_id", "component_id", "facility_id", "phase", "asset_type", "field_test_priority",  "notes"))
   
   output$all_future_cet_table <- renderDT(
     rv$all_future_cet_table(), 
@@ -446,7 +459,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
     colnames = c('System ID', 'Component ID', 'Facility ID', 'Construction Phase', 
-                 'Asset Type', 'Notes')
+                 'Asset Type', 'Priority', 'Notes')
   )
   
   #update system id and change tabs

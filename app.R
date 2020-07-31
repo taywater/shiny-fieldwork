@@ -108,8 +108,8 @@ years <- start_fy:current_fy %>% sort(decreasing = TRUE)
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                   deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
-                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase),
-                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase),
+                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority),
+                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority),
                 m_statsUI("stats", current_fy = current_fy, years = years),
                 documentationUI("documentation"),
                  useShinyjs()
