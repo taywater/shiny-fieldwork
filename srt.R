@@ -28,7 +28,7 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                                               numericInput(ns("dcia"), "Impervious Drainage Area (sf)", value = NA),
                                               selectInput(ns("qaqc_complete"), "QA/QC Complete", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
-                                              disabled(numericInput(ns("storm_size"), "Equivalent Storm Size (in)",  value = NA, min = 0)), 
+                                              disabled(numericInput(ns("storm_size"), "Simulated Depth (in)",  value = NA, min = 0)), 
                                               dateInput(ns("srt_summary_date"), "SRT Summary Report Sent", value = as.Date(NA))),
                                             conditionalPanel(condition = "input.srt_date === null", 
                                                              ns = ns, 
@@ -149,7 +149,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     selection = 'single',
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Results Summary'), 
+    colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Simulated Depth (in)', 'Results Summary'), 
     options = list(dom = 't')
   )
   
@@ -157,15 +157,14 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
   
   rv$future_srt_table <- reactive(rv$future_srt_table_db() %>% 
-                                           mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                                    dplyr::select("system_id", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "field_test_priority", "notes"))
+                                    dplyr::select("system_id", "phase", "type", "dcia_ft2", "field_test_priority", "notes"))
   
   output$future_srt_table <- renderDT(
     rv$future_srt_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Priority', 'Notes'),
+    colnames = c('System ID', 'Phase', 'Type', 'DCIA (sf)', 'Priority', 'Notes'),
     options = list(dom = 't')
   )
   
@@ -178,10 +177,10 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     #update to values from selected row
     updateSelectInput(session, "con_phase", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 2])
     updateSelectInput(session, "srt_type", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 3])
-    updateNumericInput(session, "test_volume", value = rv$future_srt_table()[input$future_srt_table_rows_selected, 4])
-    updateSelectInput(session, "priority", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 7])
-    updateTextAreaInput(session, "srt_summary", value = rv$future_srt_table()[input$future_srt_table_rows_selected, 8])
+    updateSelectInput(session, "priority", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 5])
+    updateTextAreaInput(session, "srt_summary", value = rv$future_srt_table()[input$future_srt_table_rows_selected, 6])
 
+    reset("test_volume")
     reset("srt_date")    
     reset("flow_data_rec")
     reset("water_level_rec")
@@ -405,7 +404,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                 type = colDef(name = "Type"),
                 srt_volume_ft3  = colDef(name = "Volume (cf)"),
                 dcia_ft2  = colDef(name = "DCIA (sf)"),
-                srt_stormsize_in = colDef(name = "Storm Size (in)"),
+                srt_stormsize_in = colDef(name = "Simulated Depth (in)"),
                 flow_data_recorded = colDef(name = "Flow Data Recorded"),
                 water_level_recorded = colDef(name = "Water Level Recorded"),
                 photos_uploaded = colDef(name = "Photos Uploaded"),
@@ -416,6 +415,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
               ),
               fullWidth = TRUE,
               selection = "single",
+              searchable = TRUE,
               onClick = "select",
               selectionId = ns("srt_selected"),
               #searchable = TRUE,
@@ -452,23 +452,26 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
   
   rv$all_future_srt_table <- reactive(rv$all_future_srt_table_db %>% 
-                                    mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                                    dplyr::select("system_id", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "field_test_priority", "notes"))
+                                        mutate_at(c("sys_storagevolume_ft3", "sys_rawstormsizemanaged_in", "one_inch_storm_volume_cf"), round, 2) %>% 
+                                    dplyr::select("system_id", "project_name", "phase", "type", "dcia_ft2", "sys_storagevolume_ft3", "sys_rawstormsizemanaged_in", "one_inch_storm_volume_cf", "field_test_priority", "notes"))
   
   output$all_future_srt_table <- renderReactable(
-    reactable(rv$all_future_srt_table()[, 1:7], 
+    reactable(rv$all_future_srt_table()[, 1:9], 
               columns = list(
                 #future_srt_uid = colDef(name = "UID"),
                 system_id  = colDef(name = "System ID"),
+                project_name = colDef(name = "Project Name"),
                 phase = colDef(name = "Phase"),
                 type = colDef(name = "Type"),
-                srt_volume_ft3  = colDef(name = "Volume (cf)"),
                 dcia_ft2  = colDef(name = "DCIA (sf)"),
-                srt_stormsize_in = colDef(name = "Storm Size (in)"),
+                sys_storagevolume_ft3 = colDef(name = "Storage Volume (cf)"), 
+                sys_rawstormsizemanaged_in = colDef(name = "Depth Managed (in)"),
+                one_inch_storm_volume_cf = colDef(name = "1\" Storm Volume (cf)"),
                 field_test_priority = colDef(name = "Priority")
               ),
               fullWidth = TRUE,
               selection = "single",
+              searchable = TRUE,
               onClick = "select",
               selectionId = ns("future_srt_selected"),
               #searchable = TRUE,
@@ -477,7 +480,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][8]
+                nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(notes = colDef(name = "Notes")))
@@ -498,27 +501,5 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
       dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
     }
   })
-  
-  # 
-  # output$all_future_srt_table <- renderDT(
-  #   rv$all_future_srt_table(), 
-  #   selection = 'single', 
-  #   style = 'bootstrap', 
-  #   class = 'table-responsive, table-hover', 
-  #   colnames = c('System ID', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Storm Size (in)', 'Priority', 'Notes')
-  # )
-  
-#   observeEvent(input$all_future_srt_table_rows_selected, {
-#     updateSelectInput(session, "system_id", selected = "")
-#     updateSelectInput(session, "system_id", selected = rv$all_future_srt_table()$system_id[input$all_future_srt_table_rows_selected])
-#     updateTabsetPanel(session = parent_session, "inTabset", selected = "srt_tab")
-#   })
-# # 
-#   observeEvent(rv$future_srt_table_db(), {
-#     if(length(input$all_future_srt_table_rows_selected)){
-#       future_srt_row <- which(rv$future_srt_table_db()$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[input$all_future_srt_table_rows_selected], arr.ind = TRUE)
-#       dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
-#     }
-#   })
   
 }
