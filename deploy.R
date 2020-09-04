@@ -1,6 +1,7 @@
 
 deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req){
   ns <- NS(id)
+  list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
            titlePanel("Deploy Sensor"), 
            fluidRow(
@@ -54,6 +55,7 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                     )
              )
            )
+  )
   )
 }
 

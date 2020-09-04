@@ -2,8 +2,9 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
   #Collection Calendar ##
   ns <- NS(id)
   useShinyjs()
+  
   #create a tabPanel for each tab
-  navbarMenu("Upcoming",
+  list(
     tabPanel("Collection Calendar", value = "calendar_tab", 
              #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
              
