@@ -455,7 +455,9 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
   rv$add_new_future <- reactive(length(input$future_deployment_rows_selected) == 0)
   rv$modal_title <- reactive(if(rv$add_new()) "Add New Deployment" else "Edit Deployment")
-  rv$modal_text <- reactive(if(rv$add_new() & rv$redeploy()){
+  rv$modal_text <- reactive(if(rv$add_new() & input$well_name %in% rv$future_table_db()$ow_suffix){
+    "There is already a future deployment at this location. Add new deployment at same location without removing future deployment?"
+  }else if(rv$add_new() & rv$redeploy()){
     "Add New Deployment and Redeploy Sensor?"
   }else if(rv$add_new() & rv$redeploy() == FALSE){
     "Add New Deployment?"
@@ -576,7 +578,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.future_deployment SET 
                        	ow_uid = fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
-                              inventory_sensors_uid = '",  rv$inventory_sensors_uid_null(), "', 
+                              inventory_sensors_uid = ",  rv$inventory_sensors_uid_null(), ", 
                               sensor_purpose = ", rv$purpose_null(), ",
                               long_term_lookup_uid = ", rv$term_null(), ",
                               research_lookup_uid = ", rv$research_lookup_uid(), ",

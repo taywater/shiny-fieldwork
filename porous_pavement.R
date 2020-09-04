@@ -1,5 +1,5 @@
 #Porous pavement tabs
-#This has a tab dropdown with two tabs, one for adding PPTs and one for viewing all PPTs
+#This has a tab dropdown with three tabs, one for adding PPTs and one for viewing all PPTs and one for viewing future PPTs
 
 porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, priority, con_phase){
   ns <- NS(id)
@@ -89,8 +89,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Construction Phase', 'Test Location'),
-    options = list(dom = 't')
+    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Construction Phase', 'Test Location')
   )
   
   #query future PPTs
@@ -111,8 +110,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location', 'Priority'), 
-    options = list(dom = 't')
+    colnames = c('SMP ID', 'Surface Type', 'Construction Phase', 'Test Location', 'Priority') 
   )
   
   observeEvent(input$future_ppt_table_rows_selected, {

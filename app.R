@@ -41,10 +41,13 @@ onStop(function(){
   source("porous_pavement.R")
   source("capture_efficiency.R")
   source("monitoring_stats.R")
+  source("inlet_conveyance.R")
   source("documentation.R")
 
   #call all the UI functions
   ui <- function(req){
+    
+    #req variables -----
     #define global variables that will be required each time the UI runs
     #query all SMP IDs
     smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
@@ -103,15 +106,21 @@ onStop(function(){
     start_fy <- 2012
     years <- start_fy:current_fy %>% sort(decreasing = TRUE)
     
+    #project work numbers
+    work_number <- dbGetQuery(poolConn, "select worknumber from greenit_projectbestdata") %>% pull()
+    
+    #actual UI----
+    
     navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
-                  collection_calendarUI("collection_calendar"),
+                       collection_calendarUI("collection_calendar"), 
                   add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
-                  deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req),
+                       deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority),
-                m_statsUI("stats", current_fy = current_fy, years = years),
+              inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
+               m_statsUI("stats", current_fy = current_fy, years = years),
                 documentationUI("documentation"),
                  useShinyjs()
   )
@@ -119,6 +128,8 @@ onStop(function(){
   
   #call modules, referencing the UI names above. These are functions, so any data originating outside the function needs to be named as an argument, whether it is lookup data, or from another tab
   server <- function(input, output, session) {
+    
+    #req variables -----
     #define global variables that will be defined each time server runs
     #query all SMP IDs
     smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
@@ -177,15 +188,16 @@ onStop(function(){
     start_fy <- 2012
     years <- start_fy:current_fy %>% sort(decreasing = TRUE)
     
-    
-    collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
-    ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
-    sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup)
-    deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
-   callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
-   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
-   callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
-    callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
+    #-------
+   collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
+   ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
+   sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup)
+   deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
+  callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
+  callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
+  callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
+   callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
+   callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   
   shinyApp(ui, server)

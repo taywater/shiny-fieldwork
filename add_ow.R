@@ -22,7 +22,8 @@ add_owUI <- function(id, label = "add_ow", smp_id, site_names, html_req){
                               conditionalPanel(condition = "input.need_new_site", 
                                                ns = ns, 
                                                textInput(ns("new_site_name"), "New Site Name"), 
-                                               actionButton(ns("add_site_name"), "Add New Site Name")),
+                                               actionButton(ns("add_site_name"), "Add New Site Name"),
+                                               textOutput(ns("similar_site"))),
                               selectInput(ns("site_name"), html_req("Site Name"), choices = c("", site_names), selected = NULL)), 
                               #textInput(ns("location"), html_req("Location")), 
                               #actionButton(ns("add_non_smp_ow"), "Add New")),
@@ -372,6 +373,18 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
   observe(updateSelectInput(session, "site_name", choices = c("", rv$site_names())))
 
   rv$new_site_name <- reactive(gsub('\'', '\'\'', input$new_site_name))
+  
+  rv$similar_site <- reactive(
+    agrep(input$new_site_name, rv$site_names(), max = .3, value = T)
+  )
+  
+  output$similar_site <- renderText(
+    if(nchar(input$new_site_name) > 3){
+    paste0("The entered site name, ", input$new_site_name, ", is similar to existing site(s) ", paste(rv$similar_site(), collapse = ", "), ".")
+    }else{
+      NULL
+    }
+  )
   
   #rv$location <- reactive(gsub('\'', '\'\'', input$location))
   
