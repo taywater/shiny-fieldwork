@@ -95,7 +95,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                                     dplyr::pull() %>% 
                                       dplyr::first())
   
-  #get facility ID. Either use SMP footprint (for a new well) or the facility ID of the existing component
+  #get facility ID. Either use SMP footprint (for an unknown component) or the facility ID of the existing component
   rv$facility_id <- reactive(if(input$cet_comp_id != ""){
         odbc::dbGetQuery(poolConn, paste0(
           "SELECT facility_id from smpid_facilityid_componentid_inlets WHERE component_id = '", rv$select_component_id(), "'"))[1,1]
@@ -105,13 +105,15 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     ""
   }
   )
+  
+  observe(updateSelectInput(session, "facility_id", selected = rv$facility_id()))
 
+  #lookup priority uid
   rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
   rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
   rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
   
-  observe(updateSelectInput(session, "facility_id", selected = rv$facility_id()))
-  
+  #get the table of CETs
   rv$cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full WHERE system_id = '", input$system_id, "'"))
   rv$cet_table_db <- reactive(dbGetQuery(poolConn, rv$cet_table_query()))
   rv$cet_table <- reactive(rv$cet_table_db() %>% mutate_at("test_date", as.character) %>% 
@@ -158,8 +160,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
               selection = 'single', 
               style = 'bootstrap',
               class = 'table-responsive, table-hover', 
-              escape = FALSE, 
-              options = list(dom = 't')
+              escape = FALSE 
     ))
   
   #query future CETs
@@ -175,7 +176,6 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
     colnames = c('System ID', 'Component ID', 'Facility ID', 'Phase', 'Priority', 'Notes'), 
-    options = list(dom = 't')
   )
   
   #on click

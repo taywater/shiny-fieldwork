@@ -3,7 +3,7 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
   ns <- NS(id)
   useShinyjs()
   #create a tabPanel for each tab
-  navbarMenu("Upcoming", 
+  navbarMenu("Upcoming",
     tabPanel("Collection Calendar", value = "calendar_tab", 
              #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
              
@@ -27,6 +27,7 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
                 DTOutput(ns("future"))
     )
   )
+  
 }
 
 collection_calendar <- function(input, output, session, parent_session, ow, deploy, poolConn) {

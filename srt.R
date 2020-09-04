@@ -149,8 +149,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     selection = 'single',
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Simulated Depth (in)', 'Results Summary'), 
-    options = list(dom = 't')
+    colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Simulated Depth (in)', 'Results Summary') 
   )
   
   future_srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_srt_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
@@ -164,8 +163,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Phase', 'Type', 'DCIA (sf)', 'Priority', 'Notes'),
-    options = list(dom = 't')
+    colnames = c('System ID', 'Phase', 'Type', 'DCIA (sf)', 'Priority', 'Notes')
   )
   
   observeEvent(input$future_srt_table_rows_selected, {
