@@ -107,7 +107,7 @@ onStop(function(){
     years <- start_fy:current_fy %>% sort(decreasing = TRUE)
     
     #project work numbers
-    #work_number <- dbGetQuery(poolConn, "select worknumber from greenit_projectbestdata") %>% pull()
+    work_number <- dbGetQuery(poolConn, "select worknumber from greenit_projectbestdata") %>% pull()
     
     #actual UI----
     
@@ -119,7 +119,7 @@ onStop(function(){
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority),
-              # inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
+              inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
                m_statsUI("stats", current_fy = current_fy, years = years),
                 documentationUI("documentation"),
                  useShinyjs()
@@ -196,7 +196,7 @@ onStop(function(){
   callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
   callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
-   #callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
+   callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
    callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   
