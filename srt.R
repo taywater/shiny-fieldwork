@@ -129,6 +129,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   observe(toggleState(id = "water_level_rec", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "photos_uploaded", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "sensor_collect_date", condition = length(input$srt_date) > 0))
+  observe(toggleState(id = "test_volume", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "qaqc_complete", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "srt_summary_date", condition = length(input$srt_date) > 0))
   
@@ -243,17 +244,14 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   observeEvent(input$future_srt, {
     if(length(input$future_srt_table_rows_selected) == 0){
       add_future_srt_query <- paste0("INSERT INTO fieldwork.future_srt (system_id, con_phase_lookup_uid, srt_type_lookup_uid, 
-                                     srt_volume_ft3, dcia_ft2, srt_stormsize_in, notes, field_test_priority_lookup_uid)
-                                     VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", 
-                                     rv$test_volume(), ", ", rv$dcia_write(), ", ", rv$storm_size(), ", ", rv$srt_summary(), ", ", rv$priority_lookup_uid(), ")")
+                                     dcia_ft2, notes, field_test_priority_lookup_uid)
+                                     VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", rv$srt_summary(), ", ", rv$priority_lookup_uid(), ")")
       
       odbc::dbGetQuery(poolConn, add_future_srt_query)
     }else{
       edit_future_srt_query <- paste0("UPDATE fieldwork.future_srt SET con_phase_lookup_uid = ", rv$phase_null(), ", 
                                       srt_type_lookup_uid = ", rv$type_null(), ", 
-                                      srt_volume_ft3 = ", rv$test_volume(), ", 
                                       dcia_ft2 = ", rv$dcia_write(), ", 
-                                      srt_stormsize_in = ", rv$storm_size(), ",
                                       notes = ", rv$srt_summary(), ",
                                       field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), "
                                       WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'")

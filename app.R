@@ -42,6 +42,7 @@ onStop(function(){
   source("capture_efficiency.R")
   source("monitoring_stats.R")
   source("inlet_conveyance.R")
+  source("special_investigations.R")
   source("documentation.R")
 
   #call all the UI functions
@@ -109,18 +110,25 @@ onStop(function(){
     #project work numbers
     work_number <- dbGetQuery(poolConn, "select worknumber from greenit_projectbestdata") %>% pull()
     
+    #special investigation types
+    si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")
+    
+    #request by lookup
+    requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
+    
     #actual UI----
     
     navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
-               do.call(navbarMenu, list(title = "Upcoming") %>% 
-                       append(collection_calendarUI("collection_calendar")) %>%  
-                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req))),
+               do.call(navbarMenu, list(title = "Deployments") %>%
+                       append(collection_calendarUI("collection_calendar")) %>%
+                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, research_lookup = research_lookup))),
                   add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority),
                 capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority),
               inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
+               special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup),
                m_statsUI("stats", current_fy = current_fy, years = years),
                 documentationUI("documentation"),
                  useShinyjs()
@@ -189,6 +197,13 @@ onStop(function(){
     start_fy <- 2012
     years <- start_fy:current_fy %>% sort(decreasing = TRUE)
     
+    
+    #special investigation types
+    si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")
+    
+    #request by lookup
+    requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
+    
     #-------
    collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
    ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
@@ -198,6 +213,7 @@ onStop(function(){
   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
   callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
    callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
+   callModule(special_investigations, "special_investigations", parent_session = session, poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup)
    callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   

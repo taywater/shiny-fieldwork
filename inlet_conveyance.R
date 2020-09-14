@@ -122,6 +122,9 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                         (nchar(input$comp_id) > 0 | nchar(input$comp_id_custom) > 0)
                         ))
   
+  observe(toggleState("future_test", condition = (nchar(input$system_id) | nchar(input$work_number) > 0 | nchar(input$site_name) > 0) &
+                        length(input$date) == 0))
+  
   #toggle 'results fields' so they can only be filled when a test date is entered
   observe(toggleState("eq_flow_rate", condition = length(input$date) > 0))
   observe(toggleState("test_volume_cf", condition = length(input$date) > 0))
@@ -256,6 +259,28 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
               escape = FALSE 
     ))
   
+  #get table of future ICTs
+  #query future CETs
+  future_ict_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_inlet_conveyance_full 
+                                            WHERE system_id = '", input$system_id, "' 
+                                            OR work_number = ", rv$work_number(), " 
+                                            OR site_name_lookup_uid = ", rv$site_name_lookup_uid(), " 
+                                            order by field_test_priority_lookup_uid"))
+  rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
+  
+  rv$future_ict_table <- reactive(rv$future_ict_table_db() %>% 
+                                    dplyr::select("component_id", "phase", "calculated_flow_rate_cfm", "field_test_priority", "notes"))
+  
+  output$future_ict_table <- renderDT(
+    rv$future_ict_table(), 
+    selection = 'single', 
+    style = 'bootstrap', 
+    class = 'table-responsive, table-hover', 
+    colnames = c('System ID', 'Component ID',  'Phase', 'Calculated Flow Rate (CFM)', 'Priority', 'Notes'), 
+  )
+  
+  
+  
   #when you click on a row, populate fields with data from that row
   observeEvent(input$ict_table_rows_selected, {
     
@@ -356,30 +381,10 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
   rv$future_label <- reactive(if(length(input$future_ict_table_rows_selected) == 0) "Add Future Inlet Conveyance Test" else "Edit Selected Future ICT")
   observe(updateActionButton(session, "future_test", label = rv$future_label()))
   
-  #get table of future ICTs
-  #query future CETs
-  future_ict_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_inlet_conveyance_full 
-                                            WHERE system_id = '", input$system_id, "' 
-                                            OR work_number = ", rv$work_number(), " 
-                                            OR site_name_lookup_uid = ", rv$site_name_lookup_uid(), " 
-                                            order by field_test_priority_lookup_uid"))
-  rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
-  
-  rv$future_ict_table <- reactive(rv$future_ict_table_db() %>% 
-                                    dplyr::select("component_id", "phase", "calculated_flow_rate_cfm", "field_test_priority", "notes"))
-  
-  output$future_ict_table <- renderDT(
-    rv$future_ict_table(), 
-    selection = 'single', 
-    style = 'bootstrap', 
-    class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Component ID',  'Phase', 'Calculated Flow Rate (CFM)', 'Priority', 'Notes'), 
-  )
-  
-  #add and edit capture efficiency records
+  #add and edit inlet conveyance records
   observeEvent(input$add_test, {
     if(length(input$ict_table_rows_selected) == 0){
-      #add to capture efficiency
+      #add to inlet conveyance
       add_test_query <- paste0("INSERT INTO fieldwork.inlet_conveyance (system_id, work_number, site_name_lookup_uid, 
       component_id, facility_id, test_date, con_phase_lookup_uid, calculated_flow_rate_cfm, equilibrated_flow_rate_cfm, 
       test_volume_cf, max_water_depth_ft, surcharge, time_to_surcharge_min, photos_uploaded, summary_report_sent, notes)
@@ -391,7 +396,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
       
       odbc::dbGetQuery(poolConn, add_test_query)
     }else{
-      #edit capture efficiency
+      #edit inlet conveyance
       edit_test_query <- paste0("UPDATE fieldwork.inlet_conveyance SET system_id = ", rv$system_id(), ",
                                work_number = ", rv$work_number(), ", 
                                site_name_lookup_uid = ", rv$site_name_lookup_uid(), ", 
@@ -420,8 +425,8 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     
     rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
     rv$ict_table_db <- reactive(dbGetQuery(poolConn, rv$ict_table_query()))
-    # rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    # rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
+    rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
+    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
     
     reset("comp_id")
     reset("comp_id_custom")
@@ -442,7 +447,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
   
   observeEvent(input$future_test, {
     if(length(input$future_ict_table_rows_selected) == 0){
-      #add to capture efficiency
+      #add to inlet conveyance
       add_future_test_query <- paste0("INSERT INTO fieldwork.future_inlet_conveyance (system_id, work_number, site_name_lookup_uid, 
       component_id, facility_id, con_phase_lookup_uid, calculated_flow_rate_cfm, 
       field_test_priority_lookup_uid, notes)
@@ -454,7 +459,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
       
       odbc::dbGetQuery(poolConn, add_future_test_query)
     }else{
-      #edit capture efficiency
+      #edit inlet conveyance
       
       edit_future_test_query <- paste0("UPDATE fieldwork.future_inlet_conveyance SET system_id = ", rv$system_id(), ",
                                work_number = ", rv$work_number(), ", 
@@ -472,8 +477,8 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     
     rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
     rv$ict_table_db <- reactive(dbGetQuery(poolConn, rv$ict_table_query()))
-    # rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    # rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
+    rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
+    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
     
     reset("comp_id")
     reset("comp_id_custom")
@@ -531,18 +536,19 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                              mutate_at(vars(one_of("surcharge", "photos_uploaded", "summary_report_sent")), 
                                        funs(case_when(. == 1 ~ "Yes", 
                                                       . == 0 ~ "No"))) %>% 
-                             dplyr::select("system_id", "work_number", "site_name",  "component_id", "test_date", "phase",
+                             dplyr::select("system_id", "work_number", "site_name", "project_name", "component_id", "test_date", "phase",
                                            "calculated_flow_rate_cfm", "equilibrated_flow_rate_cfm", "test_volume_cf",
-                                           "max_water_depth_ft",
-                                           "surcharge", "time_to_surcharge_min", "notes"))
+                                           "max_water_depth_ft", "surcharge", "time_to_surcharge_min", 
+                                           "photos_uploaded", "summary_report_sent", "notes"))
   
   #show table of ICTs
   output$all_ict_table <- renderReactable(
-    reactable(rv$all_ict_table()[, 1:12], 
+    reactable(rv$all_ict_table()[, 1:15], 
               columns = list(
                 system_id = colDef(name = "System ID"),
                 work_number = colDef(name = "Work Number"),
                 site_name = colDef(name = "Site Name"),
+                project_name = colDef(name = "Project Name"),
                 component_id = colDef(name = "Component ID"),
                 test_date = colDef(name = "Test Date"),
                 phase = colDef(name = "Phase"),
@@ -551,7 +557,9 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                 test_volume_cf = colDef(name = "Test Volume (CF)"),
                 max_water_depth_ft = colDef(name = "Max Water Depth (ft)"),
                 surcharge = colDef(name = "Surcharge"),
-                time_to_surcharge_min = colDef(name = "Time to Surcharge (min)")
+                time_to_surcharge_min = colDef(name = "Time to Surcharge (min)"),
+                photos_uploaded = colDef(name = "Photos Uploaded"), 
+                summary_report_sent = colDef(name = "Summary Report Sent")
               ),
               fullWidth = TRUE,
               selection = 'single', 
@@ -563,7 +571,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_ict_table()[rv$all_ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[index], ][13]
+                nest <- rv$all_ict_table()[rv$all_ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[index], ][16]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(notes = colDef(name = "Notes")))
@@ -572,7 +580,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     )
     )
   
-  #select fow in full ict table
+  #select row in full ict table
   observeEvent(input$ict_selected, {
     
     #set all inputs to null

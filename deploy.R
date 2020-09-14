@@ -1,5 +1,5 @@
 
-deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req){
+deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup){
   ns <- NS(id)
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
@@ -15,10 +15,10 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                    column(6,selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", sensor_serial), selected = NULL))),
                                  textOutput(ns("sensor_warning")),
                                  fluidRow(
-                                   column(6, selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", "BARO", "LEVEL", "DATALOGGER"), selected = NULL)),
-                                   column(6, selectInput(ns("term"), html_req("Term"), choices = c("", "Short", "Long", "SRT", "NA"), selected = NULL))),
+                                   column(6, selectInput(ns("sensor_purpose"), html_req("Sensor Purpose"), choices = c("", deployment_lookup$type), selected = NULL)),
+                                   column(6, selectInput(ns("term"), html_req("Term"), choices = c("", long_term_lookup$type), selected = NULL))),
                                  fluidRow(
-                                   column(6, selectInput(ns("research"), "Research", choices = c("", "USEPA STAR"), selected = NULL)),
+                                   column(6, selectInput(ns("research"), "Research", choices = c("", research_lookup$type), selected = NULL)),
                                    column(6, selectInput(ns("interval"), html_req("Interval (min)"), choices = c("", 5, 15), selected = NULL))),
                                  fluidRow(
                                    column(6,dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA))),
