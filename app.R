@@ -30,6 +30,9 @@ onStop(function(){
   poolClose(poolConn)
 })
 
+#js warning about leaving page
+jscode <- 'window.onbeforeunload = function() { return "Please use the button on the webpage"; };'
+
 ######  
  #source scripts. each script contains a module, which includes UI and server code
   #source("setup.R")
@@ -117,11 +120,16 @@ onStop(function(){
     requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
     
     #actual UI----
-    
+    #use tagList so tags and shinyjs can be called without being inside of the navbarPage. When they're inside navbarpage, they create small invisible fake tabs that take up space and act weird when clicked on
+    tagList(
+      #call jscode to warn when leaving page
+    tags$head(tags$script(jscode)),
+    #must call useShinyjs() for shinyjs() functionality to work in app
+    useShinyjs(),
     navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                do.call(navbarMenu, list(title = "Deployments") %>%
                        append(collection_calendarUI("collection_calendar")) %>%
-                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, research_lookup = research_lookup))),
+                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, research_lookup = research_lookup, priority = priority))),
                   add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
@@ -130,9 +138,9 @@ onStop(function(){
               inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
                special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup),
                m_statsUI("stats", current_fy = current_fy, years = years),
-                documentationUI("documentation"),
-                 useShinyjs()
+                documentationUI("documentation")
   )
+    )
   }
   
   #call modules, referencing the UI names above. These are functions, so any data originating outside the function needs to be named as an argument, whether it is lookup data, or from another tab

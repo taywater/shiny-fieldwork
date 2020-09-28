@@ -10,6 +10,7 @@ special_investigationsUI <- function(id, label = "special_investigations",
                       sidebarPanel(
                         #style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
                         fluidRow(
+                          h5("Prioritize System ID, then Work Number, then Site Name."),
                           column(4, selectInput(ns("system_id"), "System ID", 
                                                 choices = c("", sys_id), selected = NULL)), 
                           column(4, selectInput(ns("work_number"), "Work Number", 
@@ -217,14 +218,14 @@ special_investigations <- function(input, output, session, parent_session, poolC
   rv$future_si_table_db <- reactive(dbGetQuery(poolConn, rv$future_si_table_query()))
   rv$future_si_table <- reactive(rv$future_si_table_db() %>% 
                             dplyr::select("special_investigation_type",
-                                          "requested_by", "phase",
+                                          "requested_by", "phase", "field_test_priority",
                                           "notes"))
   
   #show table of future SIs
   output$future_si_table <- renderDT(
     datatable(rv$future_si_table(), 
               colnames = c('Type', 'Requested By', 
-                           'Phase', 'Notes'),
+                           'Phase', 'Priority', 'Notes'),
               selection = 'single', 
               style = 'bootstrap', 
               class = 'table-responsive, table-hover', 
@@ -239,6 +240,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     updateSelectInput(session, "con_phase", selected = rv$future_si_table_db()$phase[input$future_si_table_rows_selected])
     updateNumericInput(session, "type", value = rv$future_si_table_db()$special_investigation_type[input$future_si_table_rows_selected])
     updateNumericInput(session, "requested_by", value = rv$future_si_table_db()$requested_by[input$future_si_table_rows_selected])
+    updateSelectInput(session, "priority", selected = rv$future_si_table_db()$field_test_priority[input$future_si_table_rows_selected])
     updateTextAreaInput(session, "notes", value = rv$future_si_table_db()$notes[input$future_si_table_rows_selected])
     
     reset("date")
@@ -295,7 +297,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
     rv$si_table_db <- reactive(dbGetQuery(poolConn, rv$si_table_query()))
     rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_si_query))
+    rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
     reset("date")
     reset("type")
@@ -341,7 +343,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
     rv$si_table_db <- reactive(dbGetQuery(poolConn, rv$si_table_query()))
     rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_si_query))
+    rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
     reset("date")
     reset("type")
@@ -381,7 +383,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("notes")
   })
   
-  # View all ICTs -----------------------------------------------------------
+  # View all SIs -----------------------------------------------------------
   
   rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full ORDER BY test_date DESC"))
   rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
@@ -389,18 +391,16 @@ special_investigations <- function(input, output, session, parent_session, poolC
                                  mutate_at(vars(one_of("qaqc_complete", "photos_uploaded")), 
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
-                                 dplyr::select("system_id", "work_number", "site_name", "project_name", "test_date", 
+                                 dplyr::select("system_id",  "project_name", "test_date", 
                                                "special_investigation_type", "requested_by", "phase",
                                                "sensor_collection_date", "photos_uploaded", "qaqc_complete",
                                                "summary_date", "turnaround_days", "results_summary"))
   
   #show table of ICTs
   output$all_si_table <- renderReactable(
-    reactable(rv$all_si_table()[, 1:13], 
+    reactable(rv$all_si_table()[, 1:11], 
               columns = list(
                 system_id = colDef(name = "System ID"),
-                work_number = colDef(name = "Work Number"),
-                site_name = colDef(name = "Site Name"),
                 project_name = colDef(name = "Project Name"),
                 test_date = colDef(name = "Test Date"),
                 special_investigation_type = colDef(name = "Type"), 
@@ -422,7 +422,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][14]
+                nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][12]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(results_summary = colDef(name = "Results Summary")))
@@ -440,12 +440,12 @@ special_investigations <- function(input, output, session, parent_session, poolC
     updateSelectInput(session, "site_name", selected = "")
     
     #check for system id, then work number, then site name
-    if(!is.na(rv$all_si_table()$system_id[input$si_selected])){
-      updateSelectInput(session, "system_id", selected = rv$all_si_table()$system_id[input$si_selected])
-    }else if(!is.na(rv$all_si_table()$work_number[input$si_selected])){
-      updateSelectInput(session, "work_number", selected = rv$all_si_table()$work_number[input$si_selected])
-    }else if(!is.na(rv$all_si_table()$site_name[input$si_selected]) > 0){
-      updateSelectInput(session, "site_name", selected = rv$all_si_table()$site_name[input$si_selected])
+    if(!is.na(rv$all_si_table_db()$system_id[input$si_selected])){
+      updateSelectInput(session, "system_id", selected = rv$all_si_table_db()$system_id[input$si_selected])
+    }else if(!is.na(rv$all_si_table_db()$work_number[input$si_selected])){
+      updateSelectInput(session, "work_number", selected = rv$all_si_table_db()$work_number[input$si_selected])
+    }else if(!is.na(rv$all_si_table_db()$site_name[input$si_selected]) > 0){
+      updateSelectInput(session, "site_name", selected = rv$all_si_table_db()$site_name[input$si_selected])
     }
     
     updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")
@@ -464,17 +464,15 @@ special_investigations <- function(input, output, session, parent_session, poolC
   rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full ORDER BY field_test_priority_lookup_uid DESC"))
   rv$all_future_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_future_query()))
   rv$all_future_si_table <- reactive(rv$all_future_si_table_db() %>% 
-                                        dplyr::select("system_id", "work_number", "site_name", "project_name", "special_investigation_type", 
+                                        dplyr::select("system_id", "project_name", "special_investigation_type", 
                                                       "requested_by", "phase",
                                                       "field_test_priority", "notes"))
   
   #show table of ICTs
   output$all_future_si_table <- renderReactable(
-    reactable(rv$all_future_si_table()[, 1:8], 
+    reactable(rv$all_future_si_table()[, 1:6], 
               columns = list(
                 system_id = colDef(name = "System ID"),
-                work_number = colDef(name = "Work Number"),
-                site_name = colDef(name = "Site Name"),
                 project_name = colDef(name = "Project Name"),
                 special_investigation_type = colDef(name = "Type"),
                 requested_by = colDef(name = "Requested By"),
@@ -491,7 +489,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_future_si_table()[rv$all_future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[index], ][9]
+                nest <- rv$all_future_si_table()[rv$all_future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[index], ][7]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(notes = colDef(name = "Notes")))
@@ -509,12 +507,12 @@ special_investigations <- function(input, output, session, parent_session, poolC
     updateSelectInput(session, "site_name", selected = "")
     
     #check for system id, then work number, then site name
-    if(!is.na(rv$all_future_si_table()$system_id[input$future_si_selected])){
-      updateSelectInput(session, "system_id", selected = rv$all_future_si_table()$system_id[input$future_si_selected])
-    }else if(!is.na(rv$all_future_si_table()$work_number[input$future_si_selected])){
-      updateSelectInput(session, "work_number", selected = rv$all_future_si_table()$work_number[input$future_si_selected])
-    }else if(!is.na(rv$all_future_si_table()$site_name[input$future_si_selected]) > 0){
-      updateSelectInput(session, "site_name", selected = rv$all_future_si_table()$site_name[input$future_si_selected])
+    if(!is.na(rv$all_future_si_table_db()$system_id[input$future_si_selected])){
+      updateSelectInput(session, "system_id", selected = rv$all_future_si_table_db()$system_id[input$future_si_selected])
+    }else if(!is.na(rv$all_future_si_table_db()$work_number[input$future_si_selected])){
+      updateSelectInput(session, "work_number", selected = rv$all_future_si_table_db()$work_number[input$future_si_selected])
+    }else if(!is.na(rv$all_future_si_table_db()$site_name[input$future_si_selected]) > 0){
+      updateSelectInput(session, "site_name", selected = rv$all_future_si_table_db()$site_name[input$future_si_selected])
     }
     
     updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")

@@ -69,7 +69,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
   rv$ppt_table_db <- reactive(dbGetQuery(poolConn, rv$query()))
   
   #adjust table for viewing
-  rv$ppt_table <- reactive(rv$ppt_table_db() %>% mutate_at("test_date", as.character) %>% dplyr::select(2:6))
+  rv$ppt_table <- reactive(rv$ppt_table_db() %>% mutate_at("test_date", as.character) %>% dplyr::select("test_date", "surface_type", "phase", "test_location"))
   
   
   #toggle state (enable/disable) buttons based on whether system id, test date, and type are selected (this is shinyjs)
@@ -89,7 +89,7 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Construction Phase', 'Test Location')
+    colnames = c('Test Date', 'Surface Type', 'Construction Phase', 'Test Location')
   )
   
   #query future PPTs
@@ -288,14 +288,15 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
                                  mutate_at(vars(one_of("data_in_spreadsheet", "map_in_site_folder")), 
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
-                                 dplyr::select(2:8))
+                                 dplyr::select("test_date", "smp_id", "project_name", "surface_type", "phase", "test_location", "data_in_spreadsheet", "map_in_site_folder"))
   
   output$all_ppt_table <- renderDT(
     rv$all_ppt_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('Test Date', 'SMP ID', 'Surface Type', 'Construction Phase', 'Test Location', 'Data in Spreadsheet', 'Map in Site Folder')
+    colnames = c('Test Date', 'SMP ID', 'Project Name', 'Surface Type', 'Construction Phase', 'Test Location', 'Data in Spreadsheet', 'Map in Site Folder'), 
+    rownames = FALSE
   )
   
   observeEvent(input$all_ppt_table_rows_selected, {
@@ -324,7 +325,8 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('SMP ID', 'Project Name',  'Surface Type', 'Construction Phase', 'Test Location', 'Priority')
+    colnames = c('SMP ID', 'Project Name',  'Surface Type', 'Construction Phase', 'Test Location', 'Priority'), 
+    rownames = FALSE
   )
   
   #update smp id and change tabs

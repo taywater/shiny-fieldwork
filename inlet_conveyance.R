@@ -8,6 +8,7 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_name
                       titlePanel("Add Inlet Conveyance Test"), 
                       sidebarPanel(
                         style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
+                                  h5("Prioritize System ID, then Work Number, then Site Name."),
                                   fluidRow(
                                     column(4, selectInput(ns("system_id"), "System ID", 
                                                           choices = c("", sys_id), selected = NULL)), 
@@ -38,8 +39,8 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_name
                                  fluidRow(
                                    column(6, selectInput(ns("photos"), "Photos Uploaded", 
                                                          choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
-                                   column(6, selectInput(ns("summary_sent"), "Summary Report Sent", 
-                                                         choices = c("","Yes" = "1", "No" = "0"), selected = NULL))
+                                   column(6, dateInput(ns("summary_sent"), "Summary Report Sent", 
+                                                         value = NA))
                                  ),
                                   conditionalPanel(condition = "input.date === null", 
                                                    ns = ns, 
@@ -226,7 +227,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
   
   rv$photos <- reactive(if(nchar(input$photos) == 0) "NULL" else paste0("'", input$photos, "'"))  
   
-  rv$summary_sent <- reactive(if(nchar(input$summary_sent) == 0) "NULL" else paste0("'", input$photos, "'"))  
+  rv$summary_sent <- reactive(if(length(input$summary_sent) == 0) "NULL" else paste0("'", input$summary_sent, "'"))  
   
   #notes
   rv$notes_step <- reactive(gsub('\'', '\'\'', input$notes))
@@ -272,11 +273,13 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                                     dplyr::select("component_id", "phase", "calculated_flow_rate_cfm", "field_test_priority", "notes"))
   
   output$future_ict_table <- renderDT(
+    datatable(
     rv$future_ict_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Component ID',  'Phase', 'Calculated Flow Rate (CFM)', 'Priority', 'Notes'), 
+    colnames = c('System ID', 'Component ID',  'Phase', 'Calculated Flow Rate (CFM)', 'Priority', 'Notes')
+    )
   )
   
   
@@ -322,7 +325,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
      updateNumericInput(session, "time_to_surcharge", value = rv$ict_table_db()$time_to_surcharge_min[input$ict_table_rows_selected])
     updateSelectInput(session, "surcharge", selected = rv$ict_table_db()$surcharge[input$ict_table_rows_selected])
     updateSelectInput(session, "photos", selected = rv$ict_table_db()$photos_uploaded[input$ict_table_rows_selected])
-    updateSelectInput(session, "summary_sent", selected = rv$ict_table_db()$summary_report_sent[input$ict_table_rows_selected])
+    updateDateInput(session, "summary_sent", value = rv$ict_table_db()$summary_report_sent[input$ict_table_rows_selected])
     updateTextAreaInput(session, "notes", value = rv$ict_table_db()$notes[input$ict_table_rows_selected])
     reset("priority")
   })
@@ -356,7 +359,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
       updateSelectInput(session, "comp_id_custom", selected = rv$future_ict_table_db()$component_id[input$future_ict_table_rows_selected])
     }
     
-    updateSelectInput(session, "priority", selected = rv$future_ict_table_db()$priority[input$future_ict_table_rows_selected])
+    updateSelectInput(session, "priority", selected = rv$future_ict_table_db()$field_test_priority[input$future_ict_table_rows_selected])
     updateSelectInput(session, "con_phase", selected = rv$future_ict_table_db()$phase[input$future_ict_table_rows_selected])
     updateNumericInput(session, "calc_flow_rate", value = rv$future_ict_table_db()$calculated_flow_rate_cfm[input$future_ict_table_rows_selected])
     updateTextAreaInput(session, "notes", value = rv$future_ict_table_db()$notes[input$future_ict_table_rows_selected])
@@ -426,7 +429,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
     rv$ict_table_db <- reactive(dbGetQuery(poolConn, rv$ict_table_query()))
     rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
+    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
     reset("comp_id")
     reset("comp_id_custom")
@@ -478,7 +481,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
     rv$ict_table_db <- reactive(dbGetQuery(poolConn, rv$ict_table_query()))
     rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_ict_query))
+    rv$all_future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
     reset("comp_id")
     reset("comp_id_custom")
@@ -532,22 +535,20 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
 
   rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.inlet_conveyance_full ORDER BY test_date DESC"))
   rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-  rv$all_ict_table <- reactive(rv$all_ict_table_db() %>% mutate_at("test_date", as.character) %>% 
-                             mutate_at(vars(one_of("surcharge", "photos_uploaded", "summary_report_sent")), 
+  rv$all_ict_table <- reactive(rv$all_ict_table_db() %>% mutate_at(c("test_date","summary_report_sent") , as.character) %>% 
+                             mutate_at(vars(one_of("surcharge", "photos_uploaded")), 
                                        funs(case_when(. == 1 ~ "Yes", 
                                                       . == 0 ~ "No"))) %>% 
-                             dplyr::select("system_id", "work_number", "site_name", "project_name", "component_id", "test_date", "phase",
+                             dplyr::select("system_id", "project_name", "component_id", "test_date", "phase",
                                            "calculated_flow_rate_cfm", "equilibrated_flow_rate_cfm", "test_volume_cf",
                                            "max_water_depth_ft", "surcharge", "time_to_surcharge_min", 
-                                           "photos_uploaded", "summary_report_sent", "notes"))
+                                           "photos_uploaded", "summary_report_sent", "turnaround_days", "notes"))
   
   #show table of ICTs
   output$all_ict_table <- renderReactable(
-    reactable(rv$all_ict_table()[, 1:15], 
+    reactable(rv$all_ict_table()[, 1:14], 
               columns = list(
                 system_id = colDef(name = "System ID"),
-                work_number = colDef(name = "Work Number"),
-                site_name = colDef(name = "Site Name"),
                 project_name = colDef(name = "Project Name"),
                 component_id = colDef(name = "Component ID"),
                 test_date = colDef(name = "Test Date"),
@@ -559,7 +560,8 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                 surcharge = colDef(name = "Surcharge"),
                 time_to_surcharge_min = colDef(name = "Time to Surcharge (min)"),
                 photos_uploaded = colDef(name = "Photos Uploaded"), 
-                summary_report_sent = colDef(name = "Summary Report Sent")
+                summary_report_sent = colDef(name = "Summary Report Sent"), 
+                turnaround_days = colDef(name = "Turnaround (Days)")
               ),
               fullWidth = TRUE,
               selection = 'single', 
@@ -571,7 +573,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_ict_table()[rv$all_ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[index], ][16]
+                nest <- rv$all_ict_table()[rv$all_ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[index], ][15]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(notes = colDef(name = "Notes")))
@@ -589,12 +591,12 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     updateSelectInput(session, "site_name", selected = "")
     
     #check for system id, then work number, then site name
-    if(!is.na(rv$all_ict_table()$system_id[input$ict_selected])){
-    updateSelectInput(session, "system_id", selected = rv$all_ict_table()$system_id[input$ict_selected])
-    }else if(!is.na(rv$all_ict_table()$work_number[input$ict_selected])){
-    updateSelectInput(session, "work_number", selected = rv$all_ict_table()$work_number[input$ict_selected])
-    }else if(!is.na(rv$all_ict_table()$site_name[input$ict_selected]) > 0){
-    updateSelectInput(session, "site_name", selected = rv$all_ict_table()$site_name[input$ict_selected])
+    if(!is.na(rv$all_ict_table_db()$system_id[input$ict_selected])){
+    updateSelectInput(session, "system_id", selected = rv$all_ict_table_db()$system_id[input$ict_selected])
+    }else if(!is.na(rv$all_ict_table_db()$work_number[input$ict_selected])){
+    updateSelectInput(session, "work_number", selected = rv$all_ict_table_db()$work_number[input$ict_selected])
+    }else if(!is.na(rv$all_ict_table_db()$site_name[input$ict_selected]) > 0){
+    updateSelectInput(session, "site_name", selected = rv$all_ict_table_db()$site_name[input$ict_selected])
     }
     
     updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")
@@ -613,16 +615,14 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
   rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.future_inlet_conveyance_full ORDER BY field_test_priority_lookup_uid DESC"))
   rv$all_future_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_future_query()))
   rv$all_future_ict_table <- reactive(rv$all_future_ict_table_db() %>% 
-                                 dplyr::select("system_id", "work_number", "site_name", "project_name", "component_id", "phase",
+                                 dplyr::select("system_id", "project_name", "component_id", "phase",
                                                "calculated_flow_rate_cfm", "field_test_priority", "notes"))
   
   #show table of ICTs
   output$all_future_ict_table <- renderReactable(
-    reactable(rv$all_future_ict_table()[, 1:8], 
+    reactable(rv$all_future_ict_table()[, 1:6], 
               columns = list(
                 system_id = colDef(name = "System ID"),
-                work_number = colDef(name = "Work Number"),
-                site_name = colDef(name = "Site Name"),
                 project_name = colDef(name = "Project Name"),
                 component_id = colDef(name = "Component ID"),
                 phase = colDef(name = "Phase"),
@@ -639,7 +639,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_future_ict_table()[rv$all_future_ict_table_db()$future_inlet_conveyance_uid == rv$all_future_ict_table_db()$future_inlet_conveyance_uid[index], ][9]
+                nest <- rv$all_future_ict_table()[rv$all_future_ict_table_db()$future_inlet_conveyance_uid == rv$all_future_ict_table_db()$future_inlet_conveyance_uid[index], ][7]
                 htmltools::div(style = "padding:16px", 
                                reactable(nest, 
                                          columns = list(notes = colDef(name = "Notes")))
@@ -657,12 +657,12 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     updateSelectInput(session, "site_name", selected = "")
     
     #check for system id, then work number, then site name
-    if(!is.na(rv$all_future_ict_table()$system_id[input$future_ict_selected])){
-      updateSelectInput(session, "system_id", selected = rv$all_future_ict_table()$system_id[input$future_ict_selected])
-    }else if(!is.na(rv$all_future_ict_table()$work_number[input$future_ict_selected])){
-      updateSelectInput(session, "work_number", selected = rv$all_future_ict_table()$work_number[input$future_ict_selected])
-    }else if(!is.na(rv$all_future_ict_table()$site_name[input$future_ict_selected]) > 0){
-      updateSelectInput(session, "site_name", selected = rv$all_future_ict_table()$site_name[input$future_ict_selected])
+    if(!is.na(rv$all_future_ict_table_db()$system_id[input$future_ict_selected])){
+      updateSelectInput(session, "system_id", selected = rv$all_future_ict_table_db()$system_id[input$future_ict_selected])
+    }else if(!is.na(rv$all_future_ict_table_db()$work_number[input$future_ict_selected])){
+      updateSelectInput(session, "work_number", selected = rv$all_future_ict_table_db()$work_number[input$future_ict_selected])
+    }else if(!is.na(rv$all_future_ict_table_db()$site_name[input$future_ict_selected]) > 0){
+      updateSelectInput(session, "site_name", selected = rv$all_future_ict_table_db()$site_name[input$future_ict_selected])
     }
     
     updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")

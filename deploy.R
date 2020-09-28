@@ -1,5 +1,5 @@
 
-deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup){
+deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority){
   ns <- NS(id)
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
@@ -23,6 +23,10 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  fluidRow(
                                    column(6,dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA))),
                                    column(6,dateInput(ns("collect_date"), "Collection Date", value = as.Date(NA)))), 
+                                 conditionalPanel(condition = "input.deploy_date === null", 
+                                                  ns = ns, 
+                                                  selectInput(ns("priority"), "Future Test Priority", 
+                                                              choices = c("", priority$field_test_priority), selected = NULL)),
                                  #ask about download error and redeploying sensor once you add a collection date
                                  conditionalPanel(width = 12, 
                                                   condition = "input.collect_date",
@@ -219,6 +223,11 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   }else{paste0("'", input$download_error, "'")
   })
   
+  #lookup priority uid
+  rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
+  rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
+  rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
+  
   #set fields to "NULL" if they are empty
   rv$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
   rv$research_lookup_uid <- reactive(if(length(rv$research()) == 0) "NULL" else paste0("'", rv$research(), "'"))
@@ -313,10 +322,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
   
   rv$future_table <- reactive(rv$future_table_db() %>% 
-                                dplyr::select(ow_suffix, type, term, research, interval_min) %>% 
+                                dplyr::select(ow_suffix, type, term, research, interval_min, field_test_priority) %>% 
                                 dplyr::rename("Location" = "ow_suffix", 
                                               "Purpose" = "type", "Term" = "term", "Research" = "research",
-                                              "Interval (min)" = "interval_min", ))
+                                              "Interval (min)" = "interval_min", "Priority" = "field_test_priority"))
   
   output$future_deployment <- renderDT(
     rv$future_table(), 
@@ -572,10 +581,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     if(rv$add_new_future()){
       odbc::dbGetQuery(poolConn,
                        paste0("INSERT INTO fieldwork.future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
-			interval_min, long_term_lookup_uid, research_lookup_uid, notes)
+			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid)
 			VALUES (fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ", rv$inventory_sensors_uid_null(),
                               ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
-                              ", ", rv$research_lookup_uid(), ", ", rv$notes(), ")"))
+                              ", ", rv$research_lookup_uid(), ", ", rv$notes(), ", ", rv$priority_lookup_uid(), ")"))
     }else{
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.future_deployment SET 
@@ -585,7 +594,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                               long_term_lookup_uid = ", rv$term_null(), ",
                               research_lookup_uid = ", rv$research_lookup_uid(), ",
                               interval_min = ", rv$interval_min() , ",
-                              notes = ", rv$notes(), " WHERE 
+                              notes = ", rv$notes(), ", 
+                              field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), " WHERE 
                               future_deployment_uid = '", rv$update_future_deployment_uid(), "'" 
                        ))
     }

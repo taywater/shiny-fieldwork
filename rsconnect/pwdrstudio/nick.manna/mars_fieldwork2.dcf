@@ -1,0 +1,12 @@
+name: mars_fieldwork2
+title: MARS Fieldwork
+username: nick.manna
+account: nick.manna
+server: pwdrstudio
+hostUrl: https://pwdrstudio:443/__api__
+appId: 120
+bundleId: 741
+url: https://pwdrstudio/mars-fieldwork/
+when: 1600788626.77367
+asMultiple: FALSE
+asStatic: FALSE

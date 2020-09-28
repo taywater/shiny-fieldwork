@@ -11,11 +11,11 @@ m_statsUI <- function(id, label = "stats", current_fy, years){
                 conditionalPanel(condition = "input.date_range == 'Select Range'", 
                                  ns = ns, 
                         fluidRow(column(6,
-                        selectInput(ns("start_fy"), "Start FY", choices = years)),
-                        column(6,selectInput(ns("start_quarter"), "Start Quarter", choices = c("Q1" = "1/1", "Q2" = "4/1", "Q3" = "7/1", "Q4" = "10/1")))),
+                        selectInput(ns("start_fy"), "Start Fiscal Year (FY)", choices = years)),
+                        column(6,selectInput(ns("start_quarter"), "Start Fiscal Quarter", choices = c("Q1" = "1/1", "Q2" = "4/1", "Q3" = "7/1", "Q4" = "10/1")))),
                         fluidRow(column(6,
-                          selectInput(ns("end_fy"), "End FY", choices = years)),
-                          column(6,selectInput(ns("end_quarter"), "End Quarter", choices = c("Q1" = "3/31", "Q2" = "6/30", "Q3" = "9/30", "Q4" = "12/31"))))
+                          selectInput(ns("end_fy"), "End Fiscal Year (FY)", choices = years)),
+                          column(6,selectInput(ns("end_quarter"), "End Fiscal Quarter", choices = c("Q1" = "3/31", "Q2" = "6/30", "Q3" = "9/30", "Q4" = "12/31"))))
                         ), 
                 selectInput(ns("phase"), "Construction Phase", choices = c("Construction", "Post-Construction"), selected = "Post-Construction"),
                 checkboxInput(ns("cet_checkbox"), "Capture Efficiency Test Options"), 

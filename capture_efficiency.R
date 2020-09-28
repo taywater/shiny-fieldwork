@@ -120,7 +120,8 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                              mutate_at(vars(one_of("low_flow_bypass_observed")), 
                                        funs(case_when(. == 1 ~ "Yes", 
                                                       . == 0 ~ "No"))) %>% 
-                             dplyr::select(-1))
+                             dplyr::select(-1) %>% 
+                             dplyr::select(-"facility_id", -"project_name", -"system_id"))
   
   #enable/disable buttons 
   #conditions need to be set up this way; changing them all to nchar, or all to length, or all to input != "" won't work
@@ -153,7 +154,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   
   output$cet_table <- renderDT(
     datatable(rv$cet_table(), 
-              colnames = c('System ID', 'Test Date', 'Component ID', 'Facility ID', 'Construction Phase', 'Low Flow Bypass Observed', 
+              colnames = c('Test Date', 'Component ID', 'Construction Phase', 'Low Flow Bypass Observed', 
                            'Low Flow<span style="color:DodgerBlue"><sup>1</sup></span style="color:DodgerBlue"> Efficiency %', 
                            'Est. High Flow<span style="color:DodgerBlue"><sup>2</sup></span style="color:DodgerBlue"> Efficiency', 
                            'High Flow<span style="color:DodgerBlue"><sup>3</sup></span style="color:DodgerBlue"> Efficiency %', 'Asset Type', 'Notes'),
@@ -168,14 +169,14 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   rv$future_cet_table_db <- reactive(odbc::dbGetQuery(poolConn, future_cet_table_query()))
   
   rv$future_cet_table <- reactive(rv$future_cet_table_db() %>% 
-                                    dplyr::select("system_id", "component_id", "facility_id", "phase", "field_test_priority", "notes"))
+                                    dplyr::select("system_id", "component_id", "phase", "field_test_priority", "notes"))
   
   output$future_cet_table <- renderDT(
     rv$future_cet_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Component ID', 'Facility ID', 'Phase', 'Priority', 'Notes'), 
+    colnames = c('System ID', 'Component ID', 'Phase', 'Priority', 'Notes'), 
   )
   
   #on click
@@ -422,15 +423,22 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                                  mutate_at(vars(one_of("low_flow_bypass_observed")),
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
-                                 dplyr::select(-1))
+                                 dplyr::select("system_id", "project_name", "test_date", "component_id", "phase", 
+                                               "low_flow_bypass_observed", "low_flow_efficiency_pct", "est_high_flow_efficiency", "high_flow_efficiency_pct", "asset_type", "notes"))
   
   output$all_cet_table <- renderDT(
+    datatable(
     rv$all_cet_table(),
     selection = 'single', 
     style = 'bootstrap',
     class = 'table-responsive, table-hover',
-    colnames = c('System ID', 'Test Date', 'Component ID', 'Facility ID', 'Construction Phase', 'Low Flow Bypass Observed',
-                 'Low Flow Efficiency %', 'Est. High Flow Efficiency', 'High Flow Efficiency %', 'Asset Type', 'Notes')
+    colnames = c('System ID', 'Project Name', 'Test Date', 'Component ID', 'Construction Phase', 'Low Flow Bypass Observed',
+                 'Low Flow Efficiency %', 'Est. High Flow Efficiency', 'High Flow Efficiency %', 'Asset Type', 'Notes'),
+    options = list(
+      columnDefs = list(list(className = 'dt-left', targets = "_all"))
+    ), 
+    rownames = FALSE
+    )
   )
   
   observeEvent(input$all_cet_table_rows_selected, {
@@ -451,15 +459,22 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   rv$all_future_cet_query <- "SELECT * FROM fieldwork.future_capture_efficiency_full order by field_test_priority_lookup_uid"
   rv$all_future_cet_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_cet_query))
   rv$all_future_cet_table <- reactive(rv$all_future_cet_table_db() %>% 
-                                        dplyr::select("system_id", "component_id", "facility_id", "phase", "asset_type", "field_test_priority",  "notes"))
+                                        dplyr::select("system_id", "project_name", "component_id", "phase", "asset_type", "field_test_priority",  "notes"))
   
   output$all_future_cet_table <- renderDT(
+    datatable(
     rv$all_future_cet_table(), 
     selection = 'single', 
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
-    colnames = c('System ID', 'Component ID', 'Facility ID', 'Construction Phase', 
-                 'Asset Type', 'Priority', 'Notes')
+    colnames = c('System ID', 'Project Name', 'Component ID', 'Construction Phase', 
+                 'Asset Type', 'Priority', 'Notes'), 
+    options = list(
+      columnDefs = list(list(className = 'dt-left', targets = 0:5))
+      
+    ), 
+    rownames = FALSE
+    )
   )
   
   #update system id and change tabs

@@ -42,7 +42,7 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   rv$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
   
   #query the future deployment table
-  future_query <- "select * from fieldwork.future_deployments_full"
+  future_query <- "select * from fieldwork.future_deployments_full order by field_test_priority_lookup_uid"
   rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
   
   #upon editing a row in add_ow
@@ -95,9 +95,9 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   
   #select and rename columns to show in app
   rv$collect_table <- reactive(rv$collect_table_filter2() %>% 
-                                 dplyr::select(smp_id, site_name, ow_suffix, project_name, type, term, previous_download_error, #research, designation,
+                                 dplyr::select(smp_id, ow_suffix, project_name, type, term, previous_download_error, #research, designation,
                                                deployment_dtime_est,date_80percent,date_100percent)  %>% 
-                                 rename("SMP ID" = "smp_id", "Site" = "site_name", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Purpose" = "type", 
+                                 rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", "Purpose" = "type", 
                                         "Term" = "term", "Prev. DL Error" = "previous_download_error",
                                         #"Research" = "research", "Designation" = "designation",
                                         "Deploy Date" = "deployment_dtime_est", 
@@ -112,7 +112,8 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
       options = list(scroller = TRUE, 
                      scrollX = TRUE, 
                      scrollY = 550, 
-                     order = list(8, 'asc'))) %>%
+                     order = list(8, 'asc')), 
+      rownames = FALSE) %>%
       formatStyle(
         '80% Full Date',
         backgroundColor = styleInterval(lubridate::today(), c('yellow', 'transparent')), 
@@ -141,9 +142,9 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   
   ##Future table details
   rv$future_table <- reactive(rv$future_table_db %>% 
-                                dplyr::select("smp_id", "site_name", "ow_suffix", "project_name", "term", "notes") %>% 
-                                dplyr::rename("SMP ID" = "smp_id", "Site" = "site_name", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
-                                              "Term" = "term", "Notes" = "notes")
+                                dplyr::select("smp_id", "ow_suffix", "project_name", "term", "field_test_priority", "notes") %>% 
+                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
+                                              "Term" = "term", "Priority" = "field_test_priority","Notes" = "notes")
   )
   
   output$future <- renderDT(

@@ -389,13 +389,17 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                                  mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded", "qaqc_complete")), 
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
-                                 dplyr::select(-1))
+                                 dplyr::select("system_id", "project_name", "test_date", "phase", "type", "srt_volume_ft3",
+                                               "dcia_ft2", "srt_stormsize_in", "flow_data_recorded", "water_level_recorded",
+                                               "photos_uploaded", "sensor_collection_date", "qaqc_complete",
+                                               "srt_summary_date", "turnaround_days", "srt_summary"))
   
   output$all_srt_table <- renderReactable(
-    reactable(rv$all_srt_table()[, 1:14], 
+    reactable(rv$all_srt_table()[, 1:15], 
               columns = list(
                 #srt_uid = colDef(name = "SRT UID"),
                 system_id  = colDef(name = "System ID"),
+                project_name = colDef(name = "Project Name"),
                 test_date  = colDef(name = "Test Date"),
                 phase = colDef(name = "Phase"),
                 type = colDef(name = "Type"),
@@ -421,12 +425,13 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][15]
-                htmltools::div(style = "padding:16px", 
-                               reactable(nest, 
+                nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
+                htmltools::div(style = "padding:16px",
+                               reactable(nest_table,
                                          columns = list(srt_summary = colDef(name = "Results Summary")))
                 )
-              })
+              }
+    )
   )
   
   observeEvent(input$srt_selected, {
