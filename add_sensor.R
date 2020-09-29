@@ -4,15 +4,16 @@
 add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, sensor_status_lookup){
   ns <- NS(id)
   
-  tabPanel(title = "Add Sensor", value = "add_sensor",
-           titlePanel("Add Sensor to Inventory"), 
+  tabPanel(title = "Add/Edit Sensor", value = "add_sensor",
+           titlePanel("Add Sensor to Inventory or Edit Existing Sensor"), 
            sidebarPanel(
              numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA), 
              selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = hobo_options, selected = NULL), 
              dateInput(ns("date_purchased"), "Purchase Date", value = as.Date(NA)), 
              selectInput(ns("sensor_status"), html_req("Sensor Status"), choices = sensor_status_lookup$sensor_status, selected = "Good Order"),
              actionButton(ns("add_sensor"), "Add Sensor"), 
-             actionButton(ns("add_sensor_deploy"), "Deploy this Sensor")
+             actionButton(ns("add_sensor_deploy"), "Deploy this Sensor"), 
+             actionButton(ns("clear"), "Clear Fields")
            ),
            
            mainPanel(
@@ -78,12 +79,23 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
         isolate(paste("Sensor", input$serial_no, "edited."))
       })
     }
-    reset("serial_no")
-    reset("model_no")
-    reset("date")
-    reset("sensor_status")
+    #reset("serial_no")
+    #reset("model_no")
+    #reset("date")
+    #reset("sensor_status")
     #update sensor list following addition
     rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
+    rv$active_row <- which(rv$sensor_table$sensor_serial == input$serial_no, arr.ind = TRUE)
+    row_order <- order(
+      seq_along(rv$sensor_table$sensor_serial) %in% rv$active_row, 
+      decreasing = TRUE
+      )
+    
+    rv$sensor_table <- rv$sensor_table[row_order, ]
+    dataTableProxy('sensor_table') %>% 
+      selectRows(1)
+    
+    
   })
   
   #switch tabs to "Deploy" and update Sensor ID to the current Sensor ID (if the add/edit button says edit sensor)
@@ -105,12 +117,32 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
     class = 'table-responsive, table-hover',
     options = list(scroller = TRUE, 
                    scrollX = TRUE, 
-                   scrollY = 550)
+                   scrollY = 550), 
+    callback = JS('table.page("next").draw(false);')
   )
   
   observeEvent(input$sensor_table_rows_selected, {
     updateTextInput(session, "serial_no", value = rv$sensor_table$sensor_serial[input$sensor_table_rows_selected])
   })
+  
+  #clear all fields
+  #bring up dialogue box to confirm
+  observeEvent(input$clear, {
+    showModal(modalDialog(title = "Clear All Fields", 
+                          "Are you sure you want to clear all fields on this tab?", 
+                          modalButton("No"), 
+                          actionButton(ns("confirm_clear"), "Yes")))
+  })
+  
+  observeEvent(input$confirm_clear, {
+    reset("serial_no")
+    reset("model_no")
+    reset("date_purchased")
+    reset("sensor_status")
+    removeModal()
+  })
+  
+  
   
   return(
     list(

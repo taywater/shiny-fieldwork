@@ -4,8 +4,8 @@
 
 add_owUI <- function(id, label = "add_ow", smp_id, site_names, html_req){
   ns <- NS(id)
-  tabPanel(title = "Add Location", value = "add_ow",  
-           titlePanel("Add Monitoring Location"),
+  tabPanel(title = "Add/Edit Location", value = "add_ow",  
+           titlePanel("Add or Edit Monitoring Location"),
            fluidRow(
              column(width = 4, 
              #put 

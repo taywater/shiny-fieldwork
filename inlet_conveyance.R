@@ -529,6 +529,7 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
     reset("summary_sent")
     reset("priority")
     reset("notes")
+    removeModal()
   })
   
     # View all ICTs -----------------------------------------------------------

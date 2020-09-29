@@ -252,7 +252,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   #select columns to show in app, and rename
   rv$active_table <- reactive(rv$active_table_db() %>% 
-                                mutate_at(c("deployment_dtime_est", "date_80percent", "date_100percent"), as.character) %>% 
+                                mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                mutate(across(where(is.POSIXlt), as.character)) %>% 
                                 dplyr::select(deployment_dtime_est, ow_suffix, type, term, research, interval_min, sensor_serial, date_80percent, date_100percent) %>% 
                                 dplyr::rename("Deploy Date" = "deployment_dtime_est", 
                                               "Location" = "ow_suffix", "Purpose" = "type", "Term" = "term",
@@ -294,7 +295,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                                                          . == 0 ~ "No"))))
   
   rv$old_table <- reactive(rv$old_table_db() %>% 
-                             mutate_at(c("deployment_dtime_est", "collection_dtime_est"), as.character) %>% 
+                             mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                             mutate(across(where(is.POSIXlt), as.character)) %>% 
                              dplyr::select(deployment_dtime_est, collection_dtime_est, ow_suffix, type, term, research, interval_min, sensor_serial) %>% 
                              dplyr::rename("Deploy Date" = "deployment_dtime_est", "Location" = "ow_suffix", 
                                            "Purpose" = "type", "Term" = "term", "Research" = "research",

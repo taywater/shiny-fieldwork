@@ -381,6 +381,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("summary_date")
     reset("priority")
     reset("notes")
+    removeModal()
   })
   
   # View all SIs -----------------------------------------------------------
