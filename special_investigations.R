@@ -2,39 +2,47 @@
 #3 tabs: View future SI, past SI, add/edit SIs by site
 
 special_investigationsUI <- function(id, label = "special_investigations", 
-                                     sys_id, site_names, html_req, work_number, priority, con_phase, si_lookup, requested_by_lookup){
+                                     sys_id, site_names, html_req, work_number, priority, con_phase, si_lookup, requested_by_lookup, future_req){
   ns <- NS(id)
   navbarMenu("Special Investigations", 
              tabPanel("Add/Edit Special Investigations", value = "si_tab", 
                       titlePanel("Add Special Investigation"), 
                       sidebarPanel(
                         #style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
+                         fluidRow(h5("Prioritize System ID, then Work Number, then Site Name. Only one is required")),
                         fluidRow(
-                          h5("Prioritize System ID, then Work Number, then Site Name."),
-                          column(4, selectInput(ns("system_id"), "System ID", 
+                          column(4, selectInput(ns("system_id"), future_req(html_req("System ID")), 
                                                 choices = c("", sys_id), selected = NULL)), 
-                          column(4, selectInput(ns("work_number"), "Work Number", 
+                          column(4, selectInput(ns("work_number"), future_req(html_req("Work Number")), 
                                                 choices = c("", work_number), selected = NULL)),
-                          column(4, selectInput(ns("site_name"), "Site Name", 
+                          column(4, selectInput(ns("site_name"), future_req(html_req("Site Name")), 
                                                 choices = c("", site_names), selected = NULL))),
                         fluidRow(
                           column(6, dateInput(ns("date"), html_req("Test Date"), value = as.Date(NA))), 
                           column(6, selectInput(ns("con_phase"), "Construction Phase", 
                                                 choices = c("", con_phase$phase), selected = NULL))),
                         fluidRow(
-                          column(6, selectInput(ns("type"), "Investigation Type", 
+                          column(6, selectInput(ns("type"), future_req(html_req("Investigation Type")), 
                                                 choices = c("", si_lookup$special_investigation_type), selected = NULL)), 
-                          column(6, selectInput(ns("requested_by"), "Requested By", 
+                          column(6, selectInput(ns("requested_by"), future_req(html_req("Requested By")), 
                                                 choices = c("", requested_by_lookup$requested_by), selected = NULL))
                         ), 
                         fluidRow(
                           column(6, selectInput(ns("photos"), "Photos Uploaded", 
                                                 choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
-                          column(6, selectInput(ns("qaqc_complete"), "QA/QC Complete", 
+                          column(6, selectInput(ns("sensor_deployed"), html_req("Sensor Deployed?"), 
                                                 choices = c("","Yes" = "1", "No" = "0"), selected = NULL))
                         ),
+                        conditionalPanel(condition = "input.sensor_deployed == 1", 
+                                         ns = ns, 
+                                        fluidRow(
+                                          column(6, dateInput(ns("sensor_collect_date"), "Sensor Collection Date", value = as.Date(NA))), 
+                                          column(6, selectInput(ns("qaqc_complete"), html_req("QA/QC Complete"), 
+                                                                choices = c("","Yes" = "1", "No" = "0"), selected = NULL))
+                                        )),
                         fluidRow(
-                          column(6, dateInput(ns("sensor_collect_date"), "Sensor Collection Date", value = as.Date(NA))), 
+                          column(6, selectInput(ns("summary_needed"), html_req("Summary Needed?"), choices = c("","Yes" = "1", "No" = "0"), selected = NULL)
+                        ), 
                           column(6, dateInput(ns("summary_date"), "Summary Date", value = as.Date(NA)))),
                         conditionalPanel(condition = "input.date === null", 
                                          ns = ns, 
@@ -45,8 +53,11 @@ special_investigationsUI <- function(id, label = "special_investigations",
                                          ns = ns, 
                                          actionButton(ns("future_test"), "Add Future Special Investigation")),
                         actionButton(ns("add_test"), "Add Special Investigation"), 
-                        actionButton(ns("clear"), "Clear All Fields")
-                      ), 
+                        actionButton(ns("clear"), "Clear All Fields"),
+                        fluidRow(
+                        HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.")))
+                      ),
+                      
                       mainPanel(
                         conditionalPanel(condition = "input.system_id || input.work_number || input.site_name", 
                                          ns  = ns, 
@@ -114,8 +125,10 @@ special_investigations <- function(input, output, session, parent_session, poolC
   #toggle "add test" button so it is only active when certain fields are complete
   observe(toggleState("add_test", condition = (nchar(input$system_id) | nchar(input$work_number) > 0 | nchar(input$site_name) > 0) &
                         length(input$date) > 0 &
-                        (nchar(input$type) > 0 & nchar(input$requested_by) > 0)
-  ))
+                        nchar(input$type) > 0 & nchar(input$requested_by) > 0 &
+                        nchar(input$sensor_deployed) > 0 &
+                        nchar(input$summary_needed) > 0)
+  )
   
   observe(toggleState("future_test", condition = (nchar(input$system_id) | nchar(input$work_number) > 0 | nchar(input$site_name) > 0) &
                         length(input$date) == 0 &
@@ -123,11 +136,23 @@ special_investigations <- function(input, output, session, parent_session, poolC
   ))
   
   #toggle 'results fields' so they can only be filled when a test date is entered
+  observe(toggleState("sensor_deployed", condition = length(input$date) > 0))
   observe(toggleState("qaqc_complete", condition = length(input$date) > 0))
   observe(toggleState("sensor_collect_date", condition = length(input$date) > 0))
   observe(toggleState("photos", condition = length(input$date) > 0))
-  observe(toggleState("summary_date", condition = length(input$date) > 0))
+  observe(toggleState("summary_needed", condition = length(input$date) > 0))
+  observe(toggleState("summary_date", condition = length(input$date) > 0 & nchar(input$summary_needed) > 0))
   
+  #reset sensor collection and qa/c IF sensor deployed = NO
+  
+  observeEvent(input$sensor_deployed == "No", {
+    reset("sensor_collect_date")
+    reset("qaqc_complete")
+  })
+  
+  observeEvent(input$summary_needed == "No", {
+    reset("summary_date")
+  })
   
   #lookup priority uid
   rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
@@ -162,6 +187,8 @@ special_investigations <- function(input, output, session, parent_session, poolC
   
   rv$photos <- reactive(if(nchar(input$photos) == 0) "NULL" else paste0("'", input$photos, "'"))  
   rv$qaqc_complete <- reactive(if(nchar(input$qaqc_complete) == 0) "NULL" else paste0("'", input$qaqc_complete, "'"))  
+  rv$summary_needed <- reactive(if(nchar(input$summary_needed) == 0) "NULL" else paste0("'", input$summary_needed, "'"))  
+  rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0) "NULL" else paste0("'", input$sensor_deployed, "'"))  
   
   #notes
   rv$notes_step <- reactive(gsub('\'', '\'\'', input$notes))
@@ -203,7 +230,9 @@ special_investigations <- function(input, output, session, parent_session, poolC
     updateNumericInput(session, "requested_by", value = rv$si_table_db()$requested_by[input$si_table_rows_selected])
     updateNumericInput(session, "qaqc_complete", value = rv$si_table_db()$qaqc_complete[input$si_table_rows_selected])
     updateNumericInput(session, "sensor_collect_date", value = rv$si_table_db()$sensor_collection_date[input$si_table_rows_selected])
+    updateSelectInput(session, "summary_needed", selected = rv$si_table_db()$summary_needed[input$si_table_rows_selected])
     updateNumericInput(session, "summary_date", value = rv$si_table_db()$summary_date[input$si_table_rows_selected])
+    updateSelectInput(session, "sensor_deployed", selected = rv$si_table_db()$sensor_deployed[input$si_table_rows_selected])
     updateSelectInput(session, "photos", selected = rv$si_table_db()$photos_uploaded[input$si_table_rows_selected])
     updateTextAreaInput(session, "notes", value = rv$si_table_db()$results_summary[input$si_table_rows_selected])
     reset("priority")
@@ -245,8 +274,10 @@ special_investigations <- function(input, output, session, parent_session, poolC
     
     reset("date")
     reset("photos")
+    reset("sensor_deployed")
     reset("qaqc_complete")
     reset("sensor_collect_date")
+    reset("summary_needed")
     reset("summary_date")
   })
   
@@ -263,11 +294,11 @@ special_investigations <- function(input, output, session, parent_session, poolC
       #add to special investigation
       add_test_query <- paste0("INSERT INTO fieldwork.special_investigation (system_id, work_number, site_name_lookup_uid, 
       test_date, special_investigation_lookup_uid, requested_by_lookup_uid,  con_phase_lookup_uid, 
-      photos_uploaded, sensor_collection_date,  qaqc_complete, summary_date, results_summary)
+      photos_uploaded, sensor_collection_date,  qaqc_complete, summary_date, results_summary, sensor_deployed, summary_needed)
     	                  VALUES (", paste(rv$system_id(), rv$work_number(), rv$site_name_lookup_uid(),
     	                                   rv$test_date(), rv$si_type(), rv$requested_by(), rv$phase_null(), 
     	                                   rv$photos(), rv$sensor_collect_date(),  rv$qaqc_complete(), rv$summary_date(),
-    	                                   rv$notes(), sep = ", "), ")")
+    	                                   rv$notes(), rv$sensor_deployed(), rv$summary_needed(), sep = ", "), ")")
       
       odbc::dbGetQuery(poolConn, add_test_query)
     }else{
@@ -283,7 +314,9 @@ special_investigations <- function(input, output, session, parent_session, poolC
                                 sensor_collection_date = ", rv$sensor_collect_date(), ", 
                                 qaqc_complete = ", rv$qaqc_complete(), ", 
                                 summary_date = ", rv$summary_date(), ",
-                                results_summary = ", rv$notes(), "
+                                results_summary = ", rv$notes(), ", 
+                                sensor_deployed = ", rv$sensor_deployed(), ", 
+                                summary_needed = ", rv$summary_needed(), ",
                                WHERE special_investigation_uid = '", rv$si_table_db()[input$si_table_rows_selected, 1], "'")
       
       dbGetQuery(poolConn, edit_test_query)
@@ -304,10 +337,12 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("requested_by")
     reset("con_phase")
     reset("photos")
+    reset("sensor_deployed")
     reset("qaqc_complete")
     reset("sensor_collect_date")
     reset("summary_date")
     reset("priority")
+    reset("summary_needed")
     reset("notes")
   })
   
@@ -349,10 +384,12 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("type")
     reset("requested_by")
     reset("con_phase")
+    reset("sensor_deployed")
     reset("photos")
     reset("qaqc_complete")
     reset("sensor_collect_date")
     reset("summary_date")
+    reset("summary_needed")
     reset("priority")
     reset("notes")
     
@@ -376,6 +413,8 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("requested_by")
     reset("con_phase")
     reset("photos")
+    reset("summary_needed")
+    reset("sensor_deployed")
     reset("qaqc_complete")
     reset("sensor_collect_date")
     reset("summary_date")
@@ -389,17 +428,17 @@ special_investigations <- function(input, output, session, parent_session, poolC
   rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full ORDER BY test_date DESC"))
   rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
   rv$all_si_table <- reactive(rv$all_si_table_db() %>% mutate_at(c("test_date", "sensor_collection_date", "summary_date"), as.character) %>% 
-                                 mutate_at(vars(one_of("qaqc_complete", "photos_uploaded")), 
+                                 mutate_at(vars(one_of("qaqc_complete", "photos_uploaded", "sensor_deployed", "summary_needed")), 
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select("system_id",  "project_name", "test_date", 
-                                               "special_investigation_type", "requested_by", "phase",
+                                               "special_investigation_type", "requested_by", "phase", "sensor_deployed",
                                                "sensor_collection_date", "photos_uploaded", "qaqc_complete",
-                                               "summary_date", "turnaround_days", "results_summary"))
+                                               "summary_date", "turnaround_days", "results_summary", "summary_needed"))
   
   #show table of ICTs
   output$all_si_table <- renderReactable(
-    reactable(rv$all_si_table()[, 1:11], 
+    reactable(rv$all_si_table()[, c(1:12)], 
               columns = list(
                 system_id = colDef(name = "System ID"),
                 project_name = colDef(name = "Project Name"),
@@ -407,10 +446,55 @@ special_investigations <- function(input, output, session, parent_session, poolC
                 special_investigation_type = colDef(name = "Type"), 
                 requested_by = colDef(name = "Requested By"),
                 phase = colDef(name = "Phase"),
-                sensor_collection_date = colDef(name = "Sensor Collection Date"),
-                photos_uploaded = colDef(name = "Photos Uploaded"),
-                qaqc_complete = colDef(name = "QA/QC Complete"),
-                summary_date = colDef(name = "Summary Date"),
+                sensor_deployed = colDef(name = "Sensor Deployed", style = function(value){
+                  if(is.na(value)){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                sensor_collection_date = colDef(name = "Sensor Collection Date", style = function(value, index){
+                  if(is.na(value) & rv$all_si_table()$sensor_deployed[index] == "Yes"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                photos_uploaded = colDef(name = "Photos Uploaded", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                qaqc_complete = colDef(name = "QA/QC Complete", style = function(value,index){
+                  if((is.na(value) & rv$all_si_table()$sensor_deployed[index] == "Yes")){
+                    color = "#FFFC1C"
+                    #need to do a nested if so that it odesn't try to evaluate a value where there is no value (is.na())
+                  }else if(!is.na(value)){
+                    if(value == "No"){
+                    color = "#FFFC1C"
+                    }else{
+                      color = "#FFFFFF"
+                    }
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                summary_date = colDef(name = "Summary Date", 
+                                      style = function(value, index){
+                                        if(is.na(value) & (is.na(rv$all_si_table()$summary_needed[index]) |
+                                                           rv$all_si_table()$summary_needed[index] == "Yes")){
+                                          color = "#FFFC1C"
+                                        }else{
+                                          color = "#FFFFFF"
+                                        }
+                                        list(backgroundColor = color, fontweight = "bold")
+                                      }),
                 turnaround_days = colDef(name = "Turnaround (Days)")
               ),
               fullWidth = TRUE,
@@ -423,13 +507,13 @@ special_investigations <- function(input, output, session, parent_session, poolC
               defaultPageSize = 10,
               height = 750,
               details = function(index){
-                nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][12]
-                htmltools::div(style = "padding:16px", 
-                               reactable(nest, 
+                nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
+                htmltools::div(style = "padding:16px",
+                               reactable(nest,
                                          columns = list(results_summary = colDef(name = "Results Summary")))
                 )
               }
-    )
+     )
   )
   
   #select row in full si table

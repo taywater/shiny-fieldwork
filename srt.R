@@ -1,7 +1,7 @@
 #SRT tabs
 #This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
 
-SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, html_req){
+SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, html_req, future_req){
   ns <- NS(id)
   navbarMenu("SRT", 
              tabPanel("Add/Edit SRT", value = "srt_tab", 
@@ -10,7 +10,7 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                         column(width = 5,
                                #split layout with left and right
                                sidebarPanel(width = 12, 
-                                              selectInput(ns("system_id"), html_req("System ID"), choices = c("", sys_id), selected = NULL), 
+                                              selectInput(ns("system_id"), future_req(html_req("System ID")), choices = c("", sys_id), selected = NULL), 
                                             splitLayout(
                                               dateInput(ns("srt_date"), html_req("Test Date"), value = as.Date(NA)), 
                                               selectInput(ns("flow_data_rec"), "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
@@ -39,7 +39,9 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                                                              ns = ns, 
                                                              actionButton(ns("future_srt"), "Add Future SRT")),
                                             actionButton(ns("add_srt"), "Add SRT"),
-                                            actionButton(ns("clear_srt"), "Clear All Fields"), 
+                                            actionButton(ns("clear_srt"), "Clear All Fields"),
+                                            fluidRow(
+                                              HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests."))), 
                                             tags$head(tags$style(HTML("
       .shiny-split-layout > div {
         overflow: visible;
@@ -406,12 +408,58 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                 srt_volume_ft3  = colDef(name = "Volume (cf)"),
                 dcia_ft2  = colDef(name = "DCIA (sf)"),
                 srt_stormsize_in = colDef(name = "Simulated Depth (in)"),
-                flow_data_recorded = colDef(name = "Flow Data Recorded"),
-                water_level_recorded = colDef(name = "Water Level Recorded"),
-                photos_uploaded = colDef(name = "Photos Uploaded"),
-                sensor_collection_date  = colDef(name = "Sensor Collection Date"),
-                qaqc_complete = colDef(name = "QA/QC Complete"),
-                srt_summary_date = colDef(name = "Summary Date"),
+                flow_data_recorded = colDef(name = "Flow Data Recorded", style = function(value){
+                  if(is.na(value)){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                water_level_recorded = colDef(name = "Water Level Recorded", style = function(value){
+                  if(is.na(value)){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                photos_uploaded = colDef(name = "Photos Uploaded", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                sensor_collection_date  = colDef(name = "Sensor Collection Date", style = function(value, index){
+                  if((is.na(value) | value == "No") & 
+                     (is.na(rv$all_srt_table()$flow_data_recorded[index]) |
+                      rv$all_srt_table()$flow_data_record[index] == "Yes")){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                qaqc_complete = colDef(name = "QA/QC Complete", style = function(value, index){
+                  if((is.na(value) | value == "No") & 
+                     (is.na(rv$all_srt_table()$flow_data_recorded[index]) |
+                      rv$all_srt_table()$flow_data_record[index] == "Yes")){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                srt_summary_date = colDef(name = "Summary Date", style = function(value){
+                  if(is.na(value)){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
                 turnaround_days = colDef(name = "Turnaround (days)")
               ),
               fullWidth = TRUE,

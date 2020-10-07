@@ -1,24 +1,24 @@
 #Inlet Conveyance module
 #3 tabs: View future ICT, past ICT, add/edit ICTs by site
 
-inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_names, html_req, work_number, priority, con_phase){
+inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_names, html_req, work_number, priority, con_phase, future_req){
   ns <- NS(id)
   navbarMenu("Inlet Conveyance", 
              tabPanel("Add/Edit Inlet Conveyance Tests", value = "ict_tab", 
                       titlePanel("Add Inlet Conveyance Test"), 
                       sidebarPanel(
                         style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
-                                  h5("Prioritize System ID, then Work Number, then Site Name."),
+                                  h5("Prioritize System ID, then Work Number, then Site Name. Only one is required."),
                                   fluidRow(
-                                    column(4, selectInput(ns("system_id"), "System ID", 
+                                    column(4, selectInput(ns("system_id"), future_req(html_req("System ID")), 
                                                           choices = c("", sys_id), selected = NULL)), 
-                                    column(4, selectInput(ns("work_number"), "Work Number", 
+                                    column(4, selectInput(ns("work_number"), future_req(html_req("Work Number")), 
                                                           choices = c("", work_number), selected = NULL)),
-                                    column(4, selectInput(ns("site_name"), "Site Name", 
+                                    column(4, selectInput(ns("site_name"), future_req(html_req("Site Name")), 
                                                           choices = c("", site_names), selected = NULL))),
                                  fluidRow(
-                                   column(6, selectInput(ns("comp_id"), "Component ID", choice = "", selected = NULL)), 
-                                   column(6, textInput(ns("comp_id_custom"), "Custom Component ID"))), 
+                                   column(6, selectInput(ns("comp_id"), future_req(html_req("Component ID")), choice = "", selected = NULL)), 
+                                   column(6, textInput(ns("comp_id_custom"), future_req(html_req("Custom Component ID"))))), 
                                   disabled(textInput(ns("facility_id"), "Facility ID")), 
                                   fluidRow(
                                     column(6, dateInput(ns("date"), html_req("Test Date"), value = as.Date(NA))), 
@@ -39,7 +39,7 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_name
                                  fluidRow(
                                    column(6, selectInput(ns("photos"), "Photos Uploaded", 
                                                          choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
-                                   column(6, dateInput(ns("summary_sent"), "Summary Report Sent", 
+                                   column(6, dateInput(ns("summary_sent"), "Summary Date", 
                                                          value = NA))
                                  ),
                                   conditionalPanel(condition = "input.date === null", 
@@ -51,7 +51,9 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", sys_id, site_name
                                                    ns = ns, 
                                                    actionButton(ns("future_test"), "Add Future Inlet Conveyance Test")),
                                   actionButton(ns("add_test"), "Add Inlet Conveyance Test"), 
-                                  actionButton(ns("clear"), "Clear All Fields")
+                                  actionButton(ns("clear"), "Clear All Fields"), 
+                        fluidRow(
+                          HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.")))
                       ), 
                       mainPanel(
                         conditionalPanel(condition = "input.system_id || input.work_number || input.site_name", 
@@ -124,7 +126,9 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                         ))
   
   observe(toggleState("future_test", condition = (nchar(input$system_id) | nchar(input$work_number) > 0 | nchar(input$site_name) > 0) &
-                        length(input$date) == 0))
+                        length(input$date) == 0&
+                        (nchar(input$comp_id) > 0 | nchar(input$comp_id_custom) > 0)
+                      ))
   
   #toggle 'results fields' so they can only be filled when a test date is entered
   observe(toggleState("eq_flow_rate", condition = length(input$date) > 0))
@@ -560,8 +564,22 @@ inlet_conveyance <- function(input, output, session, parent_session, poolConn, c
                 max_water_depth_ft = colDef(name = "Max Water Depth (ft)"),
                 surcharge = colDef(name = "Surcharge"),
                 time_to_surcharge_min = colDef(name = "Time to Surcharge (min)"),
-                photos_uploaded = colDef(name = "Photos Uploaded"), 
-                summary_report_sent = colDef(name = "Summary Report Sent"), 
+                photos_uploaded = colDef(name = "Photos Uploaded", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }), 
+                summary_report_sent = colDef(name = "Summary Date", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }), 
                 turnaround_days = colDef(name = "Turnaround (Days)")
               ),
               fullWidth = TRUE,

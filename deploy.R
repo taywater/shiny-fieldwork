@@ -1,5 +1,5 @@
 
-deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority){
+deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority, future_req){
   ns <- NS(id)
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
@@ -8,10 +8,10 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
              column(width = 4, 
                     sidebarPanel(width = 12, 
                                  fluidRow(
-                                   column(6,selectInput(ns("smp_id"), html_req(html_req("SMP ID")), choices = c("", smp_id), selected = NULL)), 
-                                   column(6,selectInput(ns("site_name"), html_req(html_req("Site Name")), choices = c("", site_names), selected = NULL))),
+                                   column(6,selectInput(ns("smp_id"), future_req(html_req("SMP ID")), choices = c("", smp_id), selected = NULL)), 
+                                   column(6,selectInput(ns("site_name"), future_req(html_req("Site Name")), choices = c("", site_names), selected = NULL))),
                                  fluidRow(
-                                   column(6,selectInput(ns("well_name"), html_req(html_req("Location")), choices = "")), 
+                                   column(6,selectInput(ns("well_name"), future_req(html_req("Location")), choices = "")), 
                                    column(6,selectInput(ns("sensor_id"), html_req("Sensor ID"), choices = c("", sensor_serial), selected = NULL))),
                                  textOutput(ns("sensor_warning")),
                                  fluidRow(
@@ -42,8 +42,10 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                                   actionButton(ns("future_deploy"), "Add Future Deployment")),
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
+                                 fluidRow(
+                                   HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.", "Check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")))
                     ), 
-                    h5("Only SMP ID (or Site Name) and Location are required for Future Deployments; Sensor ID is not required if the sensor purpose is DATALOGGER; for all other deployments, all fields with a red star are required. If the \"Add New Deployment\" button is grayed out, but all required fields are full, check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")
+                    
                     
              ),
              column(width = 8,

@@ -1,17 +1,17 @@
 #Capture Efficiency Test (CET) tabs
 #This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
 
-capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, priority, html_req, con_phase){
+capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, priority, html_req, con_phase, future_req){
   ns <- NS(id)
   navbarMenu("Capture Efficiency",
              tabPanel("Add/Edit Capture Efficiency Test", value = "cet_tab", 
                       useShinyjs(),
                       titlePanel("Add Capture Efficiency Test"), 
                       sidebarPanel(
-                        selectInput(ns("system_id"), html_req("System ID"), choices = c("", sys_id), selected = NULL), 
-                        selectInput(ns("cet_comp_id"), "Component ID", choices = c(""), selected = NULL), 
-                        textInput(ns("cet_comp_id_custom"), "Custom Component ID"),
-                        disabled(textInput(ns("facility_id"), html_req("Facility ID"))),
+                        selectInput(ns("system_id"), future_req(html_req("System ID")), choices = c("", sys_id), selected = NULL), 
+                        selectInput(ns("cet_comp_id"),  future_req(html_req("Component ID")), choices = c(""), selected = NULL), 
+                        textInput(ns("cet_comp_id_custom"),  future_req(html_req("Custom Component ID"))),
+                        disabled(textInput(ns("facility_id"), future_req(html_req("Facility ID")))),
                         fluidRow(
                           column(6, dateInput(ns("cet_date"), html_req("Test Date"), value = as.Date(NA))), 
                           column(6, selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL))),
@@ -32,6 +32,8 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
                                          actionButton(ns("future_cet"), "Add Future Capture Efficiency Test")),
                         actionButton(ns("add_cet"), "Add Capture Efficiency Test"), 
                         actionButton(ns("clear_cet"), "Clear All Fields"),
+                        fluidRow(
+                          HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.")))
                       ), 
                       mainPanel(
                         conditionalPanel(condition = "input.system_id", 

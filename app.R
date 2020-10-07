@@ -102,7 +102,12 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     
     #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
     html_req <- function(label){
-      HTML(paste(label, tags$span(style="color:red", "*")))
+      HTML(paste(label, tags$span(style="color:red", tags$sup("*"))))
+    }
+    
+    #this function adds a blue dagger to indicate that a field is required for future tests. It uses HTML
+    future_req <- function(label){
+      HTML(paste(label, tags$span(style="color:blue", tags$sup("†"))))
     }
     
     #monitoring stats
@@ -129,14 +134,14 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
                do.call(navbarMenu, list(title = "Deployments") %>%
                        append(collection_calendarUI("collection_calendar")) %>%
-                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, research_lookup = research_lookup, priority = priority))),
+                       append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, research_lookup = research_lookup, priority = priority, future_req = future_req))),
                   add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
-                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority),
-                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority),
-                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority),
-              inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names),
-               special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup),
+                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority, future_req = future_req),
+                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority, future_req = future_req),
+                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority, future_req = future_req),
+              inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, future_req = future_req),
+               special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup, future_req = future_req),
                m_statsUI("stats", current_fy = current_fy, years = years),
                 documentationUI("documentation")
   )
@@ -197,7 +202,12 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     
     #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
     html_req <- function(label){
-      HTML(paste(label, tags$span(style="color:red", "*")))
+      HTML(paste(label, tags$span(style="color:red", tags$sup("*"))))
+    }
+    
+    #this function adds a blue dagger to indicate that a field is required for future tests. It uses HTML
+    future_req <- function(label){
+      HTML(paste(label, tags$span(style="color:blue", tags$sup("†"))))
     }
     
     #monitoring stats

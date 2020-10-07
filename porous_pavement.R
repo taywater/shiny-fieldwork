@@ -1,12 +1,12 @@
 #Porous pavement tabs
 #This has a tab dropdown with three tabs, one for adding PPTs and one for viewing all PPTs and one for viewing future PPTs
 
-porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, priority, con_phase){
+porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, surface_type, priority, con_phase, future_req){
   ns <- NS(id)
   navbarMenu("Porous Pavement", 
              tabPanel("Add/Edit Porous Pavement Test", value = "ppt_tab", 
                       titlePanel("Add Porous Pavement Test"), 
-                      sidebarPanel(selectInput(ns("smp_id"), html_req("SMP ID"), choices = c("", smp_id), selected = NULL), 
+                      sidebarPanel(selectInput(ns("smp_id"), future_req(html_req("SMP ID")), choices = c("", smp_id), selected = NULL), 
                                    dateInput(ns("date"), html_req("Test Date"), value = as.Date(NA)), 
                                    selectInput(ns("surface_type"), html_req("Surface Type"), choices = c("", surface_type$surface_type), selected = NULL), 
                                    selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL),
@@ -21,7 +21,9 @@ porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, s
                                                     ns= ns, 
                                                     actionButton(ns("future_ppt"), "Add Future Porous Pavement Test")),
                                    actionButton(ns("add_ppt"), "Add Porous Pavement Test"), 
-                                   actionButton(ns("clear_ppt"), "Clear All Fields")
+                                   actionButton(ns("clear_ppt"), "Clear All Fields"),
+                                   fluidRow(
+                                     HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.")))
                       ), 
                       mainPanel(
                         conditionalPanel(condition = "input.smp_id",
@@ -33,7 +35,7 @@ porous_pavementUI <- function(id, label = "porous_pavement", smp_id, html_req, s
              ), 
              tabPanel("View Porous Pavement Tests", value = ns("view_ppt"), 
                       titlePanel("All Porous Pavement Tests"), 
-                      DTOutput(ns("all_ppt_table"))
+                      reactableOutput(ns("all_ppt_table"))
              ), 
              tabPanel("View Future Porous Pavement Tests", value = ns("view_future_ppt"), 
                       titlePanel("All Future Porous Pavement Tests"), 
@@ -290,25 +292,55 @@ porous_pavement <- function(input, output, session, parent_session, surface_type
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select("test_date", "smp_id", "project_name", "surface_type", "phase", "test_location", "data_in_spreadsheet", "map_in_site_folder"))
   
-  output$all_ppt_table <- renderDT(
-    rv$all_ppt_table(), 
-    selection = 'single', 
-    style = 'bootstrap', 
-    class = 'table-responsive, table-hover', 
-    colnames = c('Test Date', 'SMP ID', 'Project Name', 'Surface Type', 'Construction Phase', 'Test Location', 'Data in Spreadsheet', 'Map in Site Folder'), 
-    rownames = FALSE
+  output$all_ppt_table <- renderReactable(
+        reactable(rv$all_ppt_table(), 
+              columns = list(
+                test_date  = colDef(name = "Test Date"),
+                smp_id  = colDef(name = "SMP ID"),
+                project_name = colDef(name = "Project Name"),
+                surface_type = colDef(name = "Surface Type"),
+                phase = colDef(name = "Construction Phase"),
+                test_location  = colDef(name = "Test Location"),
+                data_in_spreadsheet = colDef(name = "Date In Spreadsheet", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }),
+                map_in_site_folder = colDef(name = "Map in Site Folder", style = function(value){
+                  if(is.na(value) | value == "No"){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                })
+              ),
+              fullWidth = TRUE,
+              selection = "single",
+              searchable = TRUE,
+              onClick = "select",
+              selectionId = ns("ppt_selected"),
+              #searchable = TRUE,
+              showPageSizeOptions = TRUE,
+              pageSizeOptions = c(10, 25, 50),
+              defaultPageSize = 10,
+              height = 750
+    )
   )
   
-  observeEvent(input$all_ppt_table_rows_selected, {
+  observeEvent(input$ppt_selected, {
     # do not use shinyjs::reset() - it is too slow and will go after updating to the smp_id, resulting in a cleared field
     updateSelectInput(session, "smp_id", selected = NULL)
-    updateSelectInput(session, "smp_id", selected = rv$all_ppt_table()$smp_id[input$all_ppt_table_rows_selected])
+    updateSelectInput(session, "smp_id", selected = rv$all_ppt_table()$smp_id[input$ppt_selected])
     updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
   })
   
   observeEvent(rv$ppt_table_db(), {
-    if(length(input$all_ppt_table_rows_selected) > 0){
-      ppt_row <- which(rv$ppt_table_db()$porous_pavement_uid == rv$all_ppt_table_db()$porous_pavement_uid[input$all_ppt_table_rows_selected], arr.ind = TRUE)
+    if(length(input$ppt_selected) > 0){
+      ppt_row <- which(rv$ppt_table_db()$porous_pavement_uid == rv$all_ppt_table_db()$porous_pavement_uid[input$ppt_selected], arr.ind = TRUE)
       dataTableProxy('ppt_table') %>% selectRows(ppt_row)
     }
   })
