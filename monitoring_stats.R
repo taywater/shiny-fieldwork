@@ -50,8 +50,6 @@ m_statsUI <- function(id, label = "stats", current_fy, years){
                 DTOutput(ns("cet_table"))
              )
            
-                           
-           
   )
 }
 
@@ -187,31 +185,45 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   
   #systems
   # No. of public systems monitored
-  rv$public_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d 
-                                                WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
-                                                OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(), "')
-                                                OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
-                                                AND d.public = TRUE"))
+  # rv$public_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d 
+  #                                               WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
+  #                                               OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(), "')
+  #                                               OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
+  #                                               AND d.public = TRUE"))
+  
+  rv$public_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d
+                                                   WHERE deployment_dtime_est <= '", rv$end_date(), "'
+                                                AND (collection_dtime_est >= '", rv$start_date(), "' 
+                                         OR collection_dtime_est IS NULL) 
+                                                   AND d.public = TRUE"))
+  
   
   rv$public_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$public_systems_monitored_q()))
   rv$public_systems_monitored <- reactive(data.frame(Metric = as.character("Public Systems Monitored"), Count = rv$public_systems_monitored_value()))
   
+  
+  
   #No. of longterm systems monitored
-  rv$long_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d 
-                                                WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
-                                                OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(), "')
-                                                OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
-                                                AND d.term = 'Long'"))
+  
+  rv$long_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d
+                                                   WHERE deployment_dtime_est <= '", rv$end_date(), "'
+                                                AND (collection_dtime_est >= '", rv$start_date(), "' 
+                                         OR collection_dtime_est IS NULL) 
+                                         AND d.term = 'Long'
+                                                   AND d.public = TRUE"))
+  
   
   rv$long_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$long_term_systems_monitored_q()))
   rv$long_term_systems_monitored <- reactive(data.frame(Metric = as.character("Long Term Systems Monitored"), Count = rv$long_term_systems_monitored_value()))
   
+  
   #No. of short term systems monitored
-  rv$short_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d 
-                                                WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
-                                                OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(), "')
-                                                OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
-                                                AND d.term = 'Short'"))
+  rv$short_term_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d
+                                                   WHERE deployment_dtime_est <= '", rv$end_date(), "'
+                                                AND (collection_dtime_est >= '", rv$start_date(), "' 
+                                         OR collection_dtime_est IS NULL) 
+                                         AND d.term = 'Short'
+                                                   AND d.public = TRUE"))
   
   rv$short_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$short_term_systems_monitored_q()))
   rv$short_term_systems_monitored <- reactive(data.frame(Metric = as.character("Short Term Systems Monitored"), Count = rv$short_term_systems_monitored_value()))
@@ -236,11 +248,11 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   
   #private systems
   # No. of private systems monitored
-  rv$private_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d 
-                                                WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
-                                                OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(),"')
-                                                OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
-                                                AND d.public = FALSE"))
+  rv$private_systems_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT smp_to_system(d.smp_id)) FROM fieldwork.deployment_full_cwl d
+                                                   WHERE deployment_dtime_est <= '", rv$end_date(), "'
+                                                AND (collection_dtime_est >= '", rv$start_date(), "' 
+                                         OR collection_dtime_est IS NULL) 
+                                                   AND d.public = FALSE"))
   
   rv$private_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$private_systems_monitored_q()))
   rv$private_systems_monitored <- reactive(data.frame(Metric = as.character("Private Systems Monitored"), Count = rv$private_systems_monitored_value()))
@@ -255,15 +267,15 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #smps -----
   
   # No. of public smps monitored
-  rv$public_smps_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT d.smp_id) FROM fieldwork.deployment_full_cwl d 
-                                                WHERE ((d.deployment_dtime_est >= '", rv$start_date(), "' AND d.deployment_dtime_est <= '", rv$end_date(), "')
-                                                OR (d.collection_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est >= '", rv$start_date(), "')
-                                                OR (d.deployment_dtime_est <= '", rv$end_date(), "' AND d.collection_dtime_est is NULL))
-                                                AND d.public = TRUE"))
+  
+  rv$public_smps_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT d.smp_id) FROM fieldwork.deployment_full_cwl d
+                                                   WHERE deployment_dtime_est <= '", rv$end_date(), "'
+                                                AND (collection_dtime_est >= '", rv$start_date(), "' 
+                                         OR collection_dtime_est IS NULL) 
+                                                   AND d.public = TRUE"))
   
   rv$public_smps_monitored_value <- reactive(dbGetQuery(poolConn, rv$public_smps_monitored_q()))
   rv$public_smps_monitored <- reactive(data.frame(Metric = as.character("Public SMPs Monitored"), Count = rv$public_smps_monitored_value()))
-  
   
   #No. of new smps monitored
   rv$new_smps_monitored_q <- reactive(paste0("SELECT count(distinct(dada.smp_id)) FROM 
@@ -275,10 +287,9 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   rv$new_smps_monitored_value <- reactive(dbGetQuery(poolConn, rv$new_smps_monitored_q()))
   rv$new_smps_monitored <- reactive(data.frame(Metric = as.character("New SMPs Monitored"), Count = rv$new_smps_monitored_value()))
 # sensors -----------------------------------------------------------------
-
   
   #hobos deployed
-  rv$hobos_deployed_q <- reactive(paste0("SELECT COUNT(*) FROM fieldwork.deployment 
+  rv$hobos_deployed_q <- reactive(paste0("SELECT COUNT(distinct(sensor_serial)) FROM fieldwork.deployment_full_cwl 
                                          WHERE deployment_dtime_est <= '", rv$end_date(), "'
                                                 AND (collection_dtime_est >= '", rv$start_date(), "' 
                                          OR collection_dtime_est IS NULL)"))
