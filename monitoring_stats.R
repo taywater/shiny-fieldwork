@@ -23,7 +23,8 @@ m_statsUI <- function(id, label = "stats", current_fy, years){
                 conditionalPanel(condition = "input.cet_checkbox", 
                                  ns = ns, 
                                  selectInput(ns("inlet_type"), "Inlets", choices = c("All", "Inlets", "Curbcuts")), 
-                                 selectInput(ns("unique_inlets"), "Unique Inlets", choices = c("Include All Tests", "Most Recent for Each Inlet"))),
+                                 selectInput(ns("unique_inlets"), "Unique Inlets", choices = c("Include All Tests", "Most Recent for Each Inlet")), 
+                                 selectInput(ns("public_inlets"), "Ownership", choices = c("Public and Private", "Public", "Private"))),
                 fluidRow(column(8,
                         actionButton(ns("table_button"), "Generate System and SMP Stats")),
                         column(4, 
@@ -138,7 +139,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   observeEvent(input$cet_button, {
     #print("starting_cet")
     enable("download_cet")
-    rv$cet_name <- paste(rv$unique_inlet_title_text(), input$phase, input$inlet_type, "Capture Efficiency Stats", rv$select_range_tests_title_text())
+    rv$cet_name <- paste(rv$unique_inlet_title_text(), input$phase, input$inlet_type, input$public_inlets, "Capture Efficiency Stats", rv$select_range_tests_title_text())
     output$cet_name <- renderText(rv$cet_name)
     rv$cet_table <- bind_rows(
       rv$cet_lf(),
@@ -214,7 +215,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   
   
   rv$long_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$long_term_systems_monitored_q()))
-  rv$long_term_systems_monitored <- reactive(data.frame(Metric = as.character("Long Term Systems Monitored"), Count = rv$long_term_systems_monitored_value()))
+  rv$long_term_systems_monitored <- reactive(data.frame(Metric = as.character("Public Long Term Systems Monitored"), Count = rv$long_term_systems_monitored_value()))
   
   
   #No. of short term systems monitored
@@ -226,7 +227,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
                                                    AND d.public = TRUE"))
   
   rv$short_term_systems_monitored_value <- reactive(dbGetQuery(poolConn, rv$short_term_systems_monitored_q()))
-  rv$short_term_systems_monitored <- reactive(data.frame(Metric = as.character("Short Term Systems Monitored"), Count = rv$short_term_systems_monitored_value()))
+  rv$short_term_systems_monitored <- reactive(data.frame(Metric = as.character("Public Short Term Systems Monitored"), Count = rv$short_term_systems_monitored_value()))
   
   #No. of new systems monitored
   rv$new_systems_monitored_q <- reactive(paste0("SELECT count(distinct smp_to_system(dada.smp_id)) FROM 
@@ -267,7 +268,6 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #smps -----
   
   # No. of public smps monitored
-  
   rv$public_smps_monitored_q <- reactive(paste0("SELECT COUNT(DISTINCT d.smp_id) FROM fieldwork.deployment_full_cwl d
                                                    WHERE deployment_dtime_est <= '", rv$end_date(), "'
                                                 AND (collection_dtime_est >= '", rv$start_date(), "' 
@@ -292,10 +292,11 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   rv$hobos_deployed_q <- reactive(paste0("SELECT COUNT(distinct(sensor_serial)) FROM fieldwork.deployment_full_cwl 
                                          WHERE deployment_dtime_est <= '", rv$end_date(), "'
                                                 AND (collection_dtime_est >= '", rv$start_date(), "' 
-                                         OR collection_dtime_est IS NULL)"))
+                                         OR collection_dtime_est IS NULL) AND 
+                                         public = TRUE"))
   
   rv$hobos_deployed_value <- reactive(dbGetQuery(poolConn, rv$hobos_deployed_q()))
-  rv$hobos_deployed <- reactive(data.frame(Metric = "Sensors Deployed", 
+  rv$hobos_deployed <- reactive(data.frame(Metric = "Sensors Deployed at Public Sites", 
                                            Count = rv$hobos_deployed_value()))
   
 
@@ -360,11 +361,11 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   
   #systems tested: CET
   rv$systems_tested_cet_q <- reactive(paste0("SELECT COUNT(distinct system_id) FROM fieldwork.capture_efficiency_full 
-        WHERE phase = '", input$phase, "'", rv$select_range_tests_query_text()))
+        WHERE public = TRUE AND phase = '", input$phase, "'", rv$select_range_tests_query_text()))
   
   rv$systems_tested_cet_value <- reactive(dbGetQuery(poolConn, rv$systems_tested_cet_q()))
   
-  rv$systems_tested_cet <- reactive(data.frame(Metric = "Systems Tested - Capture Efficiency", 
+  rv$systems_tested_cet <- reactive(data.frame(Metric = "Public Systems Tested - Capture Efficiency", 
                                                Count = rv$systems_tested_cet_value()))
 
   # CET ------------------------------------------------------------
@@ -386,9 +387,17 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
     paste("fieldwork.capture_efficiency_full_unique_inlets")
   })
   
+  rv$cet_public_query_text <- reactive(if(input$public_inlets == "Public and Private"){
+    paste("")
+  }else if(input$public_inlets == "Public"){
+    paste("AND public = TRUE")
+  }else if(input$public_inlets == "Private"){
+    paste("AND public = FALSE")
+  })
+  
   #capture efficiency tests (pc)
   rv$cet_lf_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
-        WHERE phase = '", input$phase, "'", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), "
+        WHERE phase = '", input$phase, "'", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text(), "
         AND low_flow_bypass_observed IS NOT NULL"))
   
   rv$cet_lf_value <- reactive(dbGetQuery(poolConn, rv$cet_lf_q()))
@@ -398,7 +407,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   
   #capture efficiency tests (pc)
   rv$cet_hf_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
-        WHERE phase = '", input$phase, "'", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), "
+        WHERE phase = '", input$phase, "'", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text(), "
         AND high_flow_efficiency_pct IS NOT NULL"))
   
   rv$cet_hf_value <- reactive(dbGetQuery(poolConn, rv$cet_hf_q()))
@@ -409,7 +418,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #capture efficiency tests with no low flow bypass (pc)
   rv$cet_no_lf_bypass_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
         WHERE phase = '", input$phase, "' AND 
-        low_flow_efficiency_pct = 100 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test()))
+        low_flow_efficiency_pct = 100 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text()))
   
   rv$cet_no_lf_bypass_value <- reactive(dbGetQuery(poolConn, rv$cet_no_lf_bypass_q()))
   
@@ -419,7 +428,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #capture efficiency tests with no high flow bypass (pc)
   rv$cet_no_hf_bypass_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
         WHERE phase = '", input$phase, "' AND 
-        high_flow_efficiency_pct = 100 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test()))
+        high_flow_efficiency_pct = 100 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text()))
   
   rv$cet_no_hf_bypass_value <- reactive(dbGetQuery(poolConn, rv$cet_no_hf_bypass_q()))
   
@@ -429,7 +438,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #capture efficiency tests with > 10% low flow bypass (pc)
   rv$cet_10pct_lf_bypass_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
         WHERE phase = '", input$phase, "' AND 
-        low_flow_efficiency_pct < 90 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test()))
+        low_flow_efficiency_pct < 90 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text()))
   
   rv$cet_10pct_lf_bypass_value <- reactive(dbGetQuery(poolConn, rv$cet_10pct_lf_bypass_q()))
   
@@ -439,7 +448,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   #capture efficiency tests with > 10% high flow bypass (pc)
   rv$cet_10pct_hf_bypass_q <- reactive(paste0("SELECT COUNT(*) FROM ", rv$cet_unique_query_text(), " 
         WHERE phase = '", input$phase, "' AND 
-        high_flow_efficiency_pct < 90 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test()))
+        high_flow_efficiency_pct < 90 ", rv$select_range_tests_query_text(), rv$cet_inlet_query_test(), rv$cet_public_query_text()))
   
   rv$cet_10pct_hf_bypass_value <- reactive(dbGetQuery(poolConn, rv$cet_10pct_hf_bypass_q()))
   

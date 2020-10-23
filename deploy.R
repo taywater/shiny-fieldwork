@@ -31,8 +31,9 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  conditionalPanel(width = 12, 
                                                   condition = "input.collect_date",
                                                   ns = ns,
+                                                  numericInput(ns("depth_to_water"), "Manual Depth-to-Water Measurement (ft)", value = NA, min = 0),
                                                   selectInput(ns("download_error"), html_req("Did you encounter a download error?"), 
-                                                              choices = c("", "No", "Yes"), selected = NULL),
+                                                              choices = c("", "No" = 0, "Yes" = 1), selected = NULL),
                                                   checkboxInput(ns("redeploy"), "Redeploy Sensor?"),
                                                   h6("Redeploy sensor in the same well on this collection date")
                                  ),
@@ -207,6 +208,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$inventory_sensors_uid_null <- reactive(if(nchar(input$sensor_id) == 0) "NULL" else paste0("'", rv$inventory_sensors_uid(), "'"))
   
   rv$interval_min <- reactive(if(nchar(input$interval) == 0) "NULL" else (paste0("'", input$interval, "'")))
+  rv$depth_to_water <- reactive(if(nchar(input$depth_to_water) == 0) "NULL" else (paste0("'", input$depth_to_water, "'")))
   
   #rv$term <- reactive(long_term_lookup %>% dplyr::filter(type == input$term) %>% 
   #                         select(long_term_lookup_uid) %>% pull())
@@ -299,10 +301,11 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   rv$old_table <- reactive(rv$old_table_db() %>% 
                              mutate(across(where(is.POSIXct), trunc, "days")) %>% 
                              mutate(across(where(is.POSIXlt), as.character)) %>% 
-                             dplyr::select(deployment_dtime_est, collection_dtime_est, ow_suffix, type, term, research, interval_min, sensor_serial) %>% 
+                             dplyr::select(deployment_dtime_est, collection_dtime_est, ow_suffix, type, term, research, interval_min, sensor_serial, dtw_ft) %>% 
                              dplyr::rename("Deploy Date" = "deployment_dtime_est", "Location" = "ow_suffix", 
                                            "Purpose" = "type", "Term" = "term", "Research" = "research",
-                                           "Interval (min)" = "interval_min", "Sensor ID" = "sensor_serial", "Collection Date" = "collection_dtime_est"))
+                                           "Interval (min)" = "interval_min", "Sensor ID" = "sensor_serial", 
+                                           "Collection Date" = "collection_dtime_est", "Manual Depth-to-Water (ft)" = "dtw_ft"))
   
   #render datatable
   output$prev_deployment <- renderDT(
@@ -429,6 +432,15 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     NA
   }) 
   
+  rv$depth_to_water_step <- reactive(if(length(rv$active()) > 0){
+    NULL
+  }else if(length(rv$future()) > 0){
+    NULL
+  }else if(length(rv$prev()) > 0){
+    rv$old_table_db()$dtw_ft[rv$prev()]
+  }
+  )
+  
   #update inputs based on the reactive value definitions above
   observe({
     updateSelectInput(session, "well_name", selected = rv$well_name())
@@ -441,6 +453,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     updateDateInput(session, "collect_date", value = rv$collect())
     updateTextAreaInput(session, "notes", value = rv$notes_step())
     updateSelectInput(session, "download_error", selected = rv$download_error_step())
+    updateNumericInput(session, "depth_to_water", value = rv$depth_to_water_step())
   })
   
   #-----
@@ -525,9 +538,9 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       #write new deployment
       odbc::dbGetQuery(poolConn,
                        paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
-     inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error)
+     inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error, dtw_ft)
         VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ",
-                              rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", rv$notes(),",", rv$download_error(), ")"))
+                              rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", rv$notes(),",", rv$download_error(), ", ", rv$depth_to_water(), ")"))
     }else{
       #update existing deployment
       odbc::dbGetQuery(poolConn, 
@@ -540,7 +553,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                               interval_min = '", input$interval, "',
                               collection_dtime_est = ", rv$collect_date(), ",
                               notes = ", rv$notes(), ", 
-                              download_error = ", rv$download_error(), " WHERE 
+                              download_error = ", rv$download_error(), ", 
+                              dtw_ft = ", rv$depth_to_water(), " WHERE 
                               deployment_uid = '", rv$update_deployment_uid(), "'"
                        ))
     }
@@ -578,6 +592,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     reset("collect_date")
     reset("well_name")
     reset("download_error")
+    reset("notes")
     removeModal()
   })
   
@@ -675,6 +690,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     reset("smp_id")
     reset("well_name")
     reset("download_error")
+    reset("notes")
     removeModal()
   })
   

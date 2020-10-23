@@ -100,6 +100,9 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     # #capture efficiency high flow types
     high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
     
+    #capture efficiency asset types 
+    cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets where component_id is not null order by asset_type")   
+    
     #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
     html_req <- function(label){
       HTML(paste(label, tags$span(style="color:red", tags$sup("*"))))
@@ -139,7 +142,7 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
                   add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
                 SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, con_phase = con_phase, priority = priority, future_req = future_req),
                 porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, surface_type = surface_type, con_phase = con_phase, priority = priority, future_req = future_req),
-                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority, future_req = future_req),
+                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, html_req = html_req, con_phase = con_phase, priority = priority, future_req = future_req, cet_asset_type = cet_asset_type),
               inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, future_req = future_req),
                special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup, future_req = future_req),
                m_statsUI("stats", current_fy = current_fy, years = years),
@@ -200,6 +203,9 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     # #capture efficiency high flow types
     high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
     
+    #capture efficiency asset types 
+    cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets where component_id is not null order by asset_type")
+    
     #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
     html_req <- function(label){
       HTML(paste(label, tags$span(style="color:red", tags$sup("*"))))
@@ -229,7 +235,7 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
    deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
   callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
-  callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase)
+  callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type)
    callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
    callModule(special_investigations, "special_investigations", parent_session = session, poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup)
    callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)

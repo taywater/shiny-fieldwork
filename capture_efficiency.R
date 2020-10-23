@@ -1,7 +1,7 @@
 #Capture Efficiency Test (CET) tabs
 #This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
 
-capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, priority, html_req, con_phase, future_req){
+capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_flow_type, priority, html_req, con_phase, future_req, cet_asset_type){
   ns <- NS(id)
   navbarMenu("Capture Efficiency",
              tabPanel("Add/Edit Capture Efficiency Test", value = "cet_tab", 
@@ -9,8 +9,12 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
                       titlePanel("Add Capture Efficiency Test"), 
                       sidebarPanel(
                         selectInput(ns("system_id"), future_req(html_req("System ID")), choices = c("", sys_id), selected = NULL), 
-                        selectInput(ns("cet_comp_id"),  future_req(html_req("Component ID")), choices = c(""), selected = NULL), 
+                        selectInput(ns("cet_comp_id"),  future_req(html_req("Component ID")), choices = c(""), selected = NULL),
                         textInput(ns("cet_comp_id_custom"),  future_req(html_req("Custom Component ID"))),
+                        conditionalPanel(condition = "input.cet_comp_id_custom", 
+                                         ns = ns, 
+                                         selectInput(ns("user_input_asset_type"), "Asset Type", 
+                                                     choices = c("", cet_asset_type$asset_type), selected = NULL)),
                         disabled(textInput(ns("facility_id"), future_req(html_req("Facility ID")))),
                         fluidRow(
                           column(6, dateInput(ns("cet_date"), html_req("Test Date"), value = as.Date(NA))), 
@@ -56,7 +60,7 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
   )
 }
 
-capture_efficiency <- function(input, output, session, parent_session, poolConn, high_flow_type, con_phase){
+capture_efficiency <- function(input, output, session, parent_session, poolConn, high_flow_type, con_phase, cet_asset_type){
   
   #define ns to use in modals
   ns <- session$ns
@@ -123,7 +127,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                                        funs(case_when(. == 1 ~ "Yes", 
                                                       . == 0 ~ "No"))) %>% 
                              dplyr::select(-1) %>% 
-                             dplyr::select(-"facility_id", -"project_name", -"system_id"))
+                             dplyr::select(-"facility_id", -"project_name", -"system_id", -"public"))
   
   #enable/disable buttons 
   #conditions need to be set up this way; changing them all to nchar, or all to length, or all to input != "" won't work
@@ -147,6 +151,13 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                          select(con_phase_lookup_uid) %>% pull())
   
   rv$phase_null <- reactive(if(nchar(input$con_phase) == 0) "NULL" else paste0("'", rv$phase(), "'"))
+  
+  rv$user_input_asset_type <- reactive(if(nchar(input$cet_comp_id_custom) > 0 & nchar(input$user_input_asset_type) > 0){
+    paste0("'", input$user_input_asset_type, "'")
+  }else{
+    NULL
+  }
+  )
   
   #toggle state for data depending on whether a test date is included
   observe(toggleState(id = "low_flow_bypass", condition = length(input$cet_date) > 0))
@@ -188,13 +199,13 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     
     #update inputs
     #update to values from selected row
-    updateSelectInput(session, 'con_phase', selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 4])
+    updateSelectInput(session, 'con_phase', selected = rv$future_cet_table()$phase[input$future_cet_table_rows_selected])
     
-    updateSelectInput(session, "priority", selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 5])
-    updateTextAreaInput(session, "cet_notes", value = rv$future_cet_table()[input$future_cet_table_rows_selected, 6])
+    updateSelectInput(session, "priority", selected = rv$future_cet_table()$field_test_priority[input$future_cet_table_rows_selected])
+    updateTextAreaInput(session, "cet_notes", value = rv$future_cet_table()$notes[input$future_cet_table_rows_selected])
     
     #get facility id
-    rv$future_fac <- rv$future_cet_table()[input$future_cet_table_rows_selected, 3]
+    rv$future_fac <- rv$future_cet_table_db()$facility_id[input$future_cet_table_rows_selected]
     future_comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets where facility_id = '", rv$future_fac, "' 
         AND component_id IS NOT NULL")
     
@@ -208,9 +219,11 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
       rv$f_asset_comp_code_click = paste(f_comp_id_click, f_asset_type_click,  sep = " | ")
       updateSelectInput(session, "cet_comp_id_custom", selected = "")
       updateSelectInput(session, "cet_comp_id", selected = rv$f_asset_comp_code_click)
+      updateSelectInput(session, "user_input_asset_type", selected = "")
     }else{
       updateSelectInput(session, "cet_comp_id", selected = "")
       updateSelectInput(session, "cet_comp_id_custom", selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 2])
+      updateSelectInput(session, "user_input_asset_type", selected = rv$future_cet_table()$asset_type[input$future_cet_table_rows_selected])
     }
     
     reset("cet_date")
@@ -244,9 +257,11 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
       rv$asset_comp_code_click = paste(comp_id_click, asset_type_click,  sep = " | ")
       updateSelectInput(session, "cet_comp_id_custom", selected = "")
       updateSelectInput(session, "cet_comp_id", selected = rv$asset_comp_code_click)
+      updateSelectInput(session, "user_input_asset_type", selected = "")
     }else{
       updateSelectInput(session, "cet_comp_id", selected = "")
       updateSelectInput(session, "cet_comp_id_custom", selected = rv$cet_table_db()[input$cet_table_rows_selected, 4])
+      updateSelectInput(session, "user_input_asset_type", selected = rv$cet_table_db()$asset_type[input$cet_table_rows_selected])
     }
     
     # updateSelectInput(session, "system_id", selected = rv$cet_table_db()[input$cet_table_rows_selected, 2])
@@ -308,16 +323,17 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   observeEvent(input$future_cet, {
     if(length(input$future_cet_table_rows_selected) == 0){
       add_future_cet_query <- paste0("INSERT INTO fieldwork.future_capture_efficiency (system_id, component_id, 
-                                     facility_id, con_phase_lookup_uid, notes, field_test_priority_lookup_uid) 
+                                     facility_id, con_phase_lookup_uid, notes, field_test_priority_lookup_uid, user_input_asset_type) 
                                      VALUES ('", input$system_id, "',", rv$cet_comp_id(), ", '", rv$facility_id(), "', ", rv$phase_null(), "
-                                     ,", rv$cet_notes(), ", ", rv$priority_lookup_uid(), ")")
+                                     ,", rv$cet_notes(), ", ", rv$priority_lookup_uid(), ", ", rv$user_input_asset_type(), ")")
       odbc::dbGetQuery(poolConn, add_future_cet_query)
     }else{
       edit_future_cet_query <- paste0("UPDATE fieldwork.future_capture_efficiency SET component_id = ", rv$cet_comp_id(), ", 
                                facility_id = '",rv$facility_id(), "',
                                con_phase_lookup_uid = ", rv$phase_null(), ", 
                                notes = ", rv$cet_notes(), ",
-                               field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), "
+                               field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
+                               user_input_asset_type = ", rv$user_input_asset_type(), ",
                                       WHERE future_capture_efficiency_uid = '", rv$future_cet_table_db()[input$future_cet_table_rows_selected, 1], "'")
       
       odbc::dbGetQuery(poolConn, edit_future_cet_query)
@@ -345,11 +361,11 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
       #add to capture efficiency
       add_cet_query <- paste0("INSERT INTO fieldwork.capture_efficiency (system_id, test_date, component_id,
       facility_id, con_phase_lookup_uid, low_flow_bypass_observed,
-      low_flow_efficiency_pct, est_high_flow_efficiency_lookup_uid, high_flow_efficiency_pct, notes)
+      low_flow_efficiency_pct, est_high_flow_efficiency_lookup_uid, high_flow_efficiency_pct, notes, user_input_asset_type)
     	                  VALUES ('", input$system_id, "','",  input$cet_date, "',", rv$cet_comp_id(), ",'", rv$facility_id(), "','", rv$phase(), "', 
     	                        ", rv$low_flow_bypass(), ",
                               ", rv$low_flow_efficiency(), ", ", rv$est_hfe(), ", ", rv$high_flow_efficiency(), ", 
-                              ", rv$cet_notes(), ")")
+                              ", rv$cet_notes(), ", ", rv$user_input_asset_type(), ")")
       
       odbc::dbGetQuery(poolConn, add_cet_query)
     }else{
@@ -363,7 +379,8 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                                low_flow_efficiency_pct = ", rv$low_flow_efficiency(), ", 
                                est_high_flow_efficiency_lookup_uid = ", rv$est_hfe(), ", 
                                high_flow_efficiency_pct = ", rv$high_flow_efficiency(), ", 
-                               notes = ", rv$cet_notes(), "
+                               notes = ", rv$cet_notes(), ", 
+                               user_input_asset_type = ", rv$user_input_asset_type(), "
                                WHERE capture_efficiency_uid = '", rv$cet_table_db()[input$cet_table_rows_selected, 1], "'")
       
       dbGetQuery(poolConn, edit_cet_query)
