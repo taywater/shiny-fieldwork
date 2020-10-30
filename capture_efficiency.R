@@ -122,7 +122,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   #get the table of CETs
   rv$cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full WHERE system_id = '", input$system_id, "'"))
   rv$cet_table_db <- reactive(dbGetQuery(poolConn, rv$cet_table_query()))
-  rv$cet_table <- reactive(rv$cet_table_db() %>% mutate_at("test_date", as.character) %>% 
+  rv$cet_table <- reactive(rv$cet_table_db() %>% mutate_at("test_date", as.Date) %>% 
                              mutate_at(vars(one_of("low_flow_bypass_observed")), 
                                        funs(case_when(. == 1 ~ "Yes", 
                                                       . == 0 ~ "No"))) %>% 
@@ -155,7 +155,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   rv$user_input_asset_type <- reactive(if(nchar(input$cet_comp_id_custom) > 0 & nchar(input$user_input_asset_type) > 0){
     paste0("'", input$user_input_asset_type, "'")
   }else{
-    NULL
+    "NULL"
   }
   )
   
@@ -174,7 +174,10 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
               selection = 'single', 
               style = 'bootstrap',
               class = 'table-responsive, table-hover', 
-              escape = FALSE 
+              escape = FALSE,
+              options = list(
+                columnDefs = list(list(className = 'dt-left', targets = "_all"))
+              )
     ))
   
   #query future CETs
@@ -190,6 +193,9 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     style = 'bootstrap', 
     class = 'table-responsive, table-hover', 
     colnames = c('System ID', 'Component ID', 'Phase', 'Priority', 'Notes'), 
+    options = list(
+      columnDefs = list(list(className = 'dt-left', targets = "_all"))
+    ),
   )
   
   #on click
@@ -267,13 +273,13 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     # updateSelectInput(session, "system_id", selected = rv$cet_table_db()[input$cet_table_rows_selected, 2])
     #updateSelectInput(session, "cet_comp_id", selected = rv$cet_table_db()[input$cet_table_rows_selected, 4])
     
-    updateDateInput(session, "cet_date", value = rv$cet_table_db()[input$cet_table_rows_selected, 3])
-    updateSelectInput(session, "con_phase", selected = rv$cet_table_db()[input$cet_table_rows_selected, 6])
-    updateSelectInput(session, "low_flow_bypass", selected = rv$cet_table_db()[input$cet_table_rows_selected, 7])
-    updateNumericInput(session, "low_flow_efficiency", value = rv$cet_table_db()[input$cet_table_rows_selected, 8])
-    updateSelectInput(session, "est_high_flow_efficiency", selected = rv$cet_table()[input$cet_table_rows_selected, 9])
-    updateNumericInput(session, "high_flow_efficiency", value = rv$cet_table_db()[input$cet_table_rows_selected, 10])
-    updateTextAreaInput(session, "cet_notes", value = rv$cet_table_db()[input$cet_table_rows_selected, 12])
+    updateDateInput(session, "cet_date", value = rv$cet_table_db()$test_date[input$cet_table_rows_selected])
+    updateSelectInput(session, "con_phase", selected = rv$cet_table_db()$phase[input$cet_table_rows_selected])
+    updateSelectInput(session, "low_flow_bypass", selected = rv$cet_table_db()$low_flow_bypass_observed[input$cet_table_rows_selected])
+    updateNumericInput(session, "low_flow_efficiency", value = rv$cet_table_db()$low_flow_efficiency_pct[input$cet_table_rows_selected])
+    updateSelectInput(session, "est_high_flow_efficiency", selected = rv$cet_table()$est_high_flow_efficiency[input$cet_table_rows_selected])
+    updateNumericInput(session, "high_flow_efficiency", value = rv$cet_table_db()$high_flow_efficiency_pct[input$cet_table_rows_selected])
+    updateTextAreaInput(session, "cet_notes", value = rv$cet_table_db()$notes[input$cet_table_rows_selected])
   })
   
   
@@ -333,7 +339,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
                                con_phase_lookup_uid = ", rv$phase_null(), ", 
                                notes = ", rv$cet_notes(), ",
                                field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
-                               user_input_asset_type = ", rv$user_input_asset_type(), ",
+                               user_input_asset_type = ", rv$user_input_asset_type(), "
                                       WHERE future_capture_efficiency_uid = '", rv$future_cet_table_db()[input$future_cet_table_rows_selected, 1], "'")
       
       odbc::dbGetQuery(poolConn, edit_future_cet_query)
@@ -438,7 +444,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full ORDER BY test_date DESC"))
   rv$all_cet_table_db <- reactive(dbGetQuery(poolConn, rv$all_query())) 
   rv$all_cet_table <- reactive(rv$all_cet_table_db() %>% 
-                                 mutate_at("test_date", as.character) %>% 
+                                 mutate_at("test_date", as.Date) %>% 
                                  mutate_at(vars(one_of("low_flow_bypass_observed")),
                                            funs(case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 

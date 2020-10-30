@@ -231,14 +231,14 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     #-------
    collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
    ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
-   sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup)
+   sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup, deploy = deploy)
    deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
   callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
   callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
   callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type)
    callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
    callModule(special_investigations, "special_investigations", parent_session = session, poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup)
-   callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
+  callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   
   shinyApp(ui, server)
