@@ -106,17 +106,60 @@ add_owUI <- function(id, label = "add_ow", smp_id, site_names, html_req){
   
 }
 
-add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
+add_ow <- function(input, output, session, parent_session, smp_id, poolConn, deploy) {
   
   #define ns to use in modals
   ns <- session$ns
+  
+  #update UI when user comes directly from deploy tab 
+  observeEvent(deploy$refresh_location(), {
+    if(deploy$refresh_location() > 0){
+      updateSelectInput(session, "at_smp", selected = NULL)
+      updateTextInput(session, "ow_suffix", value = NULL)
+      updateSelectInput(session, "component_id",  selected = NULL)
+      updateSelectInput(session, "smp_id",  selected = NULL)
+      updateSelectInput(session, "site_name", selected = NULL)
+      # reset("add_site_name")
+      # reset("need_new_site")
+      # reset("new_site_name")
+      # reset("location")
+      # reset("well_depth")
+      # reset("sensor_one_in")
+      # reset("weir")
+      # reset("cth")
+      # reset("hts")
+      # reset("ctw")
+      # reset("cto")
+      # reset("wts")
+      # reset("wto")
+      # reset("ots")
+      # reset("start_date")
+      # reset("end_date")
+      # 
+      #print(deploy$smp_id())
+      
+      if(deploy$smp_id_check() != "NULL"){
+        updateSelectInput(session, "at_smp", selected = 1)
+        updateSelectInput(session, "smp_id",  selected = NULL)
+        updateSelectInput(session, "smp_id",  selected = deploy$smp_id())
+        #updateSelectInput(session, "smp_id",  selected = deploy$smp_id())
+      }else{
+        updateSelectInput(session, "at_smp", selected = 2)
+        updateSelectInput(session, "site_name", selected = deploy$site_name())
+      }
+    }
+    #dataTableProxy()
+  })
+  
+  
+  #observe(updateSelectInput(session, "at_smp", selected = 1))
+  
   
   #first part - SMP #####
   #read in ow prefixes and names
   ow_prefixes_db <- dbGetQuery(poolConn, "select * from fieldwork.ow_prefixes") %>% rename("asset_type" = "ow_name")
   new_and_ex_wells <- ow_prefixes_db %>% dplyr::select(ow_prefix, asset_type) 
   new_wells <- reactive(ow_prefixes_db %>% dplyr::filter(componentless == 1) %>% dplyr::select(ow_prefix,asset_type) %>% dplyr::filter(!(asset_type %in% component_and_asset()$asset_type)))
-  
   
   #Add Observation Well  --
   #set component IDs based on SMP ID
@@ -222,7 +265,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
         updateSelectInput(session, "component_id", selected = rv$asset_comp_code_click)
       }else{
         rv$asset_comp_code_click = paste("NA", "NA", "Stilling Well", sep = " | ")
-        updateSelectInput(session, "component_id", select = rv$asset_comp_code_click)
+        updateSelectInput(session, "component_id", selected = rv$asset_comp_code_click)
       }
     }
     
@@ -530,13 +573,46 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn) {
     }
   )
   
+  rv$end_dates_at_ow_uid <- reactive(
+    if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+                                                   where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
+                                      well_measurements_uid is not null")) %>% pull()
+    }else if(nchar(input$site_name) > 0 & nchar(rv$ow_suffix()) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+                                                   where site_name = '", input$site_name, "' and ow_suffix = '", rv$ow_suffix(), "' and
+                                      well_measurements_uid is not null")) %>%  pull()
+    }
+  )
+  
+  rv$count_at_ow_uid <- reactive(
+    if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+                                                   where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
+                                      well_measurements_uid is not null")) %>% pull()
+    }else if(nchar(input$site_name) > 0 & nchar(rv$ow_suffix()) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+                                                   where site_name = '", input$site_name, "' and ow_suffix = '", rv$ow_suffix(), "' and
+                                      well_measurements_uid is not null")) %>%  pull()
+    }
+  )
+  
+  #true of false if # of end dates == counts
+  rv$complete_end_dates <- reactive(#if(is.na(rv$end_dates_at_ow_uid())){
+   # FALSE
+ # }else{
+    length(rv$end_dates_at_ow_uid()) == rv$count_at_ow_uid() & !is.na(rv$end_dates_at_ow_uid())
+  #})
+  )
+  
+  #toggle create new measurement checkbox
+  observe(toggleState(id = "new_measurement", condition = rv$complete_end_dates()))
+  
   rv$smp_id <- reactive(if(nchar(input$smp_id) == 0) "NULL" else paste0("'", input$smp_id, "'"))
   
   #check if ow exists
   rv$ow_validity <- reactive(!is.na(odbc::dbGetQuery(poolConn, paste0("select fieldwork.get_ow_uid_no_error(", rv$smp_id(), ", ", rv$ow_suffix_null(), ", ", rv$site_name_lookup_uid_null(), ")")) %>% pull()))
   
-  #toggle create new measurement checkbox
-  observe(toggleState(id = "new_measurement", condition = !is.na(rv$end_dates_at_ow_uid())))
   
   #add well measurement
   rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE) "Add Well Measurements" else "Edit Selected Well Measurements")

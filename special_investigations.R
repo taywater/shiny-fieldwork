@@ -90,7 +90,6 @@ special_investigations <- function(input, output, session, parent_session, poolC
   observe(toggleState("system_id", condition = nchar(input$work_number) == 0 & nchar(input$site_name) == 0))
   observe(toggleState("site_name", condition = nchar(input$system_id) == 0 & nchar(input$work_number) == 0 ))
   
-  
   #Get the Project name, combine it with System ID, and create a reactive header
   rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
   
@@ -228,7 +227,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     updateSelectInput(session, "con_phase", selected = rv$si_table_db()$phase[input$si_table_rows_selected])
     updateNumericInput(session, "type", value = rv$si_table_db()$special_investigation_type[input$si_table_rows_selected])
     updateNumericInput(session, "requested_by", value = rv$si_table_db()$requested_by[input$si_table_rows_selected])
-    updateNumericInput(session, "qaqc_complete", value = rv$si_table_db()$qaqc_complete[input$si_table_rows_selected])
+    updateSelectInput(session, "qaqc_complete", selected = rv$si_table_db()$qaqc_complete[input$si_table_rows_selected])
     updateNumericInput(session, "sensor_collect_date", value = rv$si_table_db()$sensor_collection_date[input$si_table_rows_selected])
     updateSelectInput(session, "summary_needed", selected = rv$si_table_db()$summary_needed[input$si_table_rows_selected])
     updateNumericInput(session, "summary_date", value = rv$si_table_db()$summary_date[input$si_table_rows_selected])
@@ -316,7 +315,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
                                 summary_date = ", rv$summary_date(), ",
                                 results_summary = ", rv$notes(), ", 
                                 sensor_deployed = ", rv$sensor_deployed(), ", 
-                                summary_needed = ", rv$summary_needed(), ",
+                                summary_needed = ", rv$summary_needed(), "
                                WHERE special_investigation_uid = '", rv$si_table_db()[input$si_table_rows_selected, 1], "'")
       
       dbGetQuery(poolConn, edit_test_query)
@@ -332,6 +331,13 @@ special_investigations <- function(input, output, session, parent_session, poolC
     rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
     rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
+    if(input$sensor_deployed == 1){
+      print("yes")
+      showModal(modalDialog(title = "Deploy Sensor", 
+                            "Would you like to add a deployment?", 
+                            modalButton("No"), 
+                            actionButton(ns("add_deployment"), "Yes")))
+    }else{
     reset("date")
     reset("type")
     reset("requested_by")
@@ -344,7 +350,11 @@ special_investigations <- function(input, output, session, parent_session, poolC
     reset("priority")
     reset("summary_needed")
     reset("notes")
-  })
+    }
+    }
+    )
+  
+  rv$refresh_deploy <- 0
   
   observeEvent(input$future_test, {
     if(length(input$future_si_table_rows_selected) == 0){
@@ -396,6 +406,11 @@ special_investigations <- function(input, output, session, parent_session, poolC
   }
   )
   
+  observeEvent(input$add_deployment, {
+    rv$refresh_deploy <- rv$refresh_deploy + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+    removeModal()
+  })
   
   observeEvent(input$clear, {
     showModal(modalDialog(title = "Clear All Fields", 
@@ -611,5 +626,12 @@ special_investigations <- function(input, output, session, parent_session, poolC
     }
   })
   
+  return(
+    list(
+      refresh_deploy = reactive(rv$refresh_deploy),
+      system_id = reactive(input$system_id), 
+      site_name = reactive(input$site_name)
+    )
+  )
   
 }

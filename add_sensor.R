@@ -38,8 +38,6 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
     rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
   })
   
-  
-  
   #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
   model_no_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_model) %>% dplyr::pull() else "")
   

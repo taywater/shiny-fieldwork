@@ -94,7 +94,7 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
   )
 }
 
-deploy <- function(input, output, session, parent_session, ow, collect, sensor, poolConn, deployment_lookup){
+deploy <- function(input, output, session, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si){
   
   #define ns to use in modals
   ns <- session$ns
@@ -133,6 +133,35 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   observeEvent(sensor$refresh_serial_no(), {
     updateSelectInput(session, "sensor_id", selected = sensor$serial_no())
   })
+  
+  #upon clicking through the dialogue box in srt tab
+  observeEvent(srt$refresh_deploy(), {
+    if(srt$refresh_deploy() > 0){
+    updateSelectInput(session, "smp_id", selected = NULL)
+    updateSelectInput(session, "smp_id", selected = paste0(srt$system_id(), "-1"))
+    updateSelectInput(session, "term", selected = "SRT")
+    }
+  })
+  
+  #upon clicking through the dialogue box in SI tab
+  observeEvent(si$refresh_deploy(), {
+    if(si$refresh_deploy() > 0){
+      if(nchar(si$system_id()) > 0){
+      print(si$system_id())
+      updateSelectInput(session, "site_name", selected = NULL)
+      updateSelectInput(session, "smp_id", selected = NULL)
+      updateSelectInput(session, "smp_id", selected = paste0(si$system_id(), "-1"))
+      updateSelectInput(session, "term", selected = "Special")
+      }else if(nchar(si$site_name()) > 0){
+      print(si$site_name())
+        updateSelectInput(session, "site_name", selected = NULL)
+        updateSelectInput(session, "smp_id", selected = NULL)
+        updateSelectInput(session, "site_name", selected = si$site_name())
+        updateSelectInput(session, "term", selected = "Special")
+      }
+    }
+  })
+  
   
   #upon clicking a row in collection_calendar
   observeEvent(collect$deploy_refresh(), {
@@ -570,6 +599,50 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   #   reset('download_error')
   # })
   
+  
+  #check if the are current measurements at monitoring location (if it is not an SW or DL)
+  rv$end_dates_at_ow_uid <- reactive(
+    if(nchar(input$smp_id) > 0 & nchar(input$well_name) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+                                                   where smp_id = '", input$smp_id, "' and ow_suffix = '", input$well_name, "' and
+                                      well_measurements_uid is not null")) %>% pull()
+    }else if(nchar(input$site_name) > 0 & nchar(input$well_name) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+                                                   where site_name = '", input$site_name, "' and ow_suffix = '", input$well_name, "' and
+                                      well_measurements_uid is not null")) %>%  pull()
+    }
+  )
+  
+  rv$count_at_ow_uid <- reactive(
+    if(nchar(input$smp_id) > 0 & nchar(input$well_name) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+                                                   where smp_id = '", input$smp_id, "' and ow_suffix = '", input$well_name, "' and
+                                      well_measurements_uid is not null")) %>% pull()
+    }else if(nchar(input$site_name) > 0 & nchar(input$well_name) > 0){
+      odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+                                                   where site_name = '", input$site_name, "' and ow_suffix = '", input$well_name, "' and
+                                      well_measurements_uid is not null")) %>%  pull()
+    }
+  )
+  
+  #true of false if # of end dates == counts
+  rv$complete_end_dates <- reactive(
+    if(rv$count_at_ow_uid() == 0 | (length(rv$end_dates_at_ow_uid()) != rv$count_at_ow_uid())){
+      FALSE
+    }else{
+      TRUE
+    }
+  )
+  
+  #check if the well is a Shallow Well or Datalogger - they do not require measurements so we don't want a popup
+  rv$sw_or_dl <- reactive(
+    if(str_detect(input$well_name, "^SW") == TRUE | str_detect(input$well_name, "^DL") == TRUE){
+      TRUE
+    }else{
+      FALSE
+    }
+  )
+  
   #define 
   rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
   rv$add_new_future <- reactive(length(input$future_deployment_rows_selected) == 0)
@@ -627,6 +700,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                           actionButton(ns("confirm_deploy"), "Yes")))
   })
   
+  #create tickers that update to notify other modules of updates
   rv$refresh_collect <- 0 
   rv$refresh_sensor <- 0
   
@@ -657,6 +731,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                        ))
     }
     
+    #write sensor status
     if(input$sensor_broken == TRUE){
       dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_status_lookup_uid = '2'
                                   WHERE sensor_serial = '", input$sensor_id, "'"))
@@ -671,6 +746,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                                   ",'",input$interval, "', ", rv$redeployment_notes(), ", ", rv$collect_depth_to_water(), ")"))
     }
     
+    #delete from future table when a future deployment is converted to current
     if(!rv$add_new_future()){
       odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
     }
@@ -685,27 +761,44 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     rv$refresh_collect <- rv$refresh_collect + 1
     #rv_collect$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
     
-    #clear entries
-    dataTableProxy('current_deployment') %>% selectRows(NULL)
-    dataTableProxy('prev_deployment') %>% selectRows(NULL)
-    reset("sensor_id")
-    reset("sensor_purpose")
-    reset("term")
-    reset("research")
-    reset("interval")
-    reset("deploy_date")
-    reset("collect_date")
-    reset("well_name")
-    reset("download_error")
-    reset("redeploy")
-    reset("sensor_broken")
-    reset("new_sensor_id")
-    reset("deploy_depth_to_water")
-    reset("collect_depth_to_water")
-    reset("notes")
+    #remove pop up
     removeModal()
+    
+    #if you need to add a current deployment measurement:
+    if(rv$complete_end_dates() == FALSE & rv$sw_or_dl() == FALSE){
+      showModal(modalDialog(title = "Check Measurements", 
+                            "This monitoring location does not have current measurements. Would you like to add?", 
+                            modalButton("No"), 
+                            actionButton(ns("confirm_add_measurements"), "Yes")))
+      #if you need to add an end date when a sensor is not being redeployed
+    }else if(rv$redeploy() == FALSE & rv$collect_date() != "NULL" & rv$complete_end_dates() == TRUE & rv$sw_or_dl() == FALSE){
+      showModal(modalDialog(title = "Check Measurements", 
+                            "Did you collect hardware? Would you like to add an end date to these deployment measurements?", 
+                            modalButton("No"), 
+                            actionButton(ns("confirm_add_end_date"), "Yes")))
+    }else{
+      #clear entries
+      dataTableProxy('current_deployment') %>% selectRows(NULL)
+      dataTableProxy('prev_deployment') %>% selectRows(NULL)
+      reset("sensor_id")
+      reset("sensor_purpose")
+      reset("term")
+      reset("research")
+      reset("interval")
+      reset("deploy_date")
+      reset("collect_date")
+      reset("well_name")
+      reset("download_error")
+      reset("redeploy")
+      reset("sensor_broken")
+      reset("new_sensor_id")
+      reset("deploy_depth_to_water")
+      reset("collect_depth_to_water")
+      reset("notes")
+    }
   })
   
+  #write or edit a future deployment
   observeEvent(input$future_deploy, {
     if(rv$add_new_future()){
       odbc::dbGetQuery(poolConn,
@@ -731,6 +824,24 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
     rv$refresh_collect <- rv$refresh_collect + 1
   })
+  
+  #update ticker so other modules update
+  rv$refresh_location <- 0
+  
+  #update ticker and tab for measurements
+  observeEvent(input$confirm_add_measurements, {
+    rv$refresh_location <- rv$refresh_location + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "add_ow")
+    removeModal()
+  })
+  
+  #update ticker and tab for measurements
+  observeEvent(input$confirm_add_end_date, {
+    rv$refresh_location <- rv$refresh_location + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "add_ow")
+    removeModal()
+  })
+  
   
   #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
   #logical to add to the toggleState below
@@ -835,7 +946,11 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     list(
       refresh_collect = reactive(rv$refresh_collect),
       refresh_sensor = reactive(rv$refresh_sensor),
-      dud = "dud"
+      refresh_location = reactive(rv$refresh_location),
+      smp_id_check = reactive(rv$smp_id()),
+      smp_id = reactive(input$smp_id),
+      site_name = reactive(input$site_name),
+      location = reactive(input$well_name)
     )
   )
 }

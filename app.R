@@ -131,7 +131,7 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     #use tagList so tags and shinyjs can be called without being inside of the navbarPage. When they're inside navbarpage, they create small invisible fake tabs that take up space and act weird when clicked on
     tagList(
       #call jscode to warn when leaving page
-    tags$head(tags$script(jscode)),
+    #tags$head(tags$script(jscode)),
     #must call useShinyjs() for shinyjs() functionality to work in app
     useShinyjs(),
     navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
@@ -228,17 +228,20 @@ jscode <- 'window.onbeforeunload = function() { return "Please use the button on
     #request by lookup
     requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
     
+    #refresh starter 
+    refresh_location <- 0
+    
     #-------
    collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, ow = ow, deploy = deploy, poolConn = poolConn)
-   ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn)
+   ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn, deploy = deploy)
    sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, sensor_status_lookup = sensor_status_lookup, deploy = deploy)
-   deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup)
-  callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
-  callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
-  callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type)
-   callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
-   callModule(special_investigations, "special_investigations", parent_session = session, poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup)
-  callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
+   deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup, srt = srt, si = special_investigations)
+ srt <- callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
+ porous_pavement <- callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, poolConn = poolConn, con_phase = con_phase)
+ capture_efficiency <- callModule(capture_efficiency, "capture_efficiency", parent_session = session, poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type)
+ inlet_conveyance <- callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
+ special_investigations<- callModule(special_investigations, "special_investigations", parent_session = session, poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, requested_by_lookup = requested_by_lookup)
+ stats <- callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
   }
   
   shinyApp(ui, server)

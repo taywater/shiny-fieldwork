@@ -326,6 +326,11 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                                         WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
     }
     
+    showModal(modalDialog(title = "Deploy Sensor", 
+                          "Did you deploy a sensor? Would you like to add a deployment?", 
+                          modalButton("No"), 
+                          actionButton(ns("add_deployment"), "Yes")))
+    
     #update srt_table with new srt
     rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
     
@@ -349,6 +354,14 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("qaqc_complete")
     reset("srt_summary_date")
     reset("priority")
+  })
+  
+  rv$refresh_deploy <- 0 
+  
+  observeEvent(input$add_deployment, {
+    rv$refresh_deploy <- rv$refresh_deploy + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+    removeModal()
   })
   
   observeEvent(input$clear_srt, {
@@ -381,7 +394,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   #View SRTs tab####
   
   #query srt table
-  all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY srt_uid DESC"
+  all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY test_date DESC"
   rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
   
   #convert 1s and 0s to yes and no, make dates characters so they show properly, and round storm size
@@ -551,5 +564,12 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
       dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
     }
   })
+  
+  return(
+    list(
+      refresh_deploy = reactive(rv$refresh_deploy),
+      system_id = reactive(input$system_id)
+    )
+  )
   
 }
