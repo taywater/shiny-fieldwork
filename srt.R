@@ -41,13 +41,14 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                                             actionButton(ns("add_srt"), "Add SRT"),
                                             actionButton(ns("clear_srt"), "Clear All Fields"),
                                             fluidRow(
-                                              HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests."))), 
+                                              HTML(paste(html_req(""), " indicates required field for complete tests. ", 
+                                                         future_req(""), " indicates required field for future tests."))), 
                                             tags$head(tags$style(HTML("
-      .shiny-split-layout > div {
-        overflow: visible;
-      }
-    ")))
-                               )
+                                                                        .shiny-split-layout > div {
+                                                                          overflow: visible;
+                                                                        }
+                                                                      ")))
+                                                                        )
                         ),
                         column(width = 7,
                                conditionalPanel(condition = "input.system_id", 

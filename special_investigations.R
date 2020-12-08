@@ -113,6 +113,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
     rv$site_name()
   })
   
+  #render headers
   output$header <- renderText(
     paste("Special Investigations at", rv$header_input())
   )
@@ -143,7 +144,6 @@ special_investigations <- function(input, output, session, parent_session, poolC
   observe(toggleState("summary_date", condition = length(input$date) > 0 & nchar(input$summary_needed) > 0))
   
   #reset sensor collection and qa/c IF sensor deployed = NO
-  
   observeEvent(input$sensor_deployed == "No", {
     reset("sensor_collect_date")
     reset("qaqc_complete")

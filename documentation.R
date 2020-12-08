@@ -5,7 +5,7 @@
 
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v1.0"), 
+           titlePanel("MARS Fieldwork Database v1.1"), 
            column(width = 5,
                   h2("User Guide"),
                   
@@ -70,6 +70,8 @@ documentationUI <- function(id, label = "documentation"){
            ), 
            column(width = 5, offset = 1,
                   h2("Current Status"), 
+                  h3("v1.1"), 
+                  h5("v1.1 has the same core features as v1.0 but improved user experience and functionality."),
                   h3("v1.0"),
                   h5("All features of the previously used Current Monitoring Sites and Field Testing Master Record spreadsheets have been integrated. MARS Field staff shall use this app to enter all fieldwork data into the MARS Fieldwork database. Since v0.6, inlet conveyance tests and special investigations have been added, with some adjustments to user experience, and smaller back end adjustments"),
                   

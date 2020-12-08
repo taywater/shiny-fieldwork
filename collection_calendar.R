@@ -25,7 +25,8 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
     tabPanel("Future Deployments", value = "future_tab", 
              
              titlePanel("Future Deployments"), 
-                DTOutput(ns("future"))
+                DTOutput(ns("future")), 
+             downloadButton(ns("download_future"), "Download Future Deployments")
     )
   )
   
@@ -56,7 +57,6 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
     rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
   })
-  
   
   rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3, 4)} else {input$term_filter})
   rv$purpose_filter <- reactive(if(input$purpose_filter == 1.5){c(0, 1, 2, 3)} else {input$purpose_filter})
@@ -147,11 +147,23 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
                                               "Term" = "term", "Priority" = "field_test_priority","Notes" = "notes")
   )
   
+  
+  
   output$future <- renderDT(
     rv$future_table(),
       selection = "single", 
       style = 'bootstrap', 
       class = 'table-responsive, table-hover'
+  )
+  
+  
+  output$download_future <- downloadHandler(
+    filename = function(){
+      paste("future_deployments_", Sys.Date(), ".csv", sep = "")
+    }, 
+    content = function(file){
+      write.csv(rv$future_table(), file, row.names = FALSE)
+    }
   )
   
   observeEvent(input$future_rows_selected, {

@@ -1,7 +1,9 @@
 #Add Sensor tab
 #This page is adding a new sensor to the database, so it can be used for deployments
 
+#UI
 add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, sensor_status_lookup){
+  #initialize namespace
   ns <- NS(id)
   
   tabPanel(title = "Add/Edit Sensor", value = "add_sensor",
@@ -24,6 +26,7 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
 }
 
 add_sensor <- function(input, output, session, parent_session, poolConn, sensor_status_lookup, deploy){
+  
   #define ns to use in modals
   ns <- session$ns
   #start reactiveValues for this section
@@ -84,10 +87,6 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
         isolate(paste("Sensor", input$serial_no, "edited."))
       })
     }
-    #reset("serial_no")
-    #reset("model_no")
-    #reset("date")
-    #reset("sensor_status")
     #update sensor list following addition
     rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
     rv$active_row <- which(rv$sensor_table$sensor_serial == input$serial_no, arr.ind = TRUE)
@@ -107,13 +106,17 @@ add_sensor <- function(input, output, session, parent_session, poolConn, sensor_
   rv$refresh_serial_no <- 0 
   observeEvent(input$add_sensor_deploy, {
     rv$refresh_serial_no <- rv$refresh_serial_no + 1
-    #updateSelectInput(session, "sensor_id", selected = input$serial_no)
     updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
   })
   
-  rv$sensor_table_display <- reactive(rv$sensor_table %>% mutate("date_purchased" = as.character(date_purchased)) %>% 
-                                     rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
-                                            "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", "Location" = "ow_suffix", "Status" = "sensor_status"))
+  
+  #show sensor table
+  rv$sensor_table_display <- reactive(rv$sensor_table %>% 
+                                        mutate("date_purchased" = as.character(date_purchased)) %>% 
+                                        rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
+                                            "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", 
+                                            "Location" = "ow_suffix", "Status" = "sensor_status")
+                                      )
   
   output$sensor_table <- renderDT(
     rv$sensor_table_display(),
