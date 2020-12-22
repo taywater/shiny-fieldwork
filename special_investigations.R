@@ -289,6 +289,7 @@ special_investigations <- function(input, output, session, parent_session, poolC
   
   #add and edit special investigation records
   observeEvent(input$add_test, {
+    print(rv$qaqc_complete())
     if(length(input$si_table_rows_selected) == 0){
       #add to special investigation
       add_test_query <- paste0("INSERT INTO fieldwork.special_investigation (system_id, work_number, site_name_lookup_uid, 
@@ -331,10 +332,18 @@ special_investigations <- function(input, output, session, parent_session, poolC
     rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
     rv$all_future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$all_future_query()))
     
-    if(input$sensor_deployed == 1){
-      print("yes")
+    
+    #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialoge box asking the user
+    #if they would like to create a deployment. If yes, that takes them to the deployment page
+    si_deployment_exists_query <- paste0("select * from fieldwork.deployment_full where term = 'Special' and (smp_to_system(smp_id) = ", rv$system_id(), " OR site_name = ", rv$system_id(), ") and deployment_dtime_est < '", input$date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$date, "'::timestamp - interval '3 days'")
+    
+    si_deployment_exists_table <- dbGetQuery(poolConn, si_deployment_exists_query)
+    
+    si_deployment_exists <- nrow(si_deployment_exists_table) > 0
+    
+    if(si_deployment_exists == FALSE & input$sensor_deployed == 1){
       showModal(modalDialog(title = "Deploy Sensor", 
-                            "Would you like to add a deployment?", 
+                            "Would you like to add a sensor deployment for this Special Investigation?", 
                             modalButton("No"), 
                             actionButton(ns("add_deployment"), "Yes")))
     }else{

@@ -85,7 +85,9 @@ ui <- function(req){
   #Sensor Model Number options
   hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
   
-  sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup")
+  sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
+  
+  sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_issue_lookup order by sensor_issue_lookup_uid")
   
   #Sensor Serial Number List
   hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
@@ -158,34 +160,36 @@ ui <- function(req){
                #this navbarMneu has both tabs from collection calendar (cc & future deployments) and "Deploy Sensor"
                 do.call(navbarMenu, list(title = "Deployments") %>%
                      append(collection_calendarUI("collection_calendar")) %>%
-                     append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names, 
-                                     html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup, 
+                     append(deployUI("deploy", smp_id = smp_id, sensor_serial = sensor_serial, site_names = site_names,
+                                     html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup,
                                      research_lookup = research_lookup, priority = priority, future_req = future_req))),
                #Add/Edit Location
                 add_owUI("add_ow", smp_id = smp_id, site_names = site_names, html_req = html_req),
                #Add/Edit Sensor
-                add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, sensor_status_lookup = sensor_status_lookup),
+                add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req, 
+                             sensor_status_lookup = sensor_status_lookup, 
+                             sensor_issue_lookup = sensor_issue_lookup),
                #SRT (Add/Edit SRT, View SRTs, View Future SRTs)
-                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req, 
+                SRTUI("srt", sys_id = sys_id, srt_types = srt_types, html_req = html_req,
                       con_phase = con_phase, priority = priority, future_req = future_req),
                #Porous Pavement (Add/Edit Porous Pavement Test, View Porous Pavement Tests, View Future Porous Pavement Tests)
-                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req, 
+                porous_pavementUI("porous_pavement", smp_id = smp_id, html_req = html_req,
                                 surface_type = surface_type, con_phase = con_phase, priority = priority, future_req = future_req),
                #Capture Efficiency (Add/Edit Capture Efficiency Test, View Capture Efficiency Tests, View Future Capture Efficiency Tests)
-                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type, 
-                                   html_req = html_req, con_phase = con_phase, priority = priority, 
+                capture_efficiencyUI("capture_efficiency", sys_id = sys_id, high_flow_type = high_flow_type,
+                                   html_req = html_req, con_phase = con_phase, priority = priority,
                                    future_req = future_req, cet_asset_type = cet_asset_type),
                #Inlet Conveyance (Add/Edit Inlet Conveyance Test, View Inlet Conveyance Tests, View Future Inlet Conveyance Tests)
-                inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req, 
+                inlet_conveyanceUI("inlet_conveyance", sys_id = sys_id, work_number = work_number, html_req = html_req,
                                    con_phase = con_phase, priority = priority, site_names = site_names, future_req = future_req),
                #Special Investigations (Add/Edit Special Investigations, View Special Investigations, View Future Special Investigations)
-                special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req, 
-                                         con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup, 
+                special_investigationsUI("special_investigations", sys_id = sys_id, work_number = work_number, html_req = html_req,
+                                         con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup,
                                          requested_by_lookup = requested_by_lookup, future_req = future_req),
                #Stats
-                m_statsUI("stats", current_fy = current_fy, years = years),
+               m_statsUI("stats", current_fy = current_fy, years = years),
                #Documentation
-                documentationUI("documentation")
+             documentationUI("documentation")
     )
   )
 }
@@ -213,7 +217,9 @@ server <- function(input, output, session) {
   #Sensor Model Number options
   hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
   
-  sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup")
+  sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
+  
+  sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_issue_lookup order by sensor_issue_lookup_uid")
   
   #Sensor Serial Number List
   hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
@@ -269,35 +275,38 @@ server <- function(input, output, session) {
   #refresh starter 
   refresh_location <- 0
   
-  #Server Module functions ---------------------------
-  #Collection Calendar
-  collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session, 
+  # Server Module functions ---------------------------
+  # Collection Calendar
+  collection_cal <- callModule(collection_calendar, "collection_calendar", parent_session = session,
                                ow = ow, deploy = deploy, poolConn = poolConn)
   #Add Edit/Location
   ow <- callModule(add_ow, "add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn, deploy = deploy)
   #Add Edit/Sensor
-  sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn, 
-                       sensor_status_lookup = sensor_status_lookup, deploy = deploy)
+  sensor <- callModule(add_sensor, "add_sensor", parent_session = session, poolConn = poolConn,
+                       sensor_status_lookup = sensor_status_lookup, deploy = deploy, 
+                       sensor_issue_lookup = sensor_issue_lookup)
   #Deploy Sensor
-  deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal, 
+  deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal,
                        sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup,
                        srt = srt, si = special_investigations)
   #SRT
   srt <- callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
   #Porous Pavement
-  porous_pavement <- callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type, 
+  porous_pavement <- callModule(porous_pavement, "porous_pavement", parent_session = session, surface_type = surface_type,
                                 poolConn = poolConn, con_phase = con_phase)
   #Capture Effiency
-  capture_efficiency <- callModule(capture_efficiency, "capture_efficiency", parent_session = session, 
-                                   poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type)
+  capture_efficiency <- callModule(capture_efficiency, "capture_efficiency", parent_session = session,
+                                   poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type, 
+                                   deploy = deploy)
   #Inlet Conveyance
   inlet_conveyance <- callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
   #Special Investigations
-  special_investigations<- callModule(special_investigations, "special_investigations", parent_session = session, 
-                                      poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup, 
+  special_investigations<- callModule(special_investigations, "special_investigations", parent_session = session,
+                                      poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup,
                                       requested_by_lookup = requested_by_lookup)
   #Stats
   stats <- callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
+  
 }
 
 #Run this function to run the app!

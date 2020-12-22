@@ -25,7 +25,7 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
     tabPanel("Future Deployments", value = "future_tab", 
              
              titlePanel("Future Deployments"), 
-                DTOutput(ns("future")), 
+                reactableOutput(ns("future")), 
              downloadButton(ns("download_future"), "Download Future Deployments")
     )
   )
@@ -141,19 +141,49 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
   })
   
   ##Future table details
+  #this is set up slightly different than other reactables
+  #i renamed the colums in the table since I also want to be able to download it with these column names
+  #in other reactables I do the renaming in the reactable
+  #here, I use reactable because I need to be able to highlight NAs. it's much easier with reactable than DT
   rv$future_table <- reactive(rv$future_table_db %>% 
-                                dplyr::select("smp_id", "ow_suffix", "project_name", "term", "field_test_priority", "notes") %>% 
-                                dplyr::rename("SMP ID" = "smp_id", "OW Suffix" = "ow_suffix", "Project Name" = "project_name", 
-                                              "Term" = "term", "Priority" = "field_test_priority","Notes" = "notes")
+                                mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                mutate(across(where(is.POSIXlt), as.character)) %>%
+                                dplyr::select("smp_id", "ow_suffix", "project_name", "term", 
+                                              "field_test_priority", "premonitoring_inspection", "notes") %>% 
+                                dplyr::rename("SMP ID" = "smp_id", "Location" = "ow_suffix", "Project Name" = "project_name", 
+                                              "Term" = "term", "Priority" = "field_test_priority", 
+                                              "Pre-Monitoring Inspection Date" = "premonitoring_inspection", "Notes" = "notes")
   )
   
-  
-  
-  output$future <- renderDT(
-    rv$future_table(),
-      selection = "single", 
-      style = 'bootstrap', 
-      class = 'table-responsive, table-hover'
+  output$future <- renderReactable(
+    reactable(rv$future_table(),
+              columns = list(
+                'SMP ID' = colDef(), 
+                'Location' = colDef(), 
+                'Project Name' = colDef(), 
+                'Term' = colDef(), 
+                'Priority' = colDef(), 
+                'Pre-Monitoring Inspection Date' = colDef(style = function(value){
+                  if(is.na(value)){
+                    color = "#FFFC1C"
+                  }else{
+                    color = "#FFFFFF"
+                  }
+                  list(backgroundColor = color, fontweight = "bold")
+                }), 
+                'Notes' = colDef()
+              ),
+              fullWidth = TRUE,
+              selection = "single",
+              searchable = TRUE,
+              onClick = "select",
+              selectionId = ns("fd_selected"),
+              #searchable = TRUE,
+              showPageSizeOptions = TRUE,
+              pageSizeOptions = c(10, 25, 50),
+              defaultPageSize = 10,
+              height = 750
+  )
   )
   
   
@@ -166,7 +196,7 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
     }
   )
   
-  observeEvent(input$future_rows_selected, {
+  observeEvent(input$fd_selected, {
     rv$future_deploy_refresh <- rv$future_deploy_refresh + 1
     updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
   })
@@ -179,11 +209,11 @@ collection_calendar <- function(input, output, session, parent_session, ow, depl
       deploy_refresh = reactive(rv$deploy_refresh),
       rows_selected = reactive(input$collection_rows_selected),
       row = reactive(rv$collect_table_filter()$deployment_uid[input$collection_rows_selected]), 
-      future_smp_id = reactive(rv$future_table_db$smp_id[input$future_rows_selected]), 
-      future_site_name = reactive(rv$future_table_db$site_name[input$future_rows_selected]), 
+      future_smp_id = reactive(rv$future_table_db$smp_id[input$fd_selected]), 
+      future_site_name = reactive(rv$future_table_db$site_name[input$fd_selected]), 
       future_deploy_refresh = reactive(rv$future_deploy_refresh), 
-      future_rows_selected = reactive(input$future_rows_selected), 
-      future_row = reactive(rv$future_table_db$future_deployment_uid[input$future_rows_selected])
+      future_rows_selected = reactive(input$fd_selected), 
+      future_row = reactive(rv$future_table_db$future_deployment_uid[input$fd_selected])
       )
     )
   

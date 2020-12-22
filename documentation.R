@@ -5,7 +5,7 @@
 
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v1.1"), 
+           titlePanel("MARS Fieldwork Database v1.2"), 
            column(width = 5,
                   h2("User Guide"),
                   
@@ -70,6 +70,8 @@ documentationUI <- function(id, label = "documentation"){
            ), 
            column(width = 5, offset = 1,
                   h2("Current Status"), 
+                  h3("v.1.2"), 
+                  h5("Added Pre-Monitoring Inspection notes for future deployments, details for sensor issues, and more UI improvements."),
                   h3("v1.1"), 
                   h5("v1.1 has the same core features as v1.0 but improved user experience and functionality."),
                   h3("v1.0"),

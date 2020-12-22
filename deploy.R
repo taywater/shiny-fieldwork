@@ -32,8 +32,17 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  #If there is no deployment date, given an option for future test priority
                                  conditionalPanel(condition = "input.deploy_date === null", 
                                                   ns = ns, 
-                                                  selectInput(ns("priority"), "Future Test Priority", 
-                                                              choices = c("", priority$field_test_priority), selected = NULL)),
+                                                  fluidRow(
+                                                    column(6, dateInput(ns("premonitoring_date"), "Pre-Monitoring Inspection Date", 
+                                                                        value = as.Date(NA))),
+                                                    column(6, selectInput(ns("priority"), "Future Test Priority", 
+                                                              choices = c("", priority$field_test_priority), selected = NULL))
+                                                  )),
+                                 conditionalPanel(condition = "input.premonitoring_date", 
+                                                  ns = ns, 
+                                                  selectInput(ns("ready"), "Ready for Deployment?", 
+                                                              choices = c("", "Yes" = 1, "No" = 0))
+                                 ),
                                  #ask about download error and redeploying sensor once you add a collection date
                                  conditionalPanel(width = 12, 
                                                   condition = "input.deploy_date", 
@@ -133,6 +142,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   ## well panel
   #update sensor id choices based on the hobo list
   observe(updateSelectInput(session, inputId = "sensor_id", choices = c("", sensor$sensor_serial()), selected = NULL))
+
   #query ow_suffixes based on smp_id
   rv$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
     "select ow_suffix from fieldwork.ow_all where smp_id = ", rv$smp_id(), " OR site_name_lookup_uid = ", rv$site_name_lookup_uid())) %>% dplyr::pull())
@@ -258,6 +268,17 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     "Completed Deployment Notes"
   })
   
+  observe(toggleState("priority", condition = input$ready != 0))
+  
+  observeEvent(input$ready, {
+    if(input$ready == 0){
+    updateSelectInput(session, "priority", selected = "Dependent (see Notes)")
+    updateSelectInput(session, "notes", label = "Note why deployment is not ready")
+    }else{
+      updateSelectInput(session, "notes", label = "Notes")
+    }
+  })
+  
   observe(updateTextAreaInput(session, "notes", label = rv$notes_label()))
   
   #Get the Project name, combine it with SMP ID, and create a reactive header
@@ -353,6 +374,10 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   #set fields to "NULL" if they are empty
   rv$collect_date <- reactive(if(length(input$collect_date) == 0) "NULL" else paste0("'", input$collect_date, "'"))
   rv$research_lookup_uid <- reactive(if(length(rv$research()) == 0) "NULL" else paste0("'", rv$research(), "'"))
+  
+  rv$premonitoring_date <- reactive(if(length(input$premonitoring_date) == 0) "NULL" else paste0("'", input$premonitoring_date, "'"))
+  
+  rv$ready <- reactive(if(length(input$ready) == 0) "NULL" else paste0("'", input$ready, "'"))
   
   #get sensor id for redeployment 
   rv$new_sensor_id <- reactive(if(nchar(input$new_sensor_id) > 0){
@@ -463,10 +488,13 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   #select key fields and rename
   rv$future_table <- reactive(rv$future_table_db() %>% 
-                                dplyr::select(ow_suffix, type, term, research, interval_min, field_test_priority) %>% 
+                                mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                mutate(across(where(is.POSIXlt), as.character)) %>% 
+                                dplyr::select(ow_suffix, type, term, research, interval_min, premonitoring_inspection, field_test_priority) %>% 
                                 dplyr::rename("Location" = "ow_suffix", 
                                               "Purpose" = "type", "Term" = "term", "Research" = "research",
-                                              "Interval (min)" = "interval_min", "Priority" = "field_test_priority"))
+                                              "Interval (min)" = "interval_min", "Pre-Monitoring Inspection Date" = "premonitoring_inspection", 
+                                              "Priority" = "field_test_priority"))
   
   #render datatable for future deployments
   output$future_deployment <- renderDT(
@@ -599,6 +627,22 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   }
   )
   
+  rv$premonitoring_step <- reactive(if(length(rv$active()) >0){
+    NULL
+  }else if(length(rv$future()) > 0){
+    rv$future_table_db()$premonitoring_inspection[rv$future()]
+  }else if(length(rv$prev()) > 0){
+    NULL
+  })
+  
+  rv$ready_step <- reactive(if(length(rv$active()) > 0){
+    NULL
+  }else if(length(rv$future()) > 0){
+    rv$future_table_db()$ready[rv$future()]
+  }else if(length(rv$prev()) > 0){
+    NULL
+  })
+  
   #update inputs based on the reactive value definitions above
   observe({
     updateSelectInput(session, "well_name", selected = rv$well_name())
@@ -614,6 +658,8 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     updateSelectInput(session, "download_error", selected = rv$download_error_step())
     updateNumericInput(session, "deploy_depth_to_water", value = rv$deploy_depth_to_water_step())
     updateNumericInput(session, "collect_depth_to_water", value = rv$collect_depth_to_water_step())
+    updateDateInput(session, "premonitoring_date", value = rv$premonitoring_step())
+    updateSelectInput(session, "ready", selected = rv$ready_step())
     reset("redeploy")
     reset("sensor_broken")
     reset("new_sensor_id")
@@ -852,10 +898,11 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     if(rv$add_new_future()){
       odbc::dbGetQuery(poolConn,
                        paste0("INSERT INTO fieldwork.future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
-			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid)
+			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid, premonitoring_inspection, ready)
 			VALUES (fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ", rv$inventory_sensors_uid_null(),
                               ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
-                              ", ", rv$research_lookup_uid(), ", ", rv$notes(), ", ", rv$priority_lookup_uid(), ")"))
+                              ", ", rv$research_lookup_uid(), ", ", rv$notes(), ", ", rv$priority_lookup_uid(), 
+                              ", ", rv$premonitoring_date(), ", ", rv$ready(), ")"))
     }else{
       odbc::dbGetQuery(poolConn, 
                        paste0("UPDATE fieldwork.future_deployment SET 
@@ -866,13 +913,47 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                               research_lookup_uid = ", rv$research_lookup_uid(), ",
                               interval_min = ", rv$interval_min() , ",
                               notes = ", rv$notes(), ", 
-                              field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), " WHERE 
+                              field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
+                              premonitoring_inspection = ", rv$premonitoring_date(), ", 
+                              ready = ", rv$ready(), " WHERE 
                               future_deployment_uid = '", rv$update_future_deployment_uid(), "'" 
                        ))
     }
+    
+    if(input$ready == 1){
+      cet_exists_query <- paste0("select * from fieldwork.capture_efficiency_full 
+                                        where system_id = smp_to_system(", rv$smp_id(), ") 
+                                        and test_date < ", rv$premonitoring_date(), "::timestamp + interval '1 day' 
+                                        and test_date > ", rv$premonitoring_date(), "::timestamp - interval '30 days'" )
+      
+      cet_exists_table <- dbGetQuery(poolConn, cet_exists_query)
+      
+      cet_exists <- nrow(cet_exists_table) > 0
+      
+      if(cet_exists == FALSE){
+        showModal(modalDialog(title = "Add Capture Efficiency Test", 
+                              "Add capture efficiency tests from the pre-monitoring inspection?", 
+                              modalButton("No"), 
+                              actionButton(ns("add_cet"), "Yes")))
+      }
+      
+    }
+    
+    
     rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
     rv$refresh_collect <- rv$refresh_collect + 1
   })
+  
+  #set up for editing CET
+  rv$refresh_cet <- 0
+  
+  observeEvent(input$add_cet, {
+    rv$refresh_cet <- rv$refresh_cet + 1
+    updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
+    removeModal()
+  })
+  
+  
   
   #delete a future deployment
   #first, intermediate dialog box
@@ -978,8 +1059,17 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
                             length(input$prev_deployment_rows_selected) > 0))})
   
   #toggle future deployment add state
+  # 
+  # rv$toggle_ready <- reactive(if(length(input$premonitoring_date) == 0){
+  #   TRUE
+  # }else if(length(input$ready) > 0){
+  #   TRUE
+  # }else if(length(input$ready) == 0){
+  #   FALSE
+  # })
+  
   observe({toggleState(id = "future_deploy", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
-                         nchar(input$well_name) > 0)})
+                         nchar(input$well_name) > 0) })
   
   #toggle future deployment delete button
   observe({toggleState(id = "delete_future", condition = length(rv$future()) > 0 )})
@@ -1020,10 +1110,12 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
       refresh_collect = reactive(rv$refresh_collect),
       refresh_sensor = reactive(rv$refresh_sensor),
       refresh_location = reactive(rv$refresh_location),
+      refresh_cet = reactive(rv$refresh_cet),
       smp_id_check = reactive(rv$smp_id()),
       smp_id = reactive(input$smp_id),
       site_name = reactive(input$site_name),
-      location = reactive(input$well_name)
+      location = reactive(input$well_name), 
+      system_id = reactive(gsub('-\\d+$', '', input$smp_id))
     )
   )
 }

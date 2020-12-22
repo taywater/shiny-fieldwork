@@ -60,12 +60,21 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", sys_id, high_
   )
 }
 
-capture_efficiency <- function(input, output, session, parent_session, poolConn, high_flow_type, con_phase, cet_asset_type){
+capture_efficiency <- function(input, output, session, parent_session, poolConn, high_flow_type, con_phase, cet_asset_type, deploy){
   
   #define ns to use in modals
   ns <- session$ns
   
   rv <- reactiveValues()
+  
+  #upon clicking through dialogue box after doing future deployment/premonitoring inspection 
+  #update selected system based on deployment
+  observeEvent(deploy$refresh_cet(), {
+    if(deploy$refresh_cet() > 0){
+      updateSelectInput(session, "system_id", selected = NULL)
+      updateSelectInput(session, "system_id", selected = deploy$system_id())
+    }
+  })
   
   #Get the Project name, combine it with System ID, and create a reactive header
   rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
@@ -162,8 +171,9 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   #toggle state for data depending on whether a test date is included
   observe(toggleState(id = "low_flow_bypass", condition = length(input$cet_date) > 0))
   observe(toggleState(id = "low_flow_efficiency", condition = length(input$cet_date) > 0))
-  observe(toggleState(id = "est_high_flow_efficiency", condition = length(input$cet_date) > 0))
-  observe(toggleState(id = "high_flow_efficiency", condition = length(input$cet_date) > 0))
+  #toggle state based on test date and whether est OR real is filled out
+  observe(toggleState(id = "est_high_flow_efficiency", condition = length(input$cet_date) > 0 & is.na(input$high_flow_efficiency)))
+  observe(toggleState(id = "high_flow_efficiency", condition = length(input$cet_date) > 0 &  nchar(input$est_high_flow_efficiency) == 0))
   
   output$cet_table <- renderDT(
     datatable(rv$cet_table(), 

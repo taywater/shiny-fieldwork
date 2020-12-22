@@ -10,23 +10,31 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                         column(width = 5,
                                #split layout with left and right
                                sidebarPanel(width = 12, 
-                                              selectInput(ns("system_id"), future_req(html_req("System ID")), choices = c("", sys_id), selected = NULL), 
+                                              selectInput(ns("system_id"), future_req(html_req("System ID")), 
+                                                          choices = c("", sys_id), selected = NULL), 
                                             splitLayout(
                                               dateInput(ns("srt_date"), html_req("Test Date"), value = as.Date(NA)), 
-                                              selectInput(ns("flow_data_rec"), "Flow Data Recorded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+                                              selectInput(ns("flow_data_rec"), "Flow Data Recorded", 
+                                                          choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
-                                              selectInput(ns("con_phase"), html_req("Construction Phase"), choices = c("", con_phase$phase), selected = NULL),
+                                              selectInput(ns("con_phase"), html_req("Construction Phase"), 
+                                                          choices = c("", con_phase$phase), selected = NULL),
                                               selectInput(ns("water_level_rec"), "Water Level Recorded", 
                                                           choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
-                                              selectInput(ns("srt_type"), html_req("SRT Type"), choices = c("", srt_types$type), selected = NULL),
-                                              selectInput(ns("photos_uploaded"), "Photos Uploaded", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
+                                              selectInput(ns("srt_type"), html_req("SRT Type"), 
+                                                          choices = c("", srt_types$type), selected = NULL),
+                                              selectInput(ns("photos_uploaded"), "Photos Uploaded", 
+                                                          choices = c("","Yes" = "1", "No" = "0"), selected = NULL)), 
                                             splitLayout(
                                               numericInput(ns("test_volume"), "Test Volume (cf)",  value = NA, min = 0), 
-                                              dateInput(ns("sensor_collect_date"), "Sensor Collection Date", value = as.Date(NA))),
+                                              selectInput(ns("sensor_deployed"), html_req("Sensor Deployed"), 
+                                                          choices = c("", "Yes" = "1", "No" = "0"), selected = NULL),
+                                              disabled(dateInput(ns("sensor_collect_date"), "Sensor Collection Date", value = as.Date(NA)))),
                                             splitLayout(
                                               numericInput(ns("dcia"), "Impervious Drainage Area (sf)", value = NA),
-                                              selectInput(ns("qaqc_complete"), "QA/QC Complete", choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
+                                              selectInput(ns("qaqc_complete"), "QA/QC Complete", 
+                                                          choices = c("","Yes" = "1", "No" = "0"), selected = NULL)),
                                             splitLayout(
                                               disabled(numericInput(ns("storm_size"), "Simulated Depth (in)",  value = NA, min = 0)), 
                                               dateInput(ns("srt_summary_date"), "SRT Summary Report Sent", value = as.Date(NA))),
@@ -131,8 +139,9 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   observe(toggleState(id = "flow_data_rec", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "water_level_rec", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "photos_uploaded", condition = length(input$srt_date) > 0))
-  observe(toggleState(id = "sensor_collect_date", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "test_volume", condition = length(input$srt_date) > 0))
+  observe(toggleState(id = "sensor_deployed", condition = length(input$srt_date) > 0))
+  observe(toggleState(id = "sensor_collect_date", condition = input$sensor_deployed == "1"))
   observe(toggleState(id = "qaqc_complete", condition = length(input$srt_date) > 0))
   observe(toggleState(id = "srt_summary_date", condition = length(input$srt_date) > 0))
   
@@ -190,6 +199,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
+    reset("sensor_deployed")
   })
   
   
@@ -213,6 +223,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 12])
     updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()[input$srt_table_rows_selected, 13])
     updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 14])
+    updateDateInput(session, "sensor_deployed", value = rv$srt_metadata()[input$srt_table_rows_selected, 18])
     
   })
   
@@ -239,6 +250,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   rv$sensor_collect_date <- reactive(if(length(input$sensor_collect_date) == 0) "NULL" else paste0("'", input$sensor_collect_date, "'"))
   rv$qaqc_complete <- reactive(if(nchar(input$qaqc_complete) == 0 | input$qaqc_complete == "N/A") "NULL" else paste0("'", input$qaqc_complete, "'"))
   rv$srt_summary_date <- reactive(if(length(input$srt_summary_date) == 0) "NULL" else paste0("'", input$srt_summary_date, "'"))
+  rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0 | input$sensor_deployed == "N/A") "NULL" else paste0("'", input$sensor_deployed, "'"))
   
   #assure that the summary date does not precede the srt date
   observe(updateDateInput(session, "srt_summary_date", min = input$srt_date))
@@ -274,11 +286,11 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("flow_data_rec")
     reset("water_level_rec")
     reset("photos_uploaded")
+    reset("sensor_deployed")
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
   })
-  
   
   #when button is clicked
   #add to srt table
@@ -292,9 +304,10 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                               rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ")")
       
       add_srt_meta_query <- paste0("INSERT INTO fieldwork.srt_metadata (srt_uid, flow_data_recorded, water_level_recorded, photos_uploaded, 
-                              sensor_collection_date, qaqc_complete, srt_summary_date)
+                              sensor_collection_date, qaqc_complete, srt_summary_date, sensor_deployed)
                               VALUES ((SELECT MAX(srt_uid) FROM fieldwork.srt), ", rv$flow_data_rec(), ",", rv$water_level_rec(), ",",  
-                                   rv$photos_uploaded(), ",", rv$sensor_collect_date(), ",", rv$qaqc_complete(), ",", rv$srt_summary_date(), ")")
+                                   rv$photos_uploaded(), ",", rv$sensor_collect_date(), ",", rv$qaqc_complete(), ",", 
+                                   rv$srt_summary_date(), ", ", rv$sensor_deployed(), ")")
       
       odbc::dbGetQuery(poolConn, add_srt_query)
       odbc::dbGetQuery(poolConn, add_srt_meta_query)
@@ -316,6 +329,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                                     ", sensor_collection_date = ", rv$sensor_collect_date(),
                                     ", qaqc_complete = ", rv$qaqc_complete(),
                                     ", srt_summary_date = ", rv$srt_summary_date(), 
+                                    ", sensor_deployed = ", rv$sensor_deployed(),
                                     " WHERE srt_uid = '", rv$srt_table_db()[input$srt_table_rows_selected, 1], "'")
       
       dbGetQuery(poolConn, edit_srt_query)
@@ -327,10 +341,20 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                                         WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
     }
     
+    #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialoge box asking the user
+    #if they would like to create a deployment. If yes, that takes them to the deployment page
+    srt_deployment_exists_query <- paste0("select * from fieldwork.deployment_full where term = 'SRT' and smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
+    
+    srt_deployment_exists_table <- dbGetQuery(poolConn, srt_deployment_exists_query)
+    
+    srt_deployment_exists <- nrow(srt_deployment_exists_table) > 0
+    
+    if(srt_deployment_exists == FALSE & input$sensor_deployed == 1){
     showModal(modalDialog(title = "Deploy Sensor", 
-                          "Did you deploy a sensor? Would you like to add a deployment?", 
+                          "Would you like to add a sensor deployment for this SRT?", 
                           modalButton("No"), 
                           actionButton(ns("add_deployment"), "Yes")))
+    }
     
     #update srt_table with new srt
     rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
@@ -351,6 +375,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("flow_data_rec")
     reset("water_level_rec")
     reset("photos_uploaded")
+    reset("sensor_deployed")
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
@@ -385,6 +410,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("flow_data_rec")
     reset("water_level_rec")
     reset("photos_uploaded")
+    reset("sensor_deployed")
     reset("sensor_collect_date")
     reset("qaqc_complete")
     reset("srt_summary_date")
@@ -408,7 +434,7 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                                  dplyr::select("system_id", "project_name", "test_date", "phase", "type", "srt_volume_ft3",
                                                "dcia_ft2", "srt_stormsize_in", "flow_data_recorded", "water_level_recorded",
                                                "photos_uploaded", "sensor_collection_date", "qaqc_complete",
-                                               "srt_summary_date", "turnaround_days", "srt_summary"))
+                                               "srt_summary_date", "turnaround_days", "srt_summary", "sensor_deployed"))
   
   output$all_srt_table <- renderReactable(
     reactable(rv$all_srt_table()[, 1:15], 
@@ -447,9 +473,8 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
                   list(backgroundColor = color, fontweight = "bold")
                 }),
                 sensor_collection_date  = colDef(name = "Sensor Collection Date", style = function(value, index){
-                  if((is.na(value) | value == "No") & 
-                     (is.na(rv$all_srt_table()$flow_data_recorded[index]) |
-                      rv$all_srt_table()$flow_data_record[index] == "Yes")){
+                  if(is.na(value) & 
+                     rv$all_srt_table()$sensor_deployed[index] == "1"){
                     color = "#FFFC1C"
                   }else{
                     color = "#FFFFFF"
@@ -486,13 +511,13 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
               pageSizeOptions = c(10, 25, 50),
               defaultPageSize = 10,
               height = 750,
-              details = function(index){
-                nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
-                htmltools::div(style = "padding:16px",
-                               reactable(nest_table,
-                                         columns = list(srt_summary = colDef(name = "Results Summary")))
-                )
-              }
+             details = function(index){
+               nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
+               htmltools::div(style = "padding:16px",
+                              reactable(nest_table,
+                                        columns = list(srt_summary = colDef(name = "Results Summary")))
+               )
+             }
     )
   )
   
