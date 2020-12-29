@@ -59,6 +59,7 @@ source("capture_efficiency.R")
 source("inlet_conveyance.R")
 source("special_investigations.R")
 source("monitoring_stats.R")
+source("history.R")
 source("documentation.R")
 
 #initialize varaibles for UI and call all UI functions
@@ -188,6 +189,8 @@ ui <- function(req){
                                          requested_by_lookup = requested_by_lookup, future_req = future_req),
                #Stats
                m_statsUI("stats", current_fy = current_fy, years = years),
+               #Monitoring History 
+               historyUI("history"),
                #Documentation
              documentationUI("documentation")
     )
@@ -288,7 +291,7 @@ server <- function(input, output, session) {
   #Deploy Sensor
   deploy <- callModule(deploy, "deploy", parent_session = session, ow = ow, collect = collection_cal,
                        sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup,
-                       srt = srt, si = special_investigations)
+                       srt = srt, si = special_investigations, cwl_history = cwl_history)
   #SRT
   srt <- callModule(SRT, "srt", parent_session = session, poolConn = poolConn, srt_types = srt_types, con_phase = con_phase)
   #Porous Pavement
@@ -296,8 +299,8 @@ server <- function(input, output, session) {
                                 poolConn = poolConn, con_phase = con_phase)
   #Capture Effiency
   capture_efficiency <- callModule(capture_efficiency, "capture_efficiency", parent_session = session,
-                                   poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase, cet_asset_type = cet_asset_type, 
-                                   deploy = deploy)
+                                   poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase,
+                                   cet_asset_type = cet_asset_type, deploy = deploy)
   #Inlet Conveyance
   inlet_conveyance <- callModule(inlet_conveyance, "inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase)
   #Special Investigations
@@ -306,6 +309,8 @@ server <- function(input, output, session) {
                                       requested_by_lookup = requested_by_lookup)
   #Stats
   stats <- callModule(m_stats, "stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
+  
+  cwl_history <- callModule(cwl_history, "history", parent_session = session, poolConn = poolConn, deploy = deploy)
   
 }
 
