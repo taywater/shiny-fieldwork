@@ -45,7 +45,8 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
                                             textAreaInput(ns("srt_summary"), "Notes", height = '85px'), 
                                             conditionalPanel(condition = "input.srt_date === null", 
                                                              ns = ns, 
-                                                             actionButton(ns("future_srt"), "Add Future SRT")),
+                                                             actionButton(ns("future_srt"), "Add Future SRT"), 
+                                                             actionButton(ns("delete_future_srt"), "Delete Future SRT")),
                                             actionButton(ns("add_srt"), "Add SRT"),
                                             actionButton(ns("clear_srt"), "Clear All Fields"),
                                             fluidRow(
@@ -134,6 +135,9 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
   
   #toggle state for future srt
   observe(toggleState(id = "future_srt", condition = nchar(input$system_id) > 0))
+  
+  #toggle future deployment delete button
+  observe(toggleState(id = "delete_future_srt", condition = length(input$future_srt_table_rows_selected) != 0))
   
   #toggle state for metadata depending on whether a test date is included
   observe(toggleState(id = "flow_data_rec", condition = length(input$srt_date) > 0))
@@ -381,6 +385,28 @@ SRT <- function(input, output, session, parent_session, poolConn, srt_types, con
     reset("srt_summary_date")
     reset("priority")
   })
+  
+  #delete a future srt
+  #first, intermediate dialog box
+  observeEvent(input$delete_future_srt, {
+    showModal(modalDialog(title = "Delete Future SRT", 
+                          "Delete Future SRT?", 
+                          modalButton("No"), 
+                          actionButton(ns("confirm_delete_future"), "Yes")))
+  })
+  
+  observeEvent(input$confirm_delete_future, {
+    odbc::dbGetQuery(poolConn, 
+                     paste0("DELETE FROM fieldwork.future_srt WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
+    
+    #update future srt table
+    rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
+    rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
+    
+    #remove pop up
+    removeModal()
+  })
+  
   
   rv$refresh_deploy <- 0 
   

@@ -14,6 +14,20 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                                         choices = c("", smp_id), selected = NULL)), 
                                    column(6,selectInput(ns("site_name"), future_req(html_req("Site Name")), 
                                                         choices = c("", site_names), selected = NULL))),
+                                 #If there is no deployment date, given an option for future test priority
+                                 conditionalPanel(condition = "input.deploy_date === null", 
+                                                  ns = ns, 
+                                                  fluidRow(
+                                                    column(6, dateInput(ns("premonitoring_date"), "Pre-Monitoring Inspection Date", 
+                                                                        value = as.Date(NA))),
+                                                    column(6, selectInput(ns("priority"), "Future Test Priority", 
+                                                                          choices = c("", priority$field_test_priority), selected = NULL))
+                                                  )),
+                                 conditionalPanel(condition = "input.premonitoring_date", 
+                                                  ns = ns, 
+                                                  selectInput(ns("ready"), "Ready for Deployment?", 
+                                                              choices = c("", "Yes" = 1, "No" = 0))
+                                 ),
                                  fluidRow(
                                    column(6,selectInput(ns("well_name"), future_req(html_req("Location")), 
                                                         choices = "")), 
@@ -29,20 +43,6 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
                                  fluidRow(
                                    column(6,dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA))),
                                    column(6,dateInput(ns("collect_date"), "Collection Date", value = as.Date(NA)))), 
-                                 #If there is no deployment date, given an option for future test priority
-                                 conditionalPanel(condition = "input.deploy_date === null", 
-                                                  ns = ns, 
-                                                  fluidRow(
-                                                    column(6, dateInput(ns("premonitoring_date"), "Pre-Monitoring Inspection Date", 
-                                                                        value = as.Date(NA))),
-                                                    column(6, selectInput(ns("priority"), "Future Test Priority", 
-                                                              choices = c("", priority$field_test_priority), selected = NULL))
-                                                  )),
-                                 conditionalPanel(condition = "input.premonitoring_date", 
-                                                  ns = ns, 
-                                                  selectInput(ns("ready"), "Ready for Deployment?", 
-                                                              choices = c("", "Yes" = 1, "No" = 0))
-                                 ),
                                  #ask about download error and redeploying sensor once you add a collection date
                                  conditionalPanel(width = 12, 
                                                   condition = "input.deploy_date", 
@@ -123,7 +123,7 @@ deployUI <- function(id, label = "deploy", smp_id, sensor_serial, site_names, ht
   )
 }
 
-deploy <- function(input, output, session, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si){
+deploy <- function(input, output, session, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si, cwl_history){
   
   #define ns to use in modals
   ns <- session$ns
@@ -152,10 +152,13 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   #set minimum collection date to be same day as deployment date
   observe(updateDateInput(session, "collect_date", min = input$deploy_date))
   
+  #COMING FROM OTHER MODULES -----------
   #upon clicking "deploy at this smp" in add_ow
   observeEvent(ow$refresh_deploy(), {
     #using shinyjs::reset is too slow and will reset after the selection is updated to the desired SMPID
-    updateSelectInput(session, "smp_id", selected = NULL)
+    #want to set this to NULL so that it refreshes the location query but that is not working (1/11/21)
+    #needs to be set as "", not NULL (also 1/11/21)
+    updateSelectInput(session, "smp_id", selected = "")
     updateSelectInput(session, "smp_id", selected = ow$smp_id())
   })
   
@@ -241,6 +244,35 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
     }
   })
   
+  #upon clicking a row in current sites (in history)
+  observeEvent(cwl_history$active_deploy_refresh(), {
+    updateSelectInput(session, "smp_id", selected = "")
+    updateSelectInput(session, "site_name", selected = "")
+    if(length(cwl_history$active_smp_id()) > 0){
+      if(!is.na(cwl_history$active_smp_id())){
+        updateSelectInput(session, "smp_id", selected = cwl_history$active_smp_id())
+      }else{
+        updateSelectInput(session, "site_name", selected = cwl_history$active_site_name())
+      }
+    }
+  }
+  )
+  
+  #upon clicking a row in past sites (in history)
+  observeEvent(cwl_history$past_deploy_refresh(), {
+    updateSelectInput(session, "smp_id", selected = "")
+    updateSelectInput(session, "site_name", selected = "")
+    if(length(cwl_history$past_smp_id()) > 0){
+      if(!is.na(cwl_history$past_smp_id())){
+        updateSelectInput(session, "smp_id", selected = cwl_history$past_smp_id())
+      }else{
+        updateSelectInput(session, "site_name", selected = cwl_history$past_site_name())
+      }
+    }
+  }
+  )
+  
+  #back to this tab ----------
   #toggle to make sure that only of SMP ID or Site Name is selected
   observe(toggleState("smp_id", condition = nchar(input$site_name) == 0))
   observe(toggleState("site_name", condition = nchar(input$smp_id) == 0))
@@ -377,7 +409,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   
   rv$premonitoring_date <- reactive(if(length(input$premonitoring_date) == 0) "NULL" else paste0("'", input$premonitoring_date, "'"))
   
-  rv$ready <- reactive(if(length(input$ready) == 0) "NULL" else paste0("'", input$ready, "'"))
+  rv$ready <- reactive(if(nchar(input$ready) == 0) "NULL" else paste0("'", input$ready, "'"))
   
   #get sensor id for redeployment 
   rv$new_sensor_id <- reactive(if(nchar(input$new_sensor_id) > 0){

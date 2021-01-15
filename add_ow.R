@@ -66,7 +66,7 @@ add_owUI <- function(id, label = "add_ow", smp_id, site_names, html_req){
                           
              #break well measurements into a lower sidebar
              sidebarPanel(width = 12,  #----
-                numericInput(ns("well_depth"), html_req("Well Depth (ft)"), value = NULL),
+                numericInput(ns("well_depth"), "Well Depth (ft)", value = NULL),
                 #fluid row to split inputs into two columns within the sidebar
                fluidRow(
                  column(6, selectInput(ns("sensor_one_in"), html_req("Sensor Installed 1\" off Bottom?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL)),
@@ -193,6 +193,8 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn, dep
   #use reactive values to read in table, and see which wells already exist at the SMP
   #initialize reactive values array
   rv <- reactiveValues()
+  
+  
   #get locations at this smp_id or site
   ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
   rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -259,7 +261,7 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn, dep
   
   #get facility ID. Either use SMP footprint (for a new well) or the facility ID of the existing component
   facility_id <- reactive(if(input$component_id != "" & length(select_ow_prefix() > 0 )){
-    if(select_ow_prefix() %in% new_wells()$ow_prefix) odbc::dbGetQuery(poolConn, paste0(
+    if(is.na(select_component_id())) odbc::dbGetQuery(poolConn, paste0(
       "SELECT facility_id FROM smpid_facilityid_componentid WHERE component_id IS NULL AND smp_id = '", input$smp_id, "'"))[1,1] else 
         odbc::dbGetQuery(poolConn, paste0(
           "SELECT facility_id from smpid_facilityid_componentid WHERE component_id = '", select_component_id(), "'"))[1,1]
@@ -559,7 +561,10 @@ add_ow <- function(input, output, session, parent_session, smp_id, poolConn, dep
   })
   
   #toggle state for "add/edit well measurement"
-  observe(toggleState("add_well_meas", condition = rv$ow_validity() & nchar(input$weir) > 0 & (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & (nchar(input$component_id) > 0 | input$at_smp == 2) & (nchar(input$ow_suffix) > 0) &
+  observe(toggleState("add_well_meas", condition = rv$ow_validity() & nchar(input$weir) > 0 & 
+                        (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
+                        (nchar(input$component_id) > 0 | input$at_smp == 2) & 
+                        (nchar(input$ow_suffix) > 0) &
             rv$toggle_suffix() & nchar(input$sensor_one_in) > 0))
   
   observe(updateNumericInput(session, "wts", value = rv$wts()))

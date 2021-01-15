@@ -120,7 +120,7 @@ ui <- function(req){
   high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
   
   #capture efficiency asset types 
-  cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets where component_id is not null order by asset_type")   
+  cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets_limited where component_id is not null order by asset_type")   
   
   #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
   html_req <- function(label){
@@ -252,7 +252,7 @@ server <- function(input, output, session) {
   high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
   
   #capture efficiency asset types 
-  cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets where component_id is not null order by asset_type")
+  cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets_limited where component_id is not null order by asset_type")
   
   #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
   html_req <- function(label){

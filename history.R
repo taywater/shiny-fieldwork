@@ -32,7 +32,11 @@ cwl_history <- function(input, output, session, parent_session, poolConn, deploy
                                     mutate_at(vars(one_of("public")),
                                                    funs(case_when(. == 1 ~ "Yes", 
                                                                   . == 0 ~ "No"))) %>% 
-                                    dplyr::rename("SMP ID" = "smp_id", "Site Name" = "site_name", "Project Name" = "project_name", 
+                                    dplyr::select("smp_id", "project_name", "component_id", "location_type", 
+                                                  "type", "public", "first_deployment_date") %>% 
+                                    dplyr::rename("SMP ID" = "smp_id", "Project Name" = "project_name", 
+                                                  "Component ID" = "component_id", "Location Type" = "location_type", 
+                                                  "Sensor Type" = "type",
                                                   "Public" = "public", "First Deployment Date" = "first_deployment_date"))
   
   #render active table
@@ -54,8 +58,12 @@ cwl_history <- function(input, output, session, parent_session, poolConn, deploy
                                     mutate_at(vars(one_of("public")),
                                               funs(case_when(. == 1 ~ "Yes", 
                                                              . == 0 ~ "No"))) %>% 
-                                    dplyr::rename("SMP ID" = "smp_id", "Site Name" = "site_name", "Project Name" = "project_name", 
-                                                  "Public" = "public", "First Deployment Date" = "first_deployment_date", 
+                                  dplyr::select("smp_id", "project_name", "component_id", "location_type", 
+                                                "type", "public", "first_deployment_date", "last_collection_date") %>% 
+                                    dplyr::rename("SMP ID" = "smp_id", "Project Name" = "project_name", 
+                                                  "Component ID" = "component_id", "Location Type" = "location_type", 
+                                                  "Sensor Type" = "type",
+                                                  "Public" = "public", "First Deployment Date" = "first_deployment_date",
                                                   "Last Collection Date" = "last_collection_date"))
   
   #render past table

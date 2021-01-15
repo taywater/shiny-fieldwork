@@ -90,7 +90,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   )
   
   #adjust query to accurately target NULL values once back on main server
-  rv$component_and_asset_query <- reactive(paste0("SELECT component_id, asset_type FROM smpid_facilityid_componentid_inlets WHERE system_id = '", input$system_id, "' AND component_id != 'NULL'"))
+  rv$component_and_asset_query <- reactive(paste0("SELECT component_id, asset_type FROM smpid_facilityid_componentid_inlets_limited WHERE system_id = '", input$system_id, "' AND component_id != 'NULL'"))
   rv$component_and_asset <- reactive(odbc::dbGetQuery(poolConn, rv$component_and_asset_query()))
   
   rv$asset_comp <- reactive(rv$component_and_asset() %>% 
@@ -113,9 +113,9 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
   #get facility ID. Either use SMP footprint (for an unknown component) or the facility ID of the existing component
   rv$facility_id <- reactive(if(input$cet_comp_id != ""){
         odbc::dbGetQuery(poolConn, paste0(
-          "SELECT facility_id from smpid_facilityid_componentid_inlets WHERE component_id = '", rv$select_component_id(), "'"))[1,1]
+          "SELECT facility_id from smpid_facilityid_componentid_inlets_limited WHERE component_id = '", rv$select_component_id(), "'"))[1,1]
   }else if(input$system_id != ""){
-    odbc::dbGetQuery(poolConn, paste0("SELECT facility_id from smpid_facilityid_componentid_inlets WHERE component_id is NULL and system_id = '", input$system_id, "' LIMIT 1"))
+    odbc::dbGetQuery(poolConn, paste0("SELECT facility_id from smpid_facilityid_componentid_inlets_limited WHERE component_id is NULL and system_id = '", input$system_id, "' LIMIT 1"))
   }else{
     ""
   }
@@ -222,7 +222,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     
     #get facility id
     rv$future_fac <- rv$future_cet_table_db()$facility_id[input$future_cet_table_rows_selected]
-    future_comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets where facility_id = '", rv$future_fac, "' 
+    future_comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets_limited where facility_id = '", rv$future_fac, "' 
         AND component_id IS NOT NULL")
     
     f_comp_id_step <- odbc::dbGetQuery(poolConn, future_comp_id_query) %>% pull()
@@ -259,7 +259,7 @@ capture_efficiency <- function(input, output, session, parent_session, poolConn,
     #get facility id from table
     rv$fac <- (rv$cet_table_db()[input$cet_table_rows_selected, 5])
     #get component id
-    comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets where facility_id = '", rv$fac, "' 
+    comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets_limited where facility_id = '", rv$fac, "' 
         AND component_id IS NOT NULL")
     comp_id_step <- odbc::dbGetQuery(poolConn, comp_id_query) %>% pull()
     #determine whether component id exists and is useful
