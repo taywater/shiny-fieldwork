@@ -5,7 +5,7 @@ SRTUI <- function(id, label = "srt", sys_id, srt_types, con_phase, priority, htm
   ns <- NS(id)
   navbarMenu("SRT", 
              tabPanel("Add/Edit SRT", value = "srt_tab", 
-                      titlePanel("Add SRT"), 
+                      titlePanel("Add/Edit SRT"), 
                       fluidRow(
                         column(width = 5,
                                #split layout with left and right

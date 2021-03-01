@@ -248,6 +248,9 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   observeEvent(cwl_history$active_deploy_refresh(), {
     updateSelectInput(session, "smp_id", selected = "")
     updateSelectInput(session, "site_name", selected = "")
+    #make sure this exists
+    #"missing" function might help
+    #changing order might help
     if(length(cwl_history$active_smp_id()) > 0){
       if(!is.na(cwl_history$active_smp_id())){
         updateSelectInput(session, "smp_id", selected = cwl_history$active_smp_id())
@@ -272,7 +275,7 @@ deploy <- function(input, output, session, parent_session, ow, collect, sensor, 
   }
   )
   
-  #back to this tab ----------
+#back to this tab ----------
   #toggle to make sure that only of SMP ID or Site Name is selected
   observe(toggleState("smp_id", condition = nchar(input$site_name) == 0))
   observe(toggleState("site_name", condition = nchar(input$smp_id) == 0))

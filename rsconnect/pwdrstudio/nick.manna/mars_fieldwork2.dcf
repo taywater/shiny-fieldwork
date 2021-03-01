@@ -5,8 +5,8 @@ account: nick.manna
 server: pwdrstudio
 hostUrl: https://pwdrstudio:443/__api__
 appId: 120
-bundleId: 844
+bundleId: 864
 url: https://pwdrstudio/mars-fieldwork/
-when: 1608578661.83566
+when: 1610714272.47996
 asMultiple: FALSE
 asStatic: FALSE

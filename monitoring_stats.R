@@ -2,100 +2,122 @@
 #Exports a csv for each table
 #use reactive variables to create a new query for each combination
 
-m_statsUI <- function(id, label = "stats", current_fy, years){
-  ns <- NS(id)
-  tabPanel("Stats",
-             titlePanel("Monitoring Stats"),
-              sidebarPanel(
-                selectInput(ns("date_range"), "Date Range", choices = c("To-Date", "Select Range")),
-                conditionalPanel(condition = "input.date_range == 'Select Range'", 
-                                 ns = ns, 
-                        fluidRow(column(6,
-                        selectInput(ns("start_fy"), "Start Fiscal Year (FY)", choices = years)),
-                        column(6,selectInput(ns("start_quarter"), "Start Fiscal Quarter", choices = c("Q1" = "1/1", "Q2" = "4/1", "Q3" = "7/1", "Q4" = "10/1")))),
-                        fluidRow(column(6,
-                          selectInput(ns("end_fy"), "End Fiscal Year (FY)", choices = years)),
-                          column(6,selectInput(ns("end_quarter"), "End Fiscal Quarter", choices = c("Q1" = "3/31", "Q2" = "6/30", "Q3" = "9/30", "Q4" = "12/31"))))
-                        ), 
-                selectInput(ns("phase"), "Construction Phase", choices = c("Construction", "Post-Construction"), selected = "Post-Construction"),
-                checkboxInput(ns("cet_checkbox"), "Capture Efficiency Test Options"), 
-                #show options for capture efficiency if the box is checked
-                conditionalPanel(condition = "input.cet_checkbox", 
-                                 ns = ns, 
-                                 selectInput(ns("inlet_type"), "Inlets", choices = c("All", "Inlets", "Curbcuts")), 
-                                 selectInput(ns("unique_inlets"), "Unique Inlets", choices = c("Include All Tests", "Most Recent for Each Inlet")), 
-                                 selectInput(ns("public_inlets"), "Ownership", choices = c("Public and Private", "Public", "Private"))),
-                fluidRow(column(8,
-                        actionButton(ns("table_button"), "Generate System and SMP Stats")),
-                        column(4, 
-                        shinyjs::disabled(downloadButton(ns("download_table"), "Download")))),
-                fluidRow(column(8,
-                          actionButton(ns("postcon_button"), "Generate Post-Construction Stats")),
-                         column(4, 
-                                disabled(downloadButton(ns("download_postcon"), "Download")))),
-                #show options for capture efficiency if the box is checked
-                conditionalPanel(condition = "input.cet_checkbox", 
-                                 ns = ns, 
-                                 fluidRow(column(8, 
-                                          actionButton(ns("cet_button"), "Generate Capture Efficiency Stats")), 
-                                          column(4,
-                                          disabled(downloadButton(ns("download_cet"), "Download")))))
-                
-              ), 
-           mainPanel(
-             h4(textOutput(ns("table_name"))), 
-                DTOutput(ns("table")), 
-             h4(textOutput(ns("postcon"))),
-                DTOutput(ns("postcon_table")),
-             h4(textOutput(ns("cet_name"))), 
-                DTOutput(ns("cet_table"))
-             )
-           
-  )
-}
-
+#1.0 UI ---------
+  m_statsUI <- function(id, label = "stats", current_fy, years){
+    ns <- NS(id)
+    tabPanel("Stats",
+               titlePanel("Monitoring Stats"),
+             #1.1 General Inputs ----
+                sidebarPanel(
+                  selectInput(ns("date_range"), "Date Range", choices = c("To-Date", "Select Range")),
+                  conditionalPanel(condition = "input.date_range == 'Select Range'", 
+                                   ns = ns, 
+                          fluidRow(column(6,
+                          selectInput(ns("start_fy"), "Start Fiscal Year (FY)", choices = years)),
+                          column(6,selectInput(ns("start_quarter"), "Start Fiscal Quarter", 
+                                               choices = c("Q1" = "1/1", "Q2" = "4/1", "Q3" = "7/1", "Q4" = "10/1")))),
+                          fluidRow(column(6,
+                            selectInput(ns("end_fy"), "End Fiscal Year (FY)", choices = years)),
+                            column(6,selectInput(ns("end_quarter"), "End Fiscal Quarter", 
+                                                 choices = c("Q1" = "3/31", "Q2" = "6/30", "Q3" = "9/30", "Q4" = "12/31"))))
+                          ), 
+                  selectInput(ns("phase"), "Construction Phase", choices = c("Construction", "Post-Construction"), selected = "Post-Construction"),
+                  checkboxInput(ns("cet_checkbox"), "Capture Efficiency Test Options"), 
+                  #1.2 CET inputs ----
+                    #show options for capture efficiency if the box is checked
+                    conditionalPanel(condition = "input.cet_checkbox", 
+                                     ns = ns, 
+                                     selectInput(ns("inlet_type"), "Inlets", choices = c("All", "Inlets", "Curbcuts")), 
+                                     selectInput(ns("unique_inlets"), "Unique Inlets", choices = c("Include All Tests", "Most Recent for Each Inlet")), 
+                                     selectInput(ns("public_inlets"), "Ownership", choices = c("Public and Private", "Public", "Private"))),
+                  #1.3 Buttons --------
+                    fluidRow(column(8,
+                            actionButton(ns("table_button"), "Generate System and SMP Stats")),
+                            column(4, 
+                            shinyjs::disabled(downloadButton(ns("download_table"), "Download")))),
+                    fluidRow(column(8,
+                              actionButton(ns("postcon_button"), "Generate Post-Construction Stats")),
+                             column(4, 
+                                    disabled(downloadButton(ns("download_postcon"), "Download")))),
+                    #show options for capture efficiency if the box is checked
+                    conditionalPanel(condition = "input.cet_checkbox", 
+                                     ns = ns, 
+                                     fluidRow(column(8, 
+                                              actionButton(ns("cet_button"), "Generate Capture Efficiency Stats")), 
+                                              column(4,
+                                              disabled(downloadButton(ns("download_cet"), "Download")))))
+                  
+                ), 
+             #1.4 Main Panel (Outputs) -----
+               mainPanel(
+                 h4(textOutput(ns("table_name"))), 
+                    DTOutput(ns("table")), 
+                 h4(textOutput(ns("postcon"))),
+                    DTOutput(ns("postcon_table")),
+                 h4(textOutput(ns("cet_name"))), 
+                    DTOutput(ns("cet_table"))
+                 )
+             
+    )
+  }
+  
+#2.0 UI ----
 m_stats <- function(input, output, session, parent_session, current_fy, poolConn){
   
   #define ns to use in modals
   ns <- session$ns
   
+  #make sure end_fy is after start_fy
   observe(updateSelectInput(session, "end_fy", choices = current_fy:input$start_fy))
+  #updates stats button based on con or post-con
   observe(updateActionButton(session, "postcon_button", label = paste("Generate", input$phase, "Stats")))
   
+  #initialzie reactive values
   rv <- reactiveValues()
   
+  #create a date style for headers
   sf <- lubridate::stamp("March 1, 1999")
   
+  #convert FY/Quarter to a real date
   rv$start_date <- reactive(lubridate::mdy(paste0(input$start_quarter, "/", input$start_fy))%m-% months(6))
   rv$end_date <- reactive(lubridate::mdy(paste0(input$end_quarter, "/", input$end_fy))%m-% months(6))
   
   #system and smp
   observeEvent(input$table_button, {
+    #enable downloading after table is generated
     enable("download_table")
+    #if "To-Date"
     if(input$date_range == "To-Date"){
+      #name table in text output
       rv$table_name <- "CWL To Date"
       output$table_name <- renderText(rv$table_name)
+      #bind rows for public and private systems to date
       rv$cwl_to_date_table <- bind_rows(
         rv$public_systems_monitored_to_date(),
         rv$private_systems_monitored_to_date()
       )
+      #output this table
       output$table <- renderDT(
         rv$cwl_to_date_table,
         options = list(dom = 't')
       )
     }else{
+      #if a range is given
+      #name table in text output
       rv$table_name <- paste("CWL", sf(rv$start_date()), "to", sf(rv$end_date()))
-        output$table_name <- renderText(rv$table_name)
-        rv$cwl_table <- bind_rows(
-          rv$public_systems_monitored(),
-          rv$public_smps_monitored(),
-          rv$private_systems_monitored(),
-          rv$long_term_systems_monitored(),
-          rv$short_term_systems_monitored(),
-          rv$new_systems_monitored(),
-          rv$new_smps_monitored(),
-          rv$hobos_deployed()
-        )
+      output$table_name <- renderText(rv$table_name)
+      #bind public systems, smps, private systems, long term, short term, new systems, new smps, hobos deployed
+      rv$cwl_table <- bind_rows(
+        rv$public_systems_monitored(),
+        rv$public_smps_monitored(),
+        rv$private_systems_monitored(),
+        rv$long_term_systems_monitored(),
+        rv$short_term_systems_monitored(),
+        rv$new_systems_monitored(),
+        rv$new_smps_monitored(),
+        rv$hobos_deployed()
+      )
+      #output this table
       output$table <- renderDT(
         rv$cwl_table,
         options = list(dom = 't')
@@ -104,6 +126,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
     }
   )
   
+  #get dange range to text
   rv$select_range_tests_title_text <- reactive(if(input$date_range == "Select Range"){
     paste(sf(rv$start_date()), "to", sf(rv$end_date()))
   }else{
@@ -111,6 +134,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
   })
   
   #post con
+  #create postcon table and header when postcon button is clicked
   observeEvent(input$postcon_button, {
     enable("download_postcon")
     rv$postcon_name <- paste(input$phase, "Tests", rv$select_range_tests_title_text())
@@ -129,13 +153,14 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
       )
   })
 
+  #header for inlets
   rv$unique_inlet_title_text <- reactive(if(input$unique_inlets == "Include All Tests"){ 
     paste("All")
   }else if(input$unique_inlets == "Most Recent for Each Inlet"){
     paste("Unique")
   })
   
-  #cet
+  #create cet header and table when button is clicked
   observeEvent(input$cet_button, {
     #print("starting_cet")
     enable("download_cet")
@@ -155,6 +180,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
     )
   } )
   
+  #download button for system/ SMP table
   output$download_table <- downloadHandler(
     filename = function(){
       paste(rv$table_name, "_", Sys.Date(), ".csv", sep = "")
@@ -164,6 +190,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
     }
   )
   
+  #download button for postcon table
   output$download_postcon <- downloadHandler(
     filename = function(){
       paste(rv$postcon_name, "_", Sys.Date(), ".csv", sep = "")
@@ -173,6 +200,7 @@ m_stats <- function(input, output, session, parent_session, current_fy, poolConn
     }
   )
   
+  #download button for CET table
   output$download_cet <- downloadHandler(
     filename = function(){
       paste(rv$cet_name, "_", Sys.Date(), ".csv", sep = "")

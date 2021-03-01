@@ -1,9 +1,10 @@
-#Add Observation Well tab
-#This page is for the user to add an observation well to fieldwork.ow, by finding a component, and adding an observation well suffix
-#This page is the foundation 
+#Add/Edit Location Tab
+#Fmrly Add Observation Well tab
+#This page is for the user to add a location to fieldwork.ow, by finding a component, and adding an observation well suffix
+#This page is the foundation of all CWL deployments
 #User can also add well measurements
 
-#Add OW UI
+#UI
 add_owUI <- function(id, label = "add_ow", smp_id, site_names, html_req){
   #namespace
   ns <- NS(id)
