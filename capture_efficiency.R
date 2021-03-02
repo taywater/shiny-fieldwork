@@ -1,5 +1,5 @@
 #Capture Efficiency Test (CET) tabs
-#This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
+#This has a tab dropdown with two tabs, one for adding CETs and one for viewing all CETs
 
 capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_type, priority, html_req, con_phase, future_req, cet_asset_type){
   ns <- NS(id)
@@ -38,7 +38,8 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_typ
                         textAreaInput(ns("cet_notes"), "Notes", height = '90px'), 
                         conditionalPanel(condition = "input.cet_date === null", 
                                          ns = ns, 
-                                         actionButton(ns("future_cet"), "Add Future Capture Efficiency Test")),
+                                         actionButton(ns("future_cet"), "Add Future Capture Efficiency Test"), 
+                                         actionButton(ns("delete_future_cet"), "Delete Future Capture Efficiency Test")),
                         actionButton(ns("add_cet"), "Add Capture Efficiency Test"), 
                         actionButton(ns("clear_cet"), "Clear All Fields"),
                         fluidRow(
@@ -162,8 +163,11 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
       
       observe(toggleState(id = "cet_comp_id", condition = input$cet_comp_id_custom == ""))
       
-      #toggle state for future srt
+      #toggle state for future cet
       observe(toggleState(id = "future_cet", condition = nchar(input$system_id) > 0 & (nchar(input$cet_comp_id) > 0 | nchar(input$cet_comp_id_custom) > 0)))
+      
+      #toggle future deployment delete button
+      observe(toggleState(id = "delete_future_cet", condition = length(input$future_cet_table_rows_selected) != 0))
       
       #change type from text to uid
       rv$est_high_flow_efficiency <- reactive(high_flow_type %>% dplyr::filter(est_high_flow_efficiency == input$est_high_flow_efficiency) %>% 
@@ -439,6 +443,30 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
         reset("priority")
       })
       
+      
+      #delete a future cet
+      #first, intermediate dialog box
+      observeEvent(input$delete_future_cet, {
+        showModal(modalDialog(title = "Delete Future Capture Efficiency Test", 
+                              "Delete Future Capture Efficiency Test?", 
+                              modalButton("No"), 
+                              actionButton(ns("confirm_delete_future"), "Yes")))
+      })
+      
+      observeEvent(input$confirm_delete_future, {
+        odbc::dbGetQuery(poolConn, 
+                         paste0("DELETE FROM fieldwork.future_capture_efficiency WHERE future_capture_efficiency_uid = '",
+                                rv$future_cet_table_db()[input$future_cet_table_rows_selected, 1], "'"))
+        
+        #update future cet table
+        rv$future_cet_table_db <- reactive(odbc::dbGetQuery(poolConn, future_cet_table_query()))
+        rv$all_future_cet_table_db <- reactive(reactive(odbc::dbGetQuery(poolConn, rv$all_future_cet_query())))
+        #remove pop up
+        removeModal()
+      }) 
+      
+      
+      #clear fields
       observeEvent(input$clear_cet, {
         showModal(modalDialog(title = "Clear All Fields", 
                               "Are you sure you want to clear all fields on this tab?", 
@@ -461,6 +489,9 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
         reset("priority")
         removeModal()
       })
+      
+      
+      
       
       # View all CETs ----
       
