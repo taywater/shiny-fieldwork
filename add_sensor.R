@@ -36,227 +36,234 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
   )
 }
 
-add_sensor <- function(input, output, session, parent_session, poolConn, sensor_status_lookup, sensor_issue_lookup, deploy){
+add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup, sensor_issue_lookup, deploy){
   
-  #define ns to use in modals
-  ns <- session$ns
+  moduleServer(
+    id, 
+    function(input, output, session){
   
-  #start reactiveValues for this section
-  rv <- reactiveValues()
-  
-  #Sensor Serial Number List
-  sensor_table_query <-  "select * from fieldwork.inventory_sensors_full"
-  rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
-  
-  #upon breaking a sensor in deploy
-  observeEvent(deploy$refresh_sensor(),{
-    rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
-  })
-  
-  #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
-  rv$model_no_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_model) %>% dplyr::pull() else "")
-  
-  observe(updateSelectInput(session, "model_no", selected = rv$model_no_select()))
-  
-  #if input serial number is already in the list, then suggest the date_purchased. if it isn't already there, show NULL
-  rv$date_purchased_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(date_purchased) %>% dplyr::pull() else as.Date(NA))
-  
-  observe(updateDateInput(session, "date_purchased", value = rv$date_purchased_select()))
-  
-  observeEvent(input$serial_no, {
-    
-    #if input serial number is already in the list, then suggest the sensor status if it isn't already there, show "Good Order"
-    rv$sensor_status_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_status) %>% dplyr::pull() else "Good Order"
-    
-    updateSelectInput(session, "sensor_status", selected = rv$sensor_status_select)
-    
-  #if input serial number is already in the list, then suggest issue #1
-    rv$issue_one_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(issue_one) %>% dplyr::pull() else ""
-    
-   updateSelectInput(session, "issue_one", selected = rv$issue_one_select)
-    
-    
-    #if input serial number is already in the list, then suggest issue #2
-    rv$issue_two_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(issue_two) %>% dplyr::pull() else ""
-    
-    updateSelectInput(session, "issue_two", selected = rv$issue_two_select)
-    
-    #if input serial number is already in the list, then suggest checkbox request data
-    rv$request_data_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(request_data) %>% dplyr::pull() else ""
-    
-    updateCheckboxInput(session, "request_data", value = rv$request_data_select)
-  
-    })
-  
-  #get sensor status uid
-  rv$status_lookup_uid <- reactive(sensor_status_lookup %>% dplyr::filter(sensor_status == input$sensor_status) %>% 
-                           select(sensor_status_lookup_uid) %>% pull())
-  
-  #let date purchased be null
-  rv$date_purchased <- reactive(if(length(input$date_purchased) == 0) "NULL" else paste0("'", input$date_purchased, "'"))
-  
-  
-  #get sensor issue lookup uid and let it be NULL (for issue #1 and issue #2)
-  rv$issue_lookup_uid_one <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_one) %>% 
-                                     select(sensor_issue_lookup_uid) %>% pull())
-  
-  rv$sensor_issue_lookup_uid_one <- reactive(if(nchar(input$issue_one) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_one(), "'"))
-  
-  rv$issue_lookup_uid_two <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_two) %>% 
-                                     select(sensor_issue_lookup_uid) %>% pull())
-  
-  rv$sensor_issue_lookup_uid_two <- reactive(if(nchar(input$issue_two) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_two(), "'"))
-  
-  #let checkbox input be NULL if blank (instead of FALSE)
-  rv$request_data <- reactive(if(input$request_data == TRUE) paste0("'TRUE'") else "NULL")
-  
-  #enable/disable the "add sensor button" if all fields are not empty
-  observe({toggleState(id = "add_sensor", condition = nchar(input$serial_no) > 0 & nchar(input$model_no) > 0)})
-  observe({toggleState(id = "add_sensor_deploy", input$serial_no %in% rv$sensor_table$sensor_serial)})
-  
-  #enable/disable issue #2 button if issue #1 is filled
-  observe(toggleState(id = "issue_two", condition = nchar(input$issue_one) > 0))
-  
-  #change label from Add to Edit if the sensor already exists in db
-  #rv$label <- reactive(if(!(as.numeric(input$serial_no) %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
-  rv$label <- reactive(if(!(input$serial_no %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
-  observe(updateActionButton(session, "add_sensor", label = rv$label()))
-  
-  observeEvent(input$sensor_status, {
-    #if Good Order, clear issues fields 
-    if(rv$status_lookup_uid() == 1){
-      reset("issue_one")
-      reset("issue_two")
-      reset("request_data")
-      # updateSelectInput(session, "issue_one", selected = "")
-      # updateSelectInput(session, "issue_two", selected = "")
-      # updateCheckboxInput(session, "request_data", value = FALSE)
-    }
-  })
-  
-  #Write to database when button is clicked
-  observeEvent(input$add_sensor, { #write new sensor info to db
-    
-    if(!(input$serial_no %in% rv$sensor_table$sensor_serial)){
-      add_sensor_query <- paste0(
-        "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model, date_purchased, sensor_status_lookup_uid, 
-        sensor_issue_lookup_uid_one, sensor_issue_lookup_uid_two, request_data) 
-	      VALUES ('", input$serial_no, "','", input$model_no, "',",  rv$date_purchased(), ", '", rv$status_lookup_uid(), "', ", 
-	                   rv$sensor_issue_lookup_uid_one(), ", ", rv$sensor_issue_lookup_uid_two(), ", ", rv$request_data(), ")")
       
-      odbc::dbGetQuery(poolConn, add_sensor_query)
+      #define ns to use in modals
+      ns <- session$ns
       
-      output$testing <- renderText({
-        isolate(paste("Sensor", input$serial_no, "added."))
+      #start reactiveValues for this section
+      rv <- reactiveValues()
+      
+      #Sensor Serial Number List
+      sensor_table_query <-  "select * from fieldwork.inventory_sensors_full"
+      rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
+      
+      #upon breaking a sensor in deploy
+      observeEvent(deploy$refresh_sensor(),{
+        rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       })
-    }else{ #edit sensor info
-      odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_model = '", input$model_no, 
-                                        "', date_purchased = ", rv$date_purchased(), ", 
-                                        sensor_status_lookup_uid = '", rv$status_lookup_uid(), "', 
-                                        sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
-                                        sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
-                                        request_data = ", rv$request_data(), "
-                                        WHERE sensor_serial = '", input$serial_no, "'"))
-      output$testing <- renderText({
-        isolate(paste("Sensor", input$serial_no, "edited."))
+      
+      #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
+      rv$model_no_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_model) %>% dplyr::pull() else "")
+      
+      observe(updateSelectInput(session, "model_no", selected = rv$model_no_select()))
+      
+      #if input serial number is already in the list, then suggest the date_purchased. if it isn't already there, show NULL
+      rv$date_purchased_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(date_purchased) %>% dplyr::pull() else as.Date(NA))
+      
+      observe(updateDateInput(session, "date_purchased", value = rv$date_purchased_select()))
+      
+      observeEvent(input$serial_no, {
+        
+        #if input serial number is already in the list, then suggest the sensor status if it isn't already there, show "Good Order"
+        rv$sensor_status_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_status) %>% dplyr::pull() else "Good Order"
+        
+        updateSelectInput(session, "sensor_status", selected = rv$sensor_status_select)
+        
+      #if input serial number is already in the list, then suggest issue #1
+        rv$issue_one_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(issue_one) %>% dplyr::pull() else ""
+        
+       updateSelectInput(session, "issue_one", selected = rv$issue_one_select)
+        
+        
+        #if input serial number is already in the list, then suggest issue #2
+        rv$issue_two_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(issue_two) %>% dplyr::pull() else ""
+        
+        updateSelectInput(session, "issue_two", selected = rv$issue_two_select)
+        
+        #if input serial number is already in the list, then suggest checkbox request data
+        rv$request_data_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(request_data) %>% dplyr::pull() else ""
+        
+        updateCheckboxInput(session, "request_data", value = rv$request_data_select)
+      
+        })
+      
+      #get sensor status uid
+      rv$status_lookup_uid <- reactive(sensor_status_lookup %>% dplyr::filter(sensor_status == input$sensor_status) %>% 
+                               select(sensor_status_lookup_uid) %>% pull())
+      
+      #let date purchased be null
+      rv$date_purchased <- reactive(if(length(input$date_purchased) == 0) "NULL" else paste0("'", input$date_purchased, "'"))
+      
+      
+      #get sensor issue lookup uid and let it be NULL (for issue #1 and issue #2)
+      rv$issue_lookup_uid_one <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_one) %>% 
+                                         select(sensor_issue_lookup_uid) %>% pull())
+      
+      rv$sensor_issue_lookup_uid_one <- reactive(if(nchar(input$issue_one) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_one(), "'"))
+      
+      rv$issue_lookup_uid_two <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_two) %>% 
+                                         select(sensor_issue_lookup_uid) %>% pull())
+      
+      rv$sensor_issue_lookup_uid_two <- reactive(if(nchar(input$issue_two) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_two(), "'"))
+      
+      #let checkbox input be NULL if blank (instead of FALSE)
+      rv$request_data <- reactive(if(input$request_data == TRUE) paste0("'TRUE'") else "NULL")
+      
+      #enable/disable the "add sensor button" if all fields are not empty
+      observe({toggleState(id = "add_sensor", condition = nchar(input$serial_no) > 0 & nchar(input$model_no) > 0)})
+      observe({toggleState(id = "add_sensor_deploy", input$serial_no %in% rv$sensor_table$sensor_serial)})
+      
+      #enable/disable issue #2 button if issue #1 is filled
+      observe(toggleState(id = "issue_two", condition = nchar(input$issue_one) > 0))
+      
+      #change label from Add to Edit if the sensor already exists in db
+      #rv$label <- reactive(if(!(as.numeric(input$serial_no) %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
+      rv$label <- reactive(if(!(input$serial_no %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
+      observe(updateActionButton(session, "add_sensor", label = rv$label()))
+      
+      observeEvent(input$sensor_status, {
+        #if Good Order, clear issues fields 
+        if(rv$status_lookup_uid() == 1){
+          reset("issue_one")
+          reset("issue_two")
+          reset("request_data")
+          # updateSelectInput(session, "issue_one", selected = "")
+          # updateSelectInput(session, "issue_two", selected = "")
+          # updateCheckboxInput(session, "request_data", value = FALSE)
+        }
       })
-    }
-    
-    #update sensor list following addition
-    rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
-    rv$active_row <- which(rv$sensor_table$sensor_serial == input$serial_no, arr.ind = TRUE)
-    row_order <- order(
-      seq_along(rv$sensor_table$sensor_serial) %in% rv$active_row, 
-      decreasing = TRUE
+      
+      #Write to database when button is clicked
+      observeEvent(input$add_sensor, { #write new sensor info to db
+        
+        if(!(input$serial_no %in% rv$sensor_table$sensor_serial)){
+          add_sensor_query <- paste0(
+            "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model, date_purchased, sensor_status_lookup_uid, 
+            sensor_issue_lookup_uid_one, sensor_issue_lookup_uid_two, request_data) 
+    	      VALUES ('", input$serial_no, "','", input$model_no, "',",  rv$date_purchased(), ", '", rv$status_lookup_uid(), "', ", 
+    	                   rv$sensor_issue_lookup_uid_one(), ", ", rv$sensor_issue_lookup_uid_two(), ", ", rv$request_data(), ")")
+          
+          odbc::dbGetQuery(poolConn, add_sensor_query)
+          
+          output$testing <- renderText({
+            isolate(paste("Sensor", input$serial_no, "added."))
+          })
+        }else{ #edit sensor info
+          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_model = '", input$model_no, 
+                                            "', date_purchased = ", rv$date_purchased(), ", 
+                                            sensor_status_lookup_uid = '", rv$status_lookup_uid(), "', 
+                                            sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
+                                            sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
+                                            request_data = ", rv$request_data(), "
+                                            WHERE sensor_serial = '", input$serial_no, "'"))
+          output$testing <- renderText({
+            isolate(paste("Sensor", input$serial_no, "edited."))
+          })
+        }
+        
+        #update sensor list following addition
+        rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
+        rv$active_row <- which(rv$sensor_table$sensor_serial == input$serial_no, arr.ind = TRUE)
+        row_order <- order(
+          seq_along(rv$sensor_table$sensor_serial) %in% rv$active_row, 
+          decreasing = TRUE
+          )
+        
+        rv$sensor_table <- rv$sensor_table[row_order, ]
+        dataTableProxy('sensor_table') %>% 
+          selectRows(1)
+        
+        
+      })
+      
+      #switch tabs to "Deploy" and update Sensor ID to the current Sensor ID (if the add/edit button says edit sensor)
+      rv$refresh_serial_no <- 0 
+      observeEvent(input$add_sensor_deploy, {
+        rv$refresh_serial_no <- rv$refresh_serial_no + 1
+        updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+      })
+      
+      #show sensor table
+      rv$sensor_table_display <- reactive(rv$sensor_table %>% 
+                                            mutate("date_purchased" = as.character(date_purchased)) %>% 
+                                            select("sensor_serial", "sensor_model", "date_purchased", "smp_id", 
+                                                   "site_name", "ow_suffix", "sensor_status", "issue_one", "issue_two", "request_data") %>% 
+                                            mutate_at(vars(one_of("request_data")), 
+                                                      funs(case_when(. == 1 ~ "Yes"))) %>% 
+                                            rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
+                                                "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", 
+                                                "Location" = "ow_suffix", "Status" = "sensor_status", 
+                                                "Issue #1" = "issue_one", "Issue #2" = "issue_two", "Request Data" = "request_data")
+                                          )
+      
+      output$sensor_table <- renderDT(
+        rv$sensor_table_display(),
+        selection = "single",
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover',
+        options = list(scroller = TRUE, 
+                       scrollX = TRUE, 
+                       scrollY = 550), 
+        callback = JS('table.page("next").draw(false);')
       )
+      
     
-    rv$sensor_table <- rv$sensor_table[row_order, ]
-    dataTableProxy('sensor_table') %>% 
-      selectRows(1)
-    
-    
-  })
-  
-  #switch tabs to "Deploy" and update Sensor ID to the current Sensor ID (if the add/edit button says edit sensor)
-  rv$refresh_serial_no <- 0 
-  observeEvent(input$add_sensor_deploy, {
-    rv$refresh_serial_no <- rv$refresh_serial_no + 1
-    updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
-  })
-  
-  #show sensor table
-  rv$sensor_table_display <- reactive(rv$sensor_table %>% 
-                                        mutate("date_purchased" = as.character(date_purchased)) %>% 
-                                        select("sensor_serial", "sensor_model", "date_purchased", "smp_id", 
-                                               "site_name", "ow_suffix", "sensor_status", "issue_one", "issue_two", "request_data") %>% 
-                                        mutate_at(vars(one_of("request_data")), 
-                                                  funs(case_when(. == 1 ~ "Yes"))) %>% 
-                                        rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
-                                            "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", 
-                                            "Location" = "ow_suffix", "Status" = "sensor_status", 
-                                            "Issue #1" = "issue_one", "Issue #2" = "issue_two", "Request Data" = "request_data")
-                                      )
-  
-  output$sensor_table <- renderDT(
-    rv$sensor_table_display(),
-    selection = "single",
-    style = 'bootstrap', 
-    class = 'table-responsive, table-hover',
-    options = list(scroller = TRUE, 
-                   scrollX = TRUE, 
-                   scrollY = 550), 
-    callback = JS('table.page("next").draw(false);')
-  )
-  
-
-  #downloading the sensor table
-  #filter based on selected status
-  rv$sensor_table_download <- reactive(if(input$sensor_status_dl == "All"){
-    rv$sensor_table_display()
-  }else{
-    rv$sensor_table_display() %>% dplyr::filter(Status == input$sensor_status_dl)
-  })
-  
-  output$download <- downloadHandler(
-    filename = function(){
-      paste("Sensor_inventory", "_", Sys.Date(), ".csv", sep = "")
-    }, 
-    content = function(file){
-      write.csv(rv$sensor_table_download(), file, row.names = FALSE)
+      #downloading the sensor table
+      #filter based on selected status
+      rv$sensor_table_download <- reactive(if(input$sensor_status_dl == "All"){
+        rv$sensor_table_display()
+      }else{
+        rv$sensor_table_display() %>% dplyr::filter(Status == input$sensor_status_dl)
+      })
+      
+      output$download <- downloadHandler(
+        filename = function(){
+          paste("Sensor_inventory", "_", Sys.Date(), ".csv", sep = "")
+        }, 
+        content = function(file){
+          write.csv(rv$sensor_table_download(), file, row.names = FALSE)
+        }
+      )
+      
+      #select a row in the table to update the serial no. 
+      #see above for how updating the serial number updates the rest of the fields
+      #this is different than the other tabs because there is no fixed smp_id type of primary key here - so you can either type OR select a row to get to the sensor, and you have to be able to type because you might want to add a new sensor this way. 
+      #it works it's just different
+      observeEvent(input$sensor_table_rows_selected, {
+        updateTextInput(session, "serial_no", value = rv$sensor_table$sensor_serial[input$sensor_table_rows_selected])
+      })
+      
+      #clear all fields
+      #bring up dialogue box to confirm
+      observeEvent(input$clear, {
+        showModal(modalDialog(title = "Clear All Fields", 
+                              "Are you sure you want to clear all fields on this tab?", 
+                              modalButton("No"), 
+                              actionButton(ns("confirm_clear"), "Yes")))
+      })
+      
+      observeEvent(input$confirm_clear, {
+        reset("serial_no")
+        reset("model_no")
+        reset("date_purchased")
+        reset("sensor_status")
+        removeModal()
+      })
+      
+      return(
+        list(
+          refresh_serial_no = reactive(rv$refresh_serial_no),
+          serial_no = reactive(input$serial_no),
+          sensor_serial = reactive(rv$sensor_table$sensor_serial)
+        )
+      )
+      
     }
   )
-  
-  #select a row in the table to update the serial no. 
-  #see above for how updating the serial number updates the rest of the fields
-  #this is different than the other tabs because there is no fixed smp_id type of primary key here - so you can either type OR select a row to get to the sensor, and you have to be able to type because you might want to add a new sensor this way. 
-  #it works it's just different
-  observeEvent(input$sensor_table_rows_selected, {
-    updateTextInput(session, "serial_no", value = rv$sensor_table$sensor_serial[input$sensor_table_rows_selected])
-  })
-  
-  #clear all fields
-  #bring up dialogue box to confirm
-  observeEvent(input$clear, {
-    showModal(modalDialog(title = "Clear All Fields", 
-                          "Are you sure you want to clear all fields on this tab?", 
-                          modalButton("No"), 
-                          actionButton(ns("confirm_clear"), "Yes")))
-  })
-  
-  observeEvent(input$confirm_clear, {
-    reset("serial_no")
-    reset("model_no")
-    reset("date_purchased")
-    reset("sensor_status")
-    removeModal()
-  })
-  
-  return(
-    list(
-      refresh_serial_no = reactive(rv$refresh_serial_no),
-      serial_no = reactive(input$serial_no),
-      sensor_serial = reactive(rv$sensor_table$sensor_serial)
-    )
-  )
-  
 }
