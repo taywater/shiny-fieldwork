@@ -170,7 +170,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         #want to set this to NULL so that it refreshes the location query but that is not working (1/11/21)
         #needs to be set as "", not NULL (also 1/11/21)
         updateSelectizeInput(session, "smp_id", selected = character(0))
-        updateSelectizeInput(session, "smp_id", selected = ow$smp_id())
+        updateSelectizeInput(session, "smp_id", choices = smp_id, selected = ow$smp_id(), server = TRUE)
       })
       
       #upon adding or removing a site in add_ow
@@ -184,28 +184,29 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #upon clicking through the dialogue box in srt tab
+      #add -1 to convert from system to smp lol
       #update the smp id and term
       observeEvent(srt$refresh_deploy(), {
         if(srt$refresh_deploy() > 0){
         updateSelectizeInput(session, "smp_id", selected = character(0))
-        updateSelectizeInput(session, "smp_id", selected = paste0(srt$system_id(), "-1"))
+        updateSelectizeInput(session, "smp_id", choices = smp_id, selected = paste0(srt$system_id(), "-1"), server = TRUE)
         updateSelectInput(session, "term", selected = "SRT")
         }
       })
       
       #upon clicking through the dialogue box in SI tab
-      #udpate the (smp_id or site name) and term
+      #update the (smp_id or site name) and term
       observeEvent(si$refresh_deploy(), {
         if(si$refresh_deploy() > 0){
           if(nchar(si$system_id()) > 0){
           updateSelectInput(session, "site_name", selected = NULL)
           updateSelectizeInput(session, "smp_id", selected = character(0))
-          updateSelectizeInput(session, "smp_id", selected = paste0(si$system_id(), "-1"))
+          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = paste0(si$system_id(), "-1"), server = TRUE)
           updateSelectInput(session, "term", selected = "Special")
           }else if(nchar(si$site_name()) > 0){
             updateSelectInput(session, "site_name", selected = NULL)
             updateSelectizeInput(session, "smp_id", selected = character(0))
-            updateSelectizeInput(session, "site_name", selected = si$site_name())
+            updateSelectInput(session, "site_name", selected = si$site_name())
             updateSelectInput(session, "term", selected = "Special")
           }
         }
@@ -219,41 +220,52 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         # go to either smp id or site name
         if(length(collect$smp_id()) > 0){
           if(!is.na(collect$smp_id())){
-          updateSelectizeInput(session, "smp_id", selected = collect$smp_id())
+          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = collect$smp_id(), server = TRUE)
           }else{
           updateSelectInput(session, "site_name", selected = collect$site_name())
           }
+          #delay so that the selectizeInput is updated and table is quereied before it is searched by R
+          delay(150,{
+                  rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
+                  dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
+                })
         }
       })
       
-      observeEvent(rv$active_table_db(), {
-        if(length(collect$rows_selected()) > 0){
-          rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
-          dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
-        }
-      })
+      # observeEvent(rv$active_table_db(), {
+      #   delay(50,
+      #   if(length(collect$rows_selected()) > 0){
+      #     rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
+      #     dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
+      #   })
+      # })
       
       #upon click a row in future table (in collection calendar)
       observeEvent(collect$future_deploy_refresh(), {
         #print(collect$future_smp_id())
-        updateSelectizeInput(session, "smp_id", selected = character(0))
-        updateSelectInput(session, "site_name", selected = "")
         if(length(collect$future_smp_id()) > 0){
           if(!is.na(collect$future_smp_id())){
-            updateSelectizeInput(session, "smp_id", selected = character(0))
-            updateSelectizeInput(session, "smp_id", selected = collect$future_smp_id())
+            updateSelectInput(session, "site_name", selected = "")
+            updateSelectizeInput(session, "smp_id", choices = smp_id,  selected = collect$future_smp_id(), server = TRUE)
           }else{
+            updateSelectizeInput(session, "smp_id", selected = character(0))
             updateSelectInput(session, "site_name", selected = collect$future_site_name())
           }
+          #delay so that the selectizeInput is updated and table is quereied before it is searched by R
+          delay(150, {
+                  rv$future_row <- reactive(which(rv$future_table_db()$future_deployment_uid == collect$future_row(), arr.ind = TRUE))
+                  dataTableProxy('future_deployment') %>% selectRows(rv$future_row())
+                })
         }
       })
       
-      observeEvent(rv$future_table_db(), {
-        if(length(collect$future_rows_selected()) > 0){
-          rv$future_row <- reactive(which(rv$future_table_db()$future_deployment_uid == collect$future_row(), arr.ind = TRUE))
-          dataTableProxy('future_deployment') %>% selectRows(rv$future_row())
-        }
-      })
+      # observeEvent(rv$future_table_db(), {
+      #   delay(50,
+      #   if(length(collect$future_rows_selected()) > 0){
+      #     rv$future_row <- reactive(which(rv$future_table_db()$future_deployment_uid == collect$future_row(), arr.ind = TRUE))
+      #     dataTableProxy('future_deployment') %>% selectRows(rv$future_row())
+      #   })
+      # })
       
       #upon clicking a row in current sites (in history)
       observeEvent(cwl_history$active_deploy_refresh(), {
@@ -264,7 +276,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         #changing order might help
         if(length(cwl_history$active_smp_id()) > 0){
           if(!is.na(cwl_history$active_smp_id())){
-            updateSelectizeInput(session, "smp_id", selected = cwl_history$active_smp_id())
+            updateSelectizeInput(session, "smp_id", choices = smp_id, selected = cwl_history$active_smp_id(), server = TRUE)
           }else{
             updateSelectInput(session, "site_name", selected = cwl_history$active_site_name())
           }
@@ -278,7 +290,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         updateSelectInput(session, "site_name", selected = "")
         if(length(cwl_history$past_smp_id()) > 0){
           if(!is.na(cwl_history$past_smp_id())){
-            updateSelectizeInput(session, "smp_id", selected = cwl_history$past_smp_id())
+            updateSelectizeInput(session, "smp_id", choices = smp_id, selected = cwl_history$past_smp_id(), server = TRUE)
           }else{
             updateSelectInput(session, "site_name", selected = cwl_history$past_site_name())
           }
@@ -452,8 +464,8 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #create table as a reactive value based on query
       rv$active_table_db <- reactive(odbc::dbGetQuery(poolConn, active_table_query())%>% 
-                                       mutate_at(vars(one_of("download_error")), 
-                                                 funs(case_when(. == 1 ~ "Yes", 
+                                       mutate(across("download_error", 
+                                                 ~ case_when(. == 1 ~ "Yes", 
                                                                 . == 0 ~ "No"))))
       
       #select columns to show in app, and rename
@@ -495,13 +507,13 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       
       #create table as a reactive value based on query
-      rv$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query())%>% 
-                                    mutate_at(vars(one_of("download_error")), 
-                                              funs(case_when(. == 1 ~ "Yes", 
-                                                             . == 0 ~ "No"))))
+      rv$old_table_db <- reactive(odbc::dbGetQuery(poolConn, old_table_query()))
       
       #select key fields and rename
       rv$old_table <- reactive(rv$old_table_db() %>% 
+                                 mutate(across("download_error", 
+                                               ~ case_when(. == 1 ~ "Yes", 
+                                                           . == 0 ~ "No"))) %>% 
                                  mutate(across(where(is.POSIXct), trunc, "days")) %>% 
                                  mutate(across(where(is.POSIXlt), as.character)) %>% 
                                  dplyr::select(deployment_dtime_est, collection_dtime_est, ow_suffix, type, term, research, interval_min, sensor_serial) %>% 

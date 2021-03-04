@@ -120,12 +120,13 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
       
       rv$srt_table <- reactive(rv$srt_table_db() %>% 
-                                 #left_join(srt_types, by = "srt_type_lookup_uid") %>%
                                  mutate("test_date" = as.character(test_date), 
                                         "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
                                  dplyr::select("system_id", "test_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
       
-      rv$srt_metadata <- reactive(rv$srt_table_db() %>% mutate("srt_summary_date" = as.character(srt_summary_date)))
+      rv$srt_metadata <- reactive(rv$srt_table_db() %>% 
+                                    mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                    mutate(across(where(is.POSIXlt), as.character)))
       
       rv$type <- reactive(srt_types %>% dplyr::filter(type == input$srt_type) %>% 
                             select(srt_type_lookup_uid) %>% pull())
@@ -162,7 +163,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       observe(toggleState(id = "srt_summary_date", condition = length(input$srt_date) > 0))
       
       #update Impervous Drainage Area
-      srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE system_id = '", input$system_id, "'"))
+      srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE 
+                                        system_id = '", input$system_id, "'"))
       rv$dcia_x <- reactive(odbc::dbGetQuery(poolConn, srt_dcia_query()) %>% dplyr::pull())
       rv$dcia <- reactive(as.numeric(rv$dcia_x()))
       observe(updateNumericInput(session, "dcia", value = rv$dcia()))
@@ -202,10 +204,10 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         #update inputs
         
         #update to values from selected row
-        updateSelectInput(session, "con_phase", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 2])
-        updateSelectInput(session, "srt_type", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 3])
-        updateSelectInput(session, "priority", selected = rv$future_srt_table()[input$future_srt_table_rows_selected, 5])
-        updateTextAreaInput(session, "srt_summary", value = rv$future_srt_table()[input$future_srt_table_rows_selected, 6])
+        updateSelectInput(session, "con_phase", selected = rv$future_srt_table()$phase[input$future_srt_table_rows_selected])
+        updateSelectInput(session, "srt_type", selected = rv$future_srt_table()$type[input$future_srt_table_rows_selected])
+        updateSelectInput(session, "priority", selected = rv$future_srt_table()$field_test_priority[input$future_srt_table_rows_selected])
+        updateTextAreaInput(session, "srt_summary", value = rv$future_srt_table()$notes[input$future_srt_table_rows_selected])
     
         reset("test_volume")
         reset("srt_date")    
@@ -223,23 +225,23 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         dataTableProxy('future_srt_table') %>% selectRows(NULL)
         #rv_ow$fac <- (rv$srt_table()[input$srt_table_rows_selected, 4])
         #print(rv$srt_table()[input$srt_table_rows_selected, 2])
-        updateDateInput(session, "srt_date", value = rv$srt_table()[input$srt_table_rows_selected, 2])
+        updateDateInput(session, "srt_date", value = rv$srt_table()$test_date[input$srt_table_rows_selected])
         
         #update to values from selected row
-        updateSelectInput(session, "con_phase", selected = rv$srt_table()[input$srt_table_rows_selected, 3])
-        updateSelectInput(session, "srt_type", selected = rv$srt_table()[input$srt_table_rows_selected, 4])
-        updateNumericInput(session, "test_volume", value = rv$srt_table()[input$srt_table_rows_selected, 5])
+        updateSelectInput(session, "con_phase", selected = rv$srt_table()$phase[input$srt_table_rows_selected])
+        updateSelectInput(session, "srt_type", selected = rv$srt_table()$type[input$srt_table_rows_selected])
+        updateNumericInput(session, "test_volume", value = rv$srt_table()$srt_volume_ft3[input$srt_table_rows_selected])
         #updateNumericInput(session, "storm_size", value = rv$srt_table()[input$srt_table_rows_selected, 7])
-        updateTextAreaInput(session, "srt_summary", value = rv$srt_table()[input$srt_table_rows_selected, 8])
+        updateTextAreaInput(session, "srt_summary", value = rv$srt_table()$srt_summary[input$srt_table_rows_selected])
         
         #update metadata values
-        updateSelectInput(session, "flow_data_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 9])
-        updateSelectInput(session, "water_level_rec", selected = rv$srt_metadata()[input$srt_table_rows_selected, 10])
-        updateSelectInput(session, "photos_uploaded", selected = rv$srt_metadata()[input$srt_table_rows_selected, 11])
-        updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 12])
-        updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()[input$srt_table_rows_selected, 13])
-        updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()[input$srt_table_rows_selected, 14])
-        updateDateInput(session, "sensor_deployed", value = rv$srt_metadata()[input$srt_table_rows_selected, 18])
+        updateSelectInput(session, "flow_data_rec", selected = rv$srt_metadata()$flow_data_recorded[input$srt_table_rows_selected])
+        updateSelectInput(session, "water_level_rec", selected = rv$srt_metadata()$water_level_recorded[input$srt_table_rows_selected])
+        updateSelectInput(session, "photos_uploaded", selected = rv$srt_metadata()$photos_uploaded[input$srt_table_rows_selected])
+        updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()$sensor_collection_date[input$srt_table_rows_selected])
+        updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()$qaqc_complete[input$srt_table_rows_selected])
+        updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()$srt_summary_date[input$srt_table_rows_selected])
+        updateDateInput(session, "sensor_deployed", value = rv$srt_metadata()$sensor_deployed[input$srt_table_rows_selected])
         
       })
       
@@ -357,7 +359,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                             WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
         }
         
-        #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialoge box asking the user
+        #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialogue box asking the user
         #if they would like to create a deployment. If yes, that takes them to the deployment page
         srt_deployment_exists_query <- paste0("select * from fieldwork.deployment_full where term = 'SRT' and smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
         
@@ -464,10 +466,10 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #convert 1s and 0s to yes and no, make dates characters so they show properly, and round storm size
       rv$all_srt_table <- reactive(rv$all_srt_table_db() %>% 
-                                     mutate_at(c("test_date", "srt_summary_date", "sensor_collection_date"), as.character) %>% 
+                                     mutate(across(c("test_date", "srt_summary_date", "sensor_collection_date"), as.character)) %>% 
                                      mutate("srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
-                                     mutate_at(vars(one_of("flow_data_recorded", "water_level_recorded", "photos_uploaded", "qaqc_complete")), 
-                                               funs(case_when(. == 1 ~ "Yes", 
+                                     mutate(across(c("flow_data_recorded", "water_level_recorded", "photos_uploaded", "qaqc_complete"), 
+                                                ~ case_when(. == 1 ~ "Yes", 
                                                               . == 0 ~ "No"))) %>% 
                                      dplyr::select("system_id", "project_name", "test_date", "phase", "type", "srt_volume_ft3",
                                                    "dcia_ft2", "srt_stormsize_in", "flow_data_recorded", "water_level_recorded",
@@ -548,30 +550,32 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750,
-                 details = function(index){
-                   nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
-                   htmltools::div(style = "padding:16px",
-                                  reactable(nest_table,
-                                            columns = list(srt_summary = colDef(name = "Results Summary")))
-                   )
-                 }
+                  height = 750#,
+                 # details = function(index){
+                 #   nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
+                 #   htmltools::div(style = "padding:16px",
+                 #                  reactable(nest_table,
+                 #                            columns = list(srt_summary = colDef(name = "Results Summary")))
+                 #   )
+                 # }
         )
       )
       
+      #click a row in the all srt table, switch tabs, and select the correct SMP ID, then select the correct test
       observeEvent(input$srt_selected, {
-        updateSelectizeInput(session, "system_id", selected = character(0))
-        updateSelectizeInput(session, "system_id", selected = rv$all_srt_table()$system_id[input$srt_selected])
+        updateSelectizeInput(session, "system_id", choices = sys_id, 
+                             selected = rv$all_srt_table()$system_id[input$srt_selected], 
+                             server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "srt_tab")
         updateReactable("all_future_srt_table", selected = NA)
-      })
-      
-      
-      observeEvent(rv$srt_table_db(), {
-        if(length(input$srt_selected) > 0){
-          srt_row <- which(rv$srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[input$srt_selected], arr.ind = TRUE)
-          dataTableProxy('srt_table') %>% selectRows(srt_row)
-        }
+        #delay so that the selectizeInput is updated and table is quereied before it is searched by R
+        #basically make sure things happen in the right order
+        #delay time based on trail and error
+        delay(200,{
+                srt_row <- which(rv$srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[input$srt_selected], arr.ind = TRUE)
+                dataTableProxy('srt_table') %>% selectRows(srt_row)
+              }
+        )
       })
       
       #Future SRTs tab ####
@@ -579,7 +583,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
       
       rv$all_future_srt_table <- reactive(rv$all_future_srt_table_db %>% 
-                                            mutate_at(c("sys_storagevolume_ft3", "sys_rawstormsizemanaged_in", "one_inch_storm_volume_cf"), round, 2) %>% 
+                                            mutate(across(c("sys_storagevolume_ft3", 
+                                                            "sys_rawstormsizemanaged_in", 
+                                                            "one_inch_storm_volume_cf"), ~ round(., 2))) %>% 
                                         dplyr::select("system_id", "project_name", "phase", "type", "dcia_ft2", "sys_storagevolume_ft3", "sys_rawstormsizemanaged_in", "one_inch_storm_volume_cf", "field_test_priority", "notes"))
       
       output$all_future_srt_table <- renderReactable(
@@ -605,28 +611,30 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750,
-                  details = function(index){
-                    nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
-                    htmltools::div(style = "padding:16px", 
-                                   reactable(nest, 
-                                             columns = list(notes = colDef(name = "Notes")))
-                    )
-                  }
+                  height = 750#,
+                  # details = function(index){
+                  #   nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
+                  #   htmltools::div(style = "padding:16px", 
+                  #                  reactable(nest, 
+                  #                            columns = list(notes = colDef(name = "Notes")))
+                  #   )
+                  # }
         ))
       
       observeEvent(input$future_srt_selected, {
-        updateSelectizeInput(session, "system_id", selected = character(0))
-        updateSelectizeInput(session, "system_id", selected = rv$all_future_srt_table()$system_id[input$future_srt_selected])
+        updateSelectizeInput(session, "system_id", choices = sys_id,
+                             selected = rv$all_future_srt_table()$system_id[input$future_srt_selected], 
+                             server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "srt_tab")
         updateReactable("all_srt_table", selected = NA)
-      })
-      
-      observeEvent(rv$future_srt_table_db(), {
-        if(length(input$future_srt_selected) > 0){
-          future_srt_row <- which(rv$future_srt_table_db()$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[input$future_srt_selected], arr.ind = TRUE)
-          dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
+        #delay so that the selectizeInput is updated and table is quereied before it is searched by R
+        #delay time based on trail and error
+        #thank you dean attali
+        delay(200, {
+              future_srt_row <- which(rv$future_srt_table_db()$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[input$future_srt_selected], arr.ind = TRUE)
+              dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
         }
+        )
       })
       
       return(

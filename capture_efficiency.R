@@ -79,8 +79,6 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
       
       rv <- reactiveValues()
       
-      
-      
       #upon clicking through dialogue box after doing future deployment/premonitoring inspection 
       #update selected system based on deployment
       observeEvent(deploy$refresh_cet(), {
@@ -145,9 +143,10 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
       #get the table of CETs
       rv$cet_table_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full WHERE system_id = '", input$system_id, "'"))
       rv$cet_table_db <- reactive(dbGetQuery(poolConn, rv$cet_table_query()))
-      rv$cet_table <- reactive(rv$cet_table_db() %>% mutate_at("test_date", as.Date) %>% 
-                                 mutate_at(vars(one_of("low_flow_bypass_observed")), 
-                                           funs(case_when(. == 1 ~ "Yes", 
+      rv$cet_table <- reactive(rv$cet_table_db() %>% 
+                                 mutate(across(test_date, as.Date)) %>% 
+                                 mutate(across(low_flow_bypass_observed,  
+                                           ~ case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select(-1) %>% 
                                  dplyr::select(-"facility_id", -"project_name", -"system_id", -"public"))
@@ -255,7 +254,7 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
           updateSelectInput(session, "user_input_asset_type", selected = "")
         }else{
           updateSelectInput(session, "cet_comp_id", selected = "")
-          updateSelectInput(session, "cet_comp_id_custom", selected = rv$future_cet_table()[input$future_cet_table_rows_selected, 2])
+          updateSelectInput(session, "cet_comp_id_custom", selected = rv$future_cet_table()$component_id[input$future_cet_table_rows_selected])
           updateSelectInput(session, "user_input_asset_type", selected = rv$future_cet_table()$asset_type[input$future_cet_table_rows_selected])
         }
         
@@ -274,7 +273,7 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
         #reset("cet_comp_id_custom")
         
         #get facility id from table
-        rv$fac <- (rv$cet_table_db()[input$cet_table_rows_selected, 5])
+        rv$fac <- (rv$cet_table_db()$facility_id[input$cet_table_rows_selected])
         #get component id
         comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid_inlets_limited where facility_id = '", rv$fac, "' 
             AND component_id IS NOT NULL")
@@ -293,7 +292,7 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
           updateSelectInput(session, "user_input_asset_type", selected = "")
         }else{
           updateSelectInput(session, "cet_comp_id", selected = "")
-          updateSelectInput(session, "cet_comp_id_custom", selected = rv$cet_table_db()[input$cet_table_rows_selected, 4])
+          updateSelectInput(session, "cet_comp_id_custom", selected = rv$cet_table_db()$component_id[input$cet_table_rows_selected])
           updateSelectInput(session, "user_input_asset_type", selected = rv$cet_table_db()$asset_type[input$cet_table_rows_selected])
         }
         
@@ -490,18 +489,16 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
         removeModal()
       })
       
-      
-      
-      
       # View all CETs ----
       
       rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.capture_efficiency_full ORDER BY test_date DESC"))
       rv$all_cet_table_db <- reactive(dbGetQuery(poolConn, rv$all_query())) 
       rv$all_cet_table <- reactive(rv$all_cet_table_db() %>% 
-                                     mutate_at("test_date", as.Date) %>% 
-                                     mutate_at(vars(one_of("low_flow_bypass_observed")),
-                                               funs(case_when(. == 1 ~ "Yes", 
-                                                              . == 0 ~ "No"))) %>% 
+                                     mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                     mutate(across(where(is.POSIXlt), as.character)) %>% 
+                                     mutate(across(low_flow_bypass_observed,  
+                                                   ~ case_when(. == 1 ~ "Yes", 
+                                                               . == 0 ~ "No"))) %>% 
                                      dplyr::select("system_id", "project_name", "test_date", "component_id", "phase", 
                                                    "low_flow_bypass_observed", "low_flow_efficiency_pct", "est_high_flow_efficiency", "high_flow_efficiency_pct", "asset_type", "notes"))
       
@@ -520,17 +517,18 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
         )
       )
       
+      #update system id and change tabs
+      #then once the system id is updated, select a test from a table
+      #this is delayed so it happens in order
       observeEvent(input$all_cet_table_rows_selected, {
-        updateSelectizeInput(session, "system_id", selected = character(0))
-        updateSelectizeInput(session, "system_id", selected = rv$all_cet_table()$system_id[input$all_cet_table_rows_selected])
+        updateSelectizeInput(session, "system_id", choices = sys_id, 
+                             selected = rv$all_cet_table()$system_id[input$all_cet_table_rows_selected], 
+                             server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
-      })
-      
-      observeEvent(rv$cet_table_db(), {
-        if(length(input$all_cet_table_rows_selected) > 0){
+        delay(200, {
           cet_row <- which(rv$cet_table_db()$capture_efficiency_uid == rv$all_cet_table_db()$capture_efficiency_uid[input$all_cet_table_rows_selected], arr.ind = TRUE)
           dataTableProxy('cet_table') %>% selectRows(cet_row)
-        }
+        })
       })
       
       #View all Future CETs
@@ -557,22 +555,31 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
       )
       
       #update system id and change tabs
-      observeEvent(input$all_future_cet_table_rows_selected, {
-        updateSelectizeInput(session, "system_id", selected = character(0))
-        updateSelectizeInput(session, "system_id", selected = rv$all_future_cet_table()$system_id[input$all_future_cet_table_rows_selected])
-        updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
-      })
-      
       #then once the system id is updated, select a test from a table
-      #this is broken into two steps so they happen in order
-      observeEvent(rv$future_cet_table_db(), {
-        if(length(input$all_future_cet_table_rows_selected)){
+      #this is delayed so it happens in order
+      observeEvent(input$all_future_cet_table_rows_selected, {
+        updateSelectizeInput(session, "system_id", choices = sys_id, 
+                             selected = rv$all_future_cet_table()$system_id[input$all_future_cet_table_rows_selected], 
+                             server = TRUE)
+        updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
+        delay(200, {
           future_cet_row <- which(rv$future_cet_table_db()$future_capture_efficiency_uid == 
                                     rv$all_future_cet_table_db()$future_capture_efficiency_uid[input$all_future_cet_table_rows_selected],
                                   arr.ind = TRUE)
           dataTableProxy('future_cet_table') %>% selectRows(future_cet_row)
-        }
+        })
       })
+      
+      # #then once the system id is updated, select a test from a table
+      # #this is broken into two steps so they happen in order
+      # observeEvent(rv$future_cet_table_db(), {
+      #   if(length(input$all_future_cet_table_rows_selected)){
+      #     future_cet_row <- which(rv$future_cet_table_db()$future_capture_efficiency_uid == 
+      #                               rv$all_future_cet_table_db()$future_capture_efficiency_uid[input$all_future_cet_table_rows_selected],
+      #                             arr.ind = TRUE)
+      #     dataTableProxy('future_cet_table') %>% selectRows(future_cet_row)
+      #   }
+      # })
       
                }
   )

@@ -30,6 +30,18 @@
   # https://shiny.rstudio.com/gallery/selectize-examples.html
   # using  selected = character(0) instead of selected = NULL 
   # https://github.com/rstudio/shiny/issues/1182#issuecomment-238661390
+  # need to do the full updateSelectizeInput AGAIN when updating vectors with length > 1000
+  # for example, updateSelectizeInput(session, "smp_id", choices = smp_id, selected = "250-1-1", server = TRUE)
+  # if just resetting it, then, updateSelectizeInput(session, "smp_id", selected = character(0)) is fine, because it pulls from the first 1000
+  # i tried increasing maxOptions but that makes searching slow, which is bad
+
+#3/3/2021
+# ~ is needed for dplyr::mutate(across, ~ case_when). not needed for other mutates across
+# https://stackoverflow.com/questions/64189561/using-case-when-with-dplyr-across
+
+# shinyjs(delay) is used after updateSelectizeInputs to ensure the next step happens at the right time
+
+# 
 
 # SET UP
 #0.0: load libraries --------------
@@ -158,7 +170,7 @@
       years <- start_fy:current_fy %>% sort(decreasing = TRUE)
       
       #project work numbers
-      work_number <- dbGetQuery(poolConn, "select worknumber from greenit_projectbestdata") %>% pull()
+      work_number <- dbGetQuery(poolConn, "select distinct worknumber from greenit_projectbestdata") %>% pull()
       
       #special investigation types
       si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")

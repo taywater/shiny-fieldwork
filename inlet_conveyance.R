@@ -254,9 +254,11 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
                                             OR work_number = ", rv$work_number(), " 
                                             OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
       rv$ict_table_db <- reactive(dbGetQuery(poolConn, rv$ict_table_query()))
-      rv$ict_table <- reactive(rv$ict_table_db() %>% mutate_at("test_date", as.character) %>% 
-                                 mutate_at(vars(one_of("surcharge", "photos_uploaded", "summary_report_sent")), 
-                                           funs(case_when(. == 1 ~ "Yes", 
+      rv$ict_table <- reactive(rv$ict_table_db() %>% 
+                                 mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                 mutate(across(where(is.POSIXlt), as.character)) %>%  
+                                 mutate(across(c("surcharge", "photos_uploaded", "summary_report_sent"), 
+                                            ~ case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select("component_id", "test_date", "phase",
                                                "calculated_flow_rate_cfm", "equilibrated_flow_rate_cfm", "test_volume_cf",
@@ -551,9 +553,10 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
     
       rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.inlet_conveyance_full ORDER BY test_date DESC"))
       rv$all_ict_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-      rv$all_ict_table <- reactive(rv$all_ict_table_db() %>% mutate_at(c("test_date","summary_report_sent") , as.character) %>% 
-                                 mutate_at(vars(one_of("surcharge", "photos_uploaded")), 
-                                           funs(case_when(. == 1 ~ "Yes", 
+      rv$all_ict_table <- reactive(rv$all_ict_table_db() %>% 
+                                     mutate(across(c("test_date","summary_report_sent"), as.character)) %>% 
+                                 mutate(across(c("surcharge", "photos_uploaded"), 
+                                            ~ case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select("system_id", "project_name", "component_id", "test_date", "phase",
                                                "calculated_flow_rate_cfm", "equilibrated_flow_rate_cfm", "test_volume_cf",
@@ -622,22 +625,21 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         
         #check for system id, then work number, then site name
         if(!is.na(rv$all_ict_table_db()$system_id[input$ict_selected])){
-        updateSelectizeInput(session, "system_id", selected = rv$all_ict_table_db()$system_id[input$ict_selected])
+            updateSelectizeInput(session, "system_id", choices = sys_id,
+                             selected = rv$all_ict_table_db()$system_id[input$ict_selected], 
+                             server = TRUE)
         }else if(!is.na(rv$all_ict_table_db()$work_number[input$ict_selected])){
-        updateSelectInput(session, "work_number", selected = rv$all_ict_table_db()$work_number[input$ict_selected])
+           updateSelectInput(session, "work_number", selected = rv$all_ict_table_db()$work_number[input$ict_selected])
         }else if(!is.na(rv$all_ict_table_db()$site_name[input$ict_selected]) > 0){
-        updateSelectInput(session, "site_name", selected = rv$all_ict_table_db()$site_name[input$ict_selected])
+            updateSelectInput(session, "site_name", selected = rv$all_ict_table_db()$site_name[input$ict_selected])
         }
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")
         updateReactable("all_future_ict_table", selected = NA)
-      })
-      
-      observeEvent(rv$ict_table_db(), {
-        if(length(input$ict_selected) > 0){
-          ict_row <- which(rv$ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[input$ict_selected], arr.ind = TRUE)
-          dataTableProxy('ict_table') %>% selectRows(ict_row)
-        }
+        delay(200, {
+            ict_row <- which(rv$ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[input$ict_selected], arr.ind = TRUE)
+            dataTableProxy('ict_table') %>% selectRows(ict_row)
+        })
       })
       
       #View Future ICTs
@@ -688,7 +690,10 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         
         #check for system id, then work number, then site name
         if(!is.na(rv$all_future_ict_table_db()$system_id[input$future_ict_selected])){
-          updateSelectizeInput(session, "system_id", selected = rv$all_future_ict_table_db()$system_id[input$future_ict_selected])
+          updateSelectizeInput(session, "system_id", 
+                               choices = sys_id,
+                               selected = rv$all_future_ict_table_db()$system_id[input$future_ict_selected], 
+                               server = TRUE)
         }else if(!is.na(rv$all_future_ict_table_db()$work_number[input$future_ict_selected])){
           updateSelectInput(session, "work_number", selected = rv$all_future_ict_table_db()$work_number[input$future_ict_selected])
         }else if(!is.na(rv$all_future_ict_table_db()$site_name[input$future_ict_selected]) > 0){
@@ -697,14 +702,19 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")
         updateReactable("all_ict_table", selected = NA)
-      })
-      
-      observeEvent(rv$future_ict_table_db(), {
-        if(length(input$future_ict_selected) > 0){
+        delay(200, {
           future_ict_row <- which(rv$future_ict_table_db()$future_inlet_conveyance_uid == rv$all_future_ict_table_db()$future_inlet_conveyance_uid[input$future_ict_selected], arr.ind = TRUE)
           dataTableProxy('future_ict_table') %>% selectRows(future_ict_row)
         }
+              )
       })
+      
+      # observeEvent(rv$future_ict_table_db(), {
+      #   if(length(input$future_ict_selected) > 0){
+      #     future_ict_row <- which(rv$future_ict_table_db()$future_inlet_conveyance_uid == rv$all_future_ict_table_db()$future_inlet_conveyance_uid[input$future_ict_selected], arr.ind = TRUE)
+      #     dataTableProxy('future_ict_table') %>% selectRows(future_ict_row)
+      #   }
+      # })
       
     }
   )

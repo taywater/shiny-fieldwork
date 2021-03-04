@@ -82,7 +82,10 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
       rv$ppt_table_db <- reactive(dbGetQuery(poolConn, rv$query()))
       
       #adjust table for viewing
-      rv$ppt_table <- reactive(rv$ppt_table_db() %>% mutate_at("test_date", as.character) %>% dplyr::select("test_date", "surface_type", "phase", "test_location"))
+      rv$ppt_table <- reactive(rv$ppt_table_db() %>% 
+                                 mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                 mutate(across(where(is.POSIXlt), as.character)) %>% 
+                                 dplyr::select("test_date", "surface_type", "phase", "test_location"))
       
       
       #toggle state (enable/disable) buttons based on whether system id, test date, and type are selected (this is shinyjs)
@@ -131,10 +134,10 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
         dataTableProxy('ppt_table') %>% selectRows(NULL)
        
         #update to values from selected row
-        updateSelectInput(session, "surface_type", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 2])
-        updateSelectInput(session, "con_phase", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 3])
-        updateNumericInput(session, "location", value = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 4])
-        updateSelectInput(session, "priority", selected = rv$future_ppt_table()[input$future_ppt_table_rows_selected, 5])
+        updateSelectInput(session, "surface_type", selected = rv$future_ppt_table()$surface_type[input$future_ppt_table_rows_selected])
+        updateSelectInput(session, "con_phase", selected = rv$future_ppt_table()$phase[input$future_ppt_table_rows_selected])
+        updateNumericInput(session, "location", value = rv$future_ppt_table()$test_location[input$future_ppt_table_rows_selected])
+        updateSelectInput(session, "priority", selected = rv$future_ppt_table()$field_test_priority[input$future_ppt_table_rows_selected])
         
         reset("date")
         reset("data")
@@ -148,14 +151,14 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
         dataTableProxy('future_ppt_table') %>% selectRows(NULL)
         
         #update to values from selected row
-        updateDateInput(session, "date", value = rv$ppt_table_db()[input$ppt_table_rows_selected, 2])
-        updateSelectInput(session, "surface_type", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 4])
-        updateSelectInput(session, "con_phase", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 5])
-        updateNumericInput(session, "location", value = rv$ppt_table_db()[input$ppt_table_rows_selected, 6])
+        updateDateInput(session, "date", value = rv$ppt_table_db()$test_date[input$ppt_table_rows_selected])
+        updateSelectInput(session, "surface_type", selected = rv$ppt_table_db()$surface_type[input$ppt_table_rows_selected])
+        updateSelectInput(session, "con_phase", selected = rv$ppt_table_db()$phase[input$ppt_table_rows_selected])
+        updateNumericInput(session, "location", value = rv$ppt_table_db()$test_location[input$ppt_table_rows_selected])
         
         #update metadata values
-        updateSelectInput(session, "data", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 7])
-        updateSelectInput(session, "folder", selected = rv$ppt_table_db()[input$ppt_table_rows_selected, 8])
+        updateSelectInput(session, "data", selected = rv$ppt_table_db()$date_in_spreadsheet[input$ppt_table_rows_selected])
+        updateSelectInput(session, "folder", selected = rv$ppt_table_db()$map_in_site_folder[input$ppt_table_rows_selected])
         
       })
       
@@ -297,9 +300,11 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
       
       rv$all_ppt_table_db <- reactive(dbGetQuery(poolConn, rv$all_query())) 
       
-      rv$all_ppt_table <- reactive(rv$all_ppt_table_db() %>% mutate_at("test_date", as.character) %>% 
-                                     mutate_at(vars(one_of("data_in_spreadsheet", "map_in_site_folder")), 
-                                               funs(case_when(. == 1 ~ "Yes", 
+      rv$all_ppt_table <- reactive(rv$all_ppt_table_db() %>% 
+                                     mutate(across(where(is.POSIXct), trunc, "days")) %>% 
+                                     mutate(across(where(is.POSIXlt), as.character)) %>% 
+                                     mutate(across(c("data_in_spreadsheet", "map_in_site_folder"), 
+                                               ~ case_when(. == 1 ~ "Yes", 
                                                               . == 0 ~ "No"))) %>% 
                                      dplyr::select("test_date", "smp_id", "project_name", "surface_type", "phase", "test_location", "data_in_spreadsheet", "map_in_site_folder"))
       
@@ -344,18 +349,16 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
       
       observeEvent(input$ppt_selected, {
         # do not use shinyjs::reset() - it is too slow and will go after updating to the smp_id, resulting in a cleared field
-        updateSelectizeInput(session, "smp_id", selected = character(0))
-        updateSelectizeInput(session, "smp_id", selected = rv$all_ppt_table()$smp_id[input$ppt_selected])
+        updateSelectizeInput(session, "smp_id", choices = smp_id, 
+                             selected = rv$all_ppt_table()$smp_id[input$ppt_selected], 
+                             server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
-      })
-      
-      observeEvent(rv$ppt_table_db(), {
-        if(length(input$ppt_selected) > 0){
-          ppt_row <- which(rv$ppt_table_db()$porous_pavement_uid == rv$all_ppt_table_db()$porous_pavement_uid[input$ppt_selected], arr.ind = TRUE)
+        delay(200, {
+          ppt_row <- which(rv$ppt_table_db()$porous_pavement_uid == rv$all_ppt_table_db()$porous_pavement_uid[input$ppt_selected], 
+                           arr.ind = TRUE)
           dataTableProxy('ppt_table') %>% selectRows(ppt_row)
-        }
+        })
       })
-      
       
       #View all Future Porous Pavement ----
       rv$all_future_ppt_query <- "SELECT * FROM fieldwork.future_porous_pavement_full order by field_test_priority_lookup_uid"
@@ -372,21 +375,19 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
         rownames = FALSE
       )
       
+      #on click in future porous pavement table
       #update smp id and change tabs
+      #then select test
       observeEvent(input$all_future_ppt_table_rows_selected, {
-        updateSelectizeInput(session, "smp_id", selected = character(0))
-        updateSelectizeInput(session, "smp_id", selected = rv$all_future_ppt_table()$smp_id[input$all_future_ppt_table_rows_selected])
+        updateSelectizeInput(session, "smp_id", choices = smp_id, selected = rv$all_future_ppt_table()$smp_id[input$all_future_ppt_table_rows_selected], server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
+        delay(200, {
+          future_ppt_row <- which(rv$future_ppt_table_db()$future_porous_pavement_uid == rv$all_future_ppt_table_db()$future_porous_pavement_uid[input$all_future_ppt_table_rows_selected], 
+                                  arr.ind = TRUE)
+          dataTableProxy('future_ppt_table') %>% selectRows(future_ppt_row)
+        })
       })
       
-      #then once the smp id is updated, select a test from a table
-      #this is broken into two steps so they happen in order
-      observeEvent(rv$future_ppt_table_db(), {
-        if(length(input$all_future_ppt_table_rows_selected)){
-          future_ppt_row <- which(rv$future_ppt_table_db()$future_porous_pavement_uid == rv$all_future_ppt_table_db()$future_porous_pavement_uid[input$all_future_ppt_table_rows_selected], arr.ind = TRUE)
-          dataTableProxy('future_ppt_table') %>% selectRows(future_ppt_row)
-        }
-      })
       
       
     }

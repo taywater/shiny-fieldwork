@@ -210,9 +210,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                             OR work_number = ", rv$work_number(), " 
                                             OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
       rv$si_table_db <- reactive(dbGetQuery(poolConn, rv$si_table_query()))
-      rv$si_table <- reactive(rv$si_table_db() %>% mutate_at(c("test_date", "sensor_collection_date"), as.character) %>% 
-                                 mutate_at(vars(one_of("photos_uploaded", "qaqc_complete")), 
-                                           funs(case_when(. == 1 ~ "Yes", 
+      rv$si_table <- reactive(rv$si_table_db() %>% mutate(across(c("test_date", "sensor_collection_date"), as.character)) %>% 
+                                 mutate(across(c("photos_uploaded", "qaqc_complete"), 
+                                           ~ case_when(. == 1 ~ "Yes", 
                                                           . == 0 ~ "No"))) %>% 
                                  dplyr::select("test_date", "special_investigation_type",
                                                "requested_by", "phase", "sensor_collection_date",
@@ -462,9 +462,10 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full ORDER BY test_date DESC"))
       rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
-      rv$all_si_table <- reactive(rv$all_si_table_db() %>% mutate_at(c("test_date", "sensor_collection_date", "summary_date"), as.character) %>% 
-                                     mutate_at(vars(one_of("qaqc_complete", "photos_uploaded", "sensor_deployed", "summary_needed")), 
-                                               funs(case_when(. == 1 ~ "Yes", 
+      rv$all_si_table <- reactive(rv$all_si_table_db() %>% mutate(across(c("test_date", "sensor_collection_date", "summary_date"),
+                                                                         as.character)) %>% 
+                                     mutate(across(c("qaqc_complete", "photos_uploaded", "sensor_deployed", "summary_needed"), 
+                                                ~ case_when(. == 1 ~ "Yes", 
                                                               . == 0 ~ "No"))) %>% 
                                      dplyr::select("system_id",  "project_name", "test_date", 
                                                    "special_investigation_type", "requested_by", "phase", "sensor_deployed",
@@ -540,14 +541,14 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750,
-                  details = function(index){
-                    nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
-                    htmltools::div(style = "padding:16px",
-                                   reactable(nest,
-                                             columns = list(results_summary = colDef(name = "Results Summary")))
-                    )
-                  }
+                  height = 750#,
+                  # details = function(index){
+                  #   nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
+                  #   htmltools::div(style = "padding:16px",
+                  #                  reactable(nest,
+                  #                            columns = list(results_summary = colDef(name = "Results Summary")))
+                  #   )
+                  # }
          )
       )
       
@@ -561,7 +562,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         #check for system id, then work number, then site name
         if(!is.na(rv$all_si_table_db()$system_id[input$si_selected])){
-          updateSelectizeInput(session, "system_id", selected = rv$all_si_table_db()$system_id[input$si_selected])
+          updateSelectizeInput(session, "system_id", choices = sys_id,
+                               selected = rv$all_si_table_db()$system_id[input$si_selected], 
+                               server = TRUE)
         }else if(!is.na(rv$all_si_table_db()$work_number[input$si_selected])){
           updateSelectInput(session, "work_number", selected = rv$all_si_table_db()$work_number[input$si_selected])
         }else if(!is.na(rv$all_si_table_db()$site_name[input$si_selected]) > 0){
@@ -570,13 +573,11 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")
         updateReactable("all_future_si_table", selected = NA)
-      })
-      
-      observeEvent(rv$si_table_db(), {
-        if(length(input$si_selected) > 0){
+        
+        delay(250, {
           si_row <- which(rv$si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[input$si_selected], arr.ind = TRUE)
           dataTableProxy('si_table') %>% selectRows(si_row)
-        }
+        })
       })
       
       #View Future ICTs
@@ -628,7 +629,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         #check for system id, then work number, then site name
         if(!is.na(rv$all_future_si_table_db()$system_id[input$future_si_selected])){
-          updateSelectizeInput(session, "system_id", selected = rv$all_future_si_table_db()$system_id[input$future_si_selected])
+          updateSelectizeInput(session, "system_id", choices = sys_id,
+                               selected = rv$all_future_si_table_db()$system_id[input$future_si_selected], 
+                               server = TRUE)
         }else if(!is.na(rv$all_future_si_table_db()$work_number[input$future_si_selected])){
           updateSelectInput(session, "work_number", selected = rv$all_future_si_table_db()$work_number[input$future_si_selected])
         }else if(!is.na(rv$all_future_si_table_db()$site_name[input$future_si_selected]) > 0){
@@ -637,13 +640,11 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")
         updateReactable("all_si_table", selected = NA)
-      })
-      
-      observeEvent(rv$future_si_table_db(), {
-        if(length(input$future_si_selected) > 0){
+        
+        delay(200, {
           future_si_row <- which(rv$future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[input$future_si_selected], arr.ind = TRUE)
           dataTableProxy('future_si_table') %>% selectRows(future_si_row)
-        }
+        })
       })
       
       return(
