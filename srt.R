@@ -572,7 +572,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         #delay so that the selectizeInput is updated and table is quereied before it is searched by R
         #basically make sure things happen in the right order
         #delay time based on trail and error
-        delay(200,{
+        delay(300,{
                 srt_row <- which(rv$srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[input$srt_selected], arr.ind = TRUE)
                 dataTableProxy('srt_table') %>% selectRows(srt_row)
               }
@@ -631,7 +631,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         #delay so that the selectizeInput is updated and table is quereied before it is searched by R
         #delay time based on trail and error
         #thank you dean attali
-        delay(200, {
+        delay(300, {
               future_srt_row <- which(rv$future_srt_table_db()$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[input$future_srt_selected], arr.ind = TRUE)
               dataTableProxy('future_srt_table') %>% selectRows(future_srt_row)
         }

@@ -575,7 +575,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")
         updateReactable("all_future_si_table", selected = NA)
         
-        delay(250, {
+        delay(300, {
           si_row <- which(rv$si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[input$si_selected], arr.ind = TRUE)
           dataTableProxy('si_table') %>% selectRows(si_row)
         })
@@ -642,7 +642,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         updateTabsetPanel(session = parent_session, "inTabset", selected = "si_tab")
         updateReactable("all_si_table", selected = NA)
         
-        delay(200, {
+        delay(300, {
           future_si_row <- which(rv$future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[input$future_si_selected], arr.ind = TRUE)
           dataTableProxy('future_si_table') %>% selectRows(future_si_row)
         })

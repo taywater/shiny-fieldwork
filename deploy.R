@@ -225,20 +225,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           updateSelectInput(session, "site_name", selected = collect$site_name())
           }
           #delay so that the selectizeInput is updated and table is quereied before it is searched by R
-          delay(150,{
+          delay(250,{
                   rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
                   dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
                 })
         }
       })
-      
-      # observeEvent(rv$active_table_db(), {
-      #   delay(50,
-      #   if(length(collect$rows_selected()) > 0){
-      #     rv$active_row <- reactive(which(rv$active_table_db()$deployment_uid == collect$row(), arr.ind = TRUE))
-      #     dataTableProxy('current_deployment') %>% selectRows(rv$active_row())
-      #   })
-      # })
       
       #upon click a row in future table (in collection calendar)
       observeEvent(collect$future_deploy_refresh(), {
@@ -252,20 +244,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
             updateSelectInput(session, "site_name", selected = collect$future_site_name())
           }
           #delay so that the selectizeInput is updated and table is quereied before it is searched by R
-          delay(150, {
+          delay(250, {
                   rv$future_row <- reactive(which(rv$future_table_db()$future_deployment_uid == collect$future_row(), arr.ind = TRUE))
                   dataTableProxy('future_deployment') %>% selectRows(rv$future_row())
                 })
         }
       })
-      
-      # observeEvent(rv$future_table_db(), {
-      #   delay(50,
-      #   if(length(collect$future_rows_selected()) > 0){
-      #     rv$future_row <- reactive(which(rv$future_table_db()$future_deployment_uid == collect$future_row(), arr.ind = TRUE))
-      #     dataTableProxy('future_deployment') %>% selectRows(rv$future_row())
-      #   })
-      # })
       
       #upon clicking a row in current sites (in history)
       observeEvent(cwl_history$active_deploy_refresh(), {

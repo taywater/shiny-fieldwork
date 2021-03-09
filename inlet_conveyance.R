@@ -637,7 +637,7 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")
         updateReactable("all_future_ict_table", selected = NA)
-        delay(200, {
+        delay(300, {
             ict_row <- which(rv$ict_table_db()$inlet_conveyance_uid == rv$all_ict_table_db()$inlet_conveyance_uid[input$ict_selected], arr.ind = TRUE)
             dataTableProxy('ict_table') %>% selectRows(ict_row)
         })
@@ -703,7 +703,7 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ict_tab")
         updateReactable("all_ict_table", selected = NA)
-        delay(200, {
+        delay(300, {
           future_ict_row <- which(rv$future_ict_table_db()$future_inlet_conveyance_uid == rv$all_future_ict_table_db()$future_inlet_conveyance_uid[input$future_ict_selected], arr.ind = TRUE)
           dataTableProxy('future_ict_table') %>% selectRows(future_ict_row)
         }
