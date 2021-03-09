@@ -526,7 +526,7 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
                              selected = rv$all_cet_table()$system_id[input$all_cet_table_rows_selected], 
                              server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
-        delay(200, {
+        delay(300, {
           cet_row <- which(rv$cet_table_db()$capture_efficiency_uid == rv$all_cet_table_db()$capture_efficiency_uid[input$all_cet_table_rows_selected], arr.ind = TRUE)
           dataTableProxy('cet_table') %>% selectRows(cet_row)
         })
@@ -563,7 +563,7 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
                              selected = rv$all_future_cet_table()$system_id[input$all_future_cet_table_rows_selected], 
                              server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "cet_tab")
-        delay(200, {
+        delay(300, {
           future_cet_row <- which(rv$future_cet_table_db()$future_capture_efficiency_uid == 
                                     rv$all_future_cet_table_db()$future_capture_efficiency_uid[input$all_future_cet_table_rows_selected],
                                   arr.ind = TRUE)

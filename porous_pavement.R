@@ -353,7 +353,7 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
                              selected = rv$all_ppt_table()$smp_id[input$ppt_selected], 
                              server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
-        delay(200, {
+        delay(300, {
           ppt_row <- which(rv$ppt_table_db()$porous_pavement_uid == rv$all_ppt_table_db()$porous_pavement_uid[input$ppt_selected], 
                            arr.ind = TRUE)
           dataTableProxy('ppt_table') %>% selectRows(ppt_row)
@@ -381,7 +381,7 @@ porous_pavementServer <- function(id, parent_session, surface_type, poolConn, co
       observeEvent(input$all_future_ppt_table_rows_selected, {
         updateSelectizeInput(session, "smp_id", choices = smp_id, selected = rv$all_future_ppt_table()$smp_id[input$all_future_ppt_table_rows_selected], server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "ppt_tab")
-        delay(200, {
+        delay(300, {
           future_ppt_row <- which(rv$future_ppt_table_db()$future_porous_pavement_uid == rv$all_future_ppt_table_db()$future_porous_pavement_uid[input$all_future_ppt_table_rows_selected], 
                                   arr.ind = TRUE)
           dataTableProxy('future_ppt_table') %>% selectRows(future_ppt_row)
