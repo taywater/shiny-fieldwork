@@ -314,7 +314,8 @@ capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_typ
       #replace quotes with double quotes to protect against SQL injections
       rv$est_hfe <- reactive(if(length(rv$est_high_flow_efficiency()) == 0) "NULL" else paste0("'", rv$est_high_flow_efficiency(), "'"))
       rv$cet_notes_step <- reactive(gsub('\'', '\'\'', input$cet_notes))
-      rv$cet_notes <- reactive(if(nchar(rv$cet_notes_step()) == 0) "NULL" else paste0("'", rv$cet_notes_step(), "'"))
+      rv$cet_notes_step_two <- reactive(special_char_replace(rv$cet_notes_step()))
+      rv$cet_notes <- reactive(if(nchar(rv$cet_notes_step_two()) == 0) "NULL" else paste0("'", rv$cet_notes_step_two(), "'"))
       
       rv$low_flow_bypass <- reactive(if(nchar(input$low_flow_bypass) == 0 | input$low_flow_bypass == "N/A") "NULL" else paste0("'", input$low_flow_bypass, "'"))
       rv$low_flow_efficiency <- reactive(if(is.na(input$low_flow_efficiency)) "NULL" else paste0("'", input$low_flow_efficiency, "'"))

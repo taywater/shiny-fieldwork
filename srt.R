@@ -260,7 +260,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$dcia_write <- reactive(if(is.na(input$dcia)) "NULL" else paste0("'", input$dcia, "'"))
       rv$storm_size <- reactive(if(is.na(input$storm_size)) "NULL" else paste0("'", input$storm_size, "'"))
       rv$srt_summary_step <- reactive(gsub('\'', '\'\'', input$srt_summary))
-      rv$srt_summary <- reactive(if(nchar(rv$srt_summary_step()) == 0) "NULL" else paste0("'", rv$srt_summary_step(), "'"))
+      rv$srt_summary_step_two <- reactive(special_char_replace(rv$srt_summary_step()))
+      rv$srt_summary <- reactive(if(nchar(rv$srt_summary_step_two()) == 0) "NULL" else paste0("'", rv$srt_summary_step_two(), "'"))
       
       rv$flow_data_rec <- reactive(if(nchar(input$flow_data_rec) == 0 | input$flow_data_rec == "N/A") "NULL" else paste0("'", input$flow_data_rec, "'"))
       rv$water_level_rec <- reactive(if(nchar(input$water_level_rec) == 0 | input$water_level_rec == "N/A") "NULL" else paste0("'", input$water_level_rec, "'"))
@@ -550,14 +551,14 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750#,
-                 # details = function(index){
-                 #   nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
-                 #   htmltools::div(style = "padding:16px",
-                 #                  reactable(nest_table,
-                 #                            columns = list(srt_summary = colDef(name = "Results Summary")))
-                 #   )
-                 # }
+                  height = 750,
+                 details = function(index){
+                   nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
+                   htmltools::div(style = "padding:16px",
+                                  reactable(nest_table,
+                                            columns = list(srt_summary = colDef(name = "Results Summary")))
+                   )
+                 }
         )
       )
       
@@ -611,14 +612,14 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750#,
-                  # details = function(index){
-                  #   nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
-                  #   htmltools::div(style = "padding:16px", 
-                  #                  reactable(nest, 
-                  #                            columns = list(notes = colDef(name = "Notes")))
-                  #   )
-                  # }
+                  height = 750,
+                  details = function(index){
+                    nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
+                    htmltools::div(style = "padding:16px",
+                                   reactable(nest,
+                                             columns = list(notes = colDef(name = "Notes")))
+                    )
+                  }
         ))
       
       observeEvent(input$future_srt_selected, {

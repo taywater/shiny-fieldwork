@@ -96,7 +96,6 @@
   source("monitoring_stats.R")
   source("history.R")
   source("documentation.R")
-
   
 #1: UI FUNCTION -----
   #initialize variables for UI and call all UI functions
@@ -314,6 +313,17 @@
     stats <- m_statsServer("stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
     #History
     cwl_history <- cwl_historyServer("history", parent_session = session, poolConn = poolConn, deploy = deploy)
+    
+    #replace special characters with friendlier characters
+    special_char_replace <- function(note){
+      
+      note_fix <- note %>% 
+        str_replace_all(c("•" = "-", "ï‚§" = "-", "“" = '"', '”' = '"'))
+      
+      return(note_fix)
+      
+    }
+    
     
   }
 

@@ -202,9 +202,10 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       #notes
       rv$notes_step <- reactive(gsub('\'', '\'\'', input$notes))
-      rv$notes <- reactive(if(nchar(rv$notes_step()) == 0) "NULL" else paste0("'", rv$notes_step(), "'"))
+      rv$notes_step_two <- reactive(special_char_replace(rv$notes_step()))
+      rv$notes <- reactive(if(nchar(rv$notes_step_two()) == 0) "NULL" else paste0("'", rv$notes_step_two(), "'"))
       
-      #get the table of ICTs
+      #get the table of SIs
       rv$si_table_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full 
                                             WHERE system_id = '", input$system_id, "'
                                             OR work_number = ", rv$work_number(), " 
@@ -218,7 +219,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                                "requested_by", "phase", "sensor_collection_date",
                                                "results_summary"))
       
-      #show table of ICTs
+      #show table of SIs
       output$si_table <- renderDT(
         datatable(rv$si_table(), 
                   colnames = c('Test Date', 'Type', 'Requested By', 
@@ -295,7 +296,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       rv$label <- reactive(if(length(input$si_table_rows_selected) == 0) "Add New" else "Edit Selected")
       observe(updateActionButton(session, "add_test", label = rv$label()))
       
-      rv$future_label <- reactive(if(length(input$future_si_table_rows_selected) == 0) "Add Future Inlet Conveyance Test" else "Edit Selected Future ICT")
+      rv$future_label <- reactive(if(length(input$future_si_table_rows_selected) == 0) "Add Future Special Investigation" else "Edit Selected Future SI")
       observe(updateActionButton(session, "future_test", label = rv$future_label()))
       
       #add and edit special investigation records
@@ -472,7 +473,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                                    "sensor_collection_date", "photos_uploaded", "qaqc_complete",
                                                    "summary_date", "turnaround_days", "results_summary", "summary_needed"))
       
-      #show table of ICTs
+      #show table of SIs
       output$all_si_table <- renderReactable(
         reactable(rv$all_si_table()[, c(1:12)], 
                   columns = list(
@@ -541,14 +542,14 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750#,
-                  # details = function(index){
-                  #   nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
-                  #   htmltools::div(style = "padding:16px",
-                  #                  reactable(nest,
-                  #                            columns = list(results_summary = colDef(name = "Results Summary")))
-                  #   )
-                  # }
+                  height = 750,
+                  details = function(index){
+                    nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
+                    htmltools::div(style = "padding:16px",
+                                   reactable(nest,
+                                             columns = list(results_summary = colDef(name = "Results Summary")))
+                    )
+                  }
          )
       )
       
@@ -580,7 +581,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         })
       })
       
-      #View Future ICTs
+      #View Future SIs
       
       rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full ORDER BY field_test_priority_lookup_uid DESC"))
       rv$all_future_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_future_query()))
@@ -589,7 +590,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                                           "requested_by", "phase",
                                                           "field_test_priority", "notes"))
       
-      #show table of ICTs
+      #show table of SIs
       output$all_future_si_table <- renderReactable(
         reactable(rv$all_future_si_table()[, 1:6], 
                   columns = list(

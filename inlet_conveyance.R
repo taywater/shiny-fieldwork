@@ -246,7 +246,8 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
       
       #notes
       rv$notes_step <- reactive(gsub('\'', '\'\'', input$notes))
-      rv$notes <- reactive(if(nchar(rv$notes_step()) == 0) "NULL" else paste0("'", rv$notes_step(), "'"))
+      rv$notes_step_two <- reactive(special_char_replace(rv$notes_step()))
+      rv$notes <- reactive(if(nchar(rv$notes_step_two()) == 0) "NULL" else paste0("'", rv$notes_step_two(), "'"))
       
       #get the table of ICTs
       rv$ict_table_query <- reactive(paste0("SELECT * FROM fieldwork.inlet_conveyance_full 
