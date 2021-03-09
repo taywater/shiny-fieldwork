@@ -13,7 +13,7 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", site_names, html_
                                     column(4, selectizeInput(ns("system_id"), future_req(html_req("System ID")), 
                                                              choices = NULL, 
                                                              options = list(
-                                                               placeholder = 'Please select an option below',
+                                                               placeholder = 'Select an Option',
                                                                onInitialize = I('function() { this.setValue(""); }')
                                                              ))),  
                                     column(4, selectInput(ns("work_number"), future_req(html_req("Work Number")), 

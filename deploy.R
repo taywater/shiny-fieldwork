@@ -13,7 +13,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                    column(6,selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), 
                                                         choices = NULL, 
                                                         options = list(
-                                                          placeholder = 'Please select an option below',
+                                                          placeholder = 'Select an Option',
                                                           onInitialize = I('function() { this.setValue(""); }')
                                                         ))), 
                                    column(6,selectInput(ns("site_name"), future_req(html_req("Site Name")), 

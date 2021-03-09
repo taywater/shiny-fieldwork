@@ -23,7 +23,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                              #selectInput(ns("smp_id"), html_req("SMP ID"), choices = c("", smp_id), selected = NULL)
                              selectizeInput(ns("smp_id"), html_req("SMP ID"), choices = NULL, 
                                             options = list(
-                                              placeholder = 'Please select an option below',
+                                              placeholder = 'Select an Option',
                                               onInitialize = I('function() { this.setValue(""); }')
                                             ))),
              
@@ -68,7 +68,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                                                  selectInput(ns("old_site_name"), html_req("Site Name"), choices = c("", site_names), selected = NULL),
                                                  selectizeInput(ns("new_smp_id"), html_req("SMP ID"), choices = NULL, 
                                                                 options = list(
-                                                                  placeholder = 'Please select an option below',
+                                                                  placeholder = 'Select an Option',
                                                                   onInitialize = I('function() { this.setValue(""); }')
                                                                 )),
                                                  actionButton(ns("convert_wells"), "Move Locations from Site to SMP")

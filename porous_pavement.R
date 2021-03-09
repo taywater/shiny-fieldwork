@@ -8,7 +8,7 @@ porous_pavementUI <- function(id, label = "porous_pavement", html_req, surface_t
                       titlePanel("Add Porous Pavement Test"), 
                       sidebarPanel(selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), choices = NULL, 
                                                   options = list(
-                                                    placeholder = 'Please select an option below',
+                                                    placeholder = 'Select an Option',
                                                     onInitialize = I('function() { this.setValue(""); }')
                                                   )), 
                                    dateInput(ns("date"), html_req("Test Date"), value = as.Date(NA)), 

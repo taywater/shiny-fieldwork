@@ -13,7 +13,7 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
                                               selectizeInput(ns("system_id"), future_req(html_req("System ID")), 
                                                           choices = NULL, 
                                                           options = list(
-                                                            placeholder = 'Please select an option below',
+                                                            placeholder = 'Select an Option',
                                                             onInitialize = I('function() { this.setValue(""); }')
                                                           )), 
                                             splitLayout(

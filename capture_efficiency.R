@@ -11,7 +11,7 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_typ
                         selectizeInput(ns("system_id"), future_req(html_req("System ID")), 
                                        choices = NULL, 
                                        options = list(
-                                         placeholder = 'Please select an option below',
+                                         placeholder = 'Select an Option',
                                          onInitialize = I('function() { this.setValue(""); }')
                                        )), 
                         selectInput(ns("cet_comp_id"),  future_req(html_req("Component ID")), choices = c(""), selected = NULL),
