@@ -38,8 +38,8 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_typ
                         textAreaInput(ns("cet_notes"), "Notes", height = '90px'), 
                         conditionalPanel(condition = "input.cet_date === null", 
                                          ns = ns, 
-                                         actionButton(ns("future_cet"), "Add Future Capture Efficiency Test"), 
-                                         actionButton(ns("delete_future_cet"), "Delete Future Capture Efficiency Test")),
+                                         actionButton(ns("future_cet"), "Add Future CET"), 
+                                         actionButton(ns("delete_future_cet"), "Delete Future CET")),
                         actionButton(ns("add_cet"), "Add Capture Efficiency Test"), 
                         actionButton(ns("clear_cet"), "Clear All Fields"),
                         fluidRow(
@@ -66,7 +66,7 @@ capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_typ
   )
 }
 
-capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_type, con_phase, cet_asset_type, deploy, sys_id){
+capture_efficiencyServer <- function(id, parent_session, poolConn, high_flow_type, con_phase, cet_asset_type, deploy, sys_id, special_char_replace){
   
   moduleServer(id, 
                function(input, output, session){

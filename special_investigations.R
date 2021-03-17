@@ -82,7 +82,7 @@ special_investigationsUI <- function(id, label = "special_investigations",
 }
 
 
-special_investigationsServer <- function(id, parent_session, poolConn, con_phase, si_lookup, requested_by_lookup, sys_id){
+special_investigationsServer <- function(id, parent_session, poolConn, con_phase, si_lookup, requested_by_lookup, sys_id, special_char_replace){
   
   moduleServer(
     id,

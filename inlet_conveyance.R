@@ -78,7 +78,7 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", site_names, html_
              )
 }
 
-inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_id){
+inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_id, special_char_replace){
   moduleServer(
     id, 
     function(input, output, session){

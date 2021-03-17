@@ -279,6 +279,16 @@
     #refresh starter 
     refresh_location <- 0
     
+    #replace special characters with friendlier characters
+    special_char_replace <- function(note){
+      
+      note_fix <- note %>% 
+        str_replace_all(c("•" = "-", "ï‚§" = "-", "“" = '"', '”' = '"'))
+      
+      return(note_fix)
+      
+    }
+    
     # 2.2: Server Module functions ---------------------------
     # Collection Calendar
     collection_cal <- collection_calendarServer("collection_calendar", parent_session = session,
@@ -295,34 +305,27 @@
                          srt = srt, si = special_investigations, cwl_history = cwl_history, smp_id = smp_id)
     #SRT
     srt <- SRTServer("srt", parent_session = session, poolConn = poolConn, 
-                     srt_types = srt_types, con_phase = con_phase, sys_id = sys_id)
+                     srt_types = srt_types, con_phase = con_phase, sys_id = sys_id, special_char_replace = special_char_replace)
     #Porous Pavement
     porous_pavement <- porous_pavementServer("porous_pavement", parent_session = session, surface_type = surface_type,
                                   poolConn = poolConn, con_phase = con_phase, smp_id = pp_smp_id)
     #Capture Efficiency
     capture_efficiency <- capture_efficiencyServer("capture_efficiency", parent_session = session,
                                      poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase,
-                                     cet_asset_type = cet_asset_type, deploy = deploy, sys_id = sys_id)
+                                     cet_asset_type = cet_asset_type, deploy = deploy, sys_id = sys_id, special_char_replace = special_char_replace)
     #Inlet Conveyance
-    inlet_conveyance <- inlet_conveyanceServer("inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase, sys_id =sys_id)
+    inlet_conveyance <- inlet_conveyanceServer("inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase, 
+                                               sys_id =sys_id, special_char_replace = special_char_replace)
     #Special Investigations
     special_investigations<- special_investigationsServer("special_investigations", parent_session = session,
                                         poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup,
-                                        requested_by_lookup = requested_by_lookup, sys_id = sys_id)
+                                        requested_by_lookup = requested_by_lookup, sys_id = sys_id, special_char_replace = special_char_replace)
     #Stats
     stats <- m_statsServer("stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
     #History
     cwl_history <- cwl_historyServer("history", parent_session = session, poolConn = poolConn, deploy = deploy)
     
-    #replace special characters with friendlier characters
-    special_char_replace <- function(note){
-      
-      note_fix <- note %>% 
-        str_replace_all(c("•" = "-", "ï‚§" = "-", "“" = '"', '”' = '"'))
-      
-      return(note_fix)
-      
-    }
+    
     
     
   }

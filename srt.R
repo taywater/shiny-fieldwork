@@ -84,7 +84,7 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
   )
 }
 
-SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id){
+SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id, special_char_replace){
   
   moduleServer(
     id,
