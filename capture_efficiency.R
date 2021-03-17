@@ -3,10 +3,10 @@
 
 capture_efficiencyUI <- function(id, label = "capture_efficiency", high_flow_type, priority, html_req, con_phase, future_req, cet_asset_type){
   ns <- NS(id)
-  navbarMenu("Capture Efficiency",
+  navbarMenu("CET",
              tabPanel("Add/Edit Capture Efficiency Test", value = "cet_tab", 
                       useShinyjs(),
-                      titlePanel("Add Capture Efficiency Test"), 
+                      titlePanel("Add/Edit Capture Efficiency Test (CET)"), 
                       sidebarPanel(
                         selectizeInput(ns("system_id"), future_req(html_req("System ID")), 
                                        choices = NULL, 

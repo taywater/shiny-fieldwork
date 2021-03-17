@@ -5,7 +5,7 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
   ns <- NS(id)
   navbarMenu("SRT", 
              tabPanel("Add/Edit SRT", value = "srt_tab", 
-                      titlePanel("Add/Edit SRT"), 
+                      titlePanel("Add/Edit Simulated Runoff Test (SRT)"), 
                       fluidRow(
                         column(width = 5,
                                #split layout with left and right

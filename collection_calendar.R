@@ -79,8 +79,8 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
                                                                          input$capacity_used == "80% or more" & date_80percent < today() ~ 1, 
                                                                          input$capacity_used == "80% or more" & date_80percent > today() ~ 0, 
                                                                          TRUE ~ 1)) %>% 
-                                            mutate_at(vars(one_of("previous_download_error")),
-                                                      funs(case_when(. == 1 ~ "Yes",
+                                            mutate(across("previous_download_error",
+                                                       ~ case_when(. == 1 ~ "Yes",
                                                                      . == 0 ~ "No"))) %>%
                                             #use 1 or 0 for public or private, respectively, and 0.5 for both, with a tolerance of .51 
                                             #so if .5 is selected, 0 and 1 are picked up
