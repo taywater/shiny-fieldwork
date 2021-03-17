@@ -424,7 +424,7 @@ m_statsServer <- function(id, parent_session, current_fy, poolConn){
       
       rv$systems_tested_cctv_dye_test_value <- reactive(dbGetQuery(poolConn, rv$systems_tested_cctv_dye_test_q()))
       
-      rv$systems_tested_cctv_dye_test <- reactive(data.frame(Metric = "Systems Tested - Performance SRT", 
+      rv$systems_tested_cctv_dye_test <- reactive(data.frame(Metric = "Systems Tested - CCTV Dye Test", 
                                                              Count = rv$systems_tested_cctv_dye_test_value()))
       
       #systems tested: SRT
