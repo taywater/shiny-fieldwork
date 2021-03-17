@@ -3,9 +3,9 @@
 
 inlet_conveyanceUI <- function(id, label = "inlet_conveyance", site_names, html_req, work_number, priority, con_phase, future_req){
   ns <- NS(id)
-  navbarMenu("Inlet Conveyance", 
-             tabPanel("Add/Edit Inlet Conveyance Tests", value = "ict_tab", 
-                      titlePanel("Add Inlet Conveyance Test"), 
+  navbarMenu("ICT", 
+             tabPanel("Add/Edit Inlet Conveyance Test", value = "ict_tab", 
+                      titlePanel("Add/Edit Inlet Conveyance Test (ICT)"), 
                       sidebarPanel(
                         style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
                                   h5("Prioritize System ID, then Work Number, then Site Name. Only one is required."),

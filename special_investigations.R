@@ -5,8 +5,8 @@ special_investigationsUI <- function(id, label = "special_investigations",
                                      site_names, html_req, work_number, priority, con_phase, si_lookup, requested_by_lookup, future_req){
   ns <- NS(id)
   navbarMenu("Special Investigations", 
-             tabPanel("Add/Edit Special Investigations", value = "si_tab", 
-                      titlePanel("Add Special Investigation"), 
+             tabPanel("Add/Edit Special Investigation", value = "si_tab", 
+                      titlePanel("Add/Edit Special Investigation"), 
                       sidebarPanel(
                         #style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
                          fluidRow(h5("Prioritize System ID, then Work Number, then Site Name. Only one is required")),

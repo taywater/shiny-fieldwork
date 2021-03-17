@@ -220,7 +220,7 @@
                    #Stats
                    m_statsUI("stats", current_fy = current_fy, years = years),
                    #Monitoring History 
-                   historyUI("history"),
+                  historyUI("history"),
                    #Documentation
                  documentationUI("documentation")
       )
@@ -304,7 +304,7 @@
                          sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup,
                          srt = srt, si = special_investigations, cwl_history = cwl_history, smp_id = smp_id)
     #SRT
-    srt <- SRTServer("srt", parent_session = session, poolConn = poolConn, 
+    srt <- SRTServer("srt", parent_session = session, poolConn = poolConn,
                      srt_types = srt_types, con_phase = con_phase, sys_id = sys_id, special_char_replace = special_char_replace)
     #Porous Pavement
     porous_pavement <- porous_pavementServer("porous_pavement", parent_session = session, surface_type = surface_type,
@@ -314,7 +314,7 @@
                                      poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase,
                                      cet_asset_type = cet_asset_type, deploy = deploy, sys_id = sys_id, special_char_replace = special_char_replace)
     #Inlet Conveyance
-    inlet_conveyance <- inlet_conveyanceServer("inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase, 
+    inlet_conveyance <- inlet_conveyanceServer("inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase,
                                                sys_id =sys_id, special_char_replace = special_char_replace)
     #Special Investigations
     special_investigations<- special_investigationsServer("special_investigations", parent_session = session,
