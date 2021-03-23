@@ -10,6 +10,8 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
                         column(width = 5,
                                #split layout with left and right
                                sidebarPanel(width = 12, 
+                                            fluidRow(h5()),
+                                            fluidRow(h5()),
                                               selectizeInput(ns("system_id"), future_req(html_req("System ID")), 
                                                           choices = NULL, 
                                                           options = list(

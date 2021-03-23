@@ -9,6 +9,8 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
            fluidRow(
              column(width = 4, 
                     sidebarPanel(width = 12, 
+                                 fluidRow(h5()),
+                                 fluidRow(h5()),
                                  fluidRow(
                                    column(6,selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), 
                                                         choices = NULL, 
@@ -27,9 +29,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                                     column(6, selectInput(ns("priority"), "Future Test Priority", 
                                                                           choices = c("", priority$field_test_priority), selected = NULL))
                                                   )),
-                                 conditionalPanel(condition = "input.premonitoring_date", 
-                                                  ns = ns, 
-                                                  selectInput(ns("ready"), "Ready for Deployment?", 
+                                 disabled(selectInput(ns("ready"), "Ready for Deployment?", 
                                                               choices = c("", "Yes" = 1, "No" = 0))
                                  ),
                                  fluidRow(
@@ -935,6 +935,42 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         }
       })
       
+      #future deployments ---------
+      observeEvent(input$premonitoring_date, {
+        if(length(input$premonitoring_date) > 0){
+          
+          rv$cet_asset_query <- reactive(paste0("SELECT count(*) FROM smpid_facilityid_componentid_inlets_limited WHERE smp_id = '", input$smp_id, "' AND component_id != 'NULL'"))
+          
+          rv$cet_count_query <- reactive(paste0("select count(*) from fieldwork.capture_efficiency_full 
+                                              where component_to_smp(component_id) = ", rv$smp_id(), "
+                                              and test_date < ", rv$premonitoring_date(), "::timestamp + interval '1 day' 
+                                              and test_date > ", rv$premonitoring_date(), "::timestamp - interval '30 days'" ))
+          
+          rv$cet_asset_count <- reactive(dbGetQuery(poolConn, rv$cet_asset_query()) %>% pull())
+          
+          #print(rv$cet_asset_count())
+          
+          #print(rv$cet_count_query())
+          
+          rv$cet_count <- reactive(dbGetQuery(poolConn, rv$cet_count_query()) %>% pull())
+          
+          #print(rv$cet_count())
+          
+          cet_good <- rv$cet_asset_count() == rv$cet_count()
+          
+          if(cet_good == FALSE){
+            showModal(modalDialog(title = "Add Capture Efficiency Test", 
+                                  "Add capture efficiency tests from the pre-monitoring inspection?", 
+                                  modalButton("No"), 
+                                  actionButton(ns("add_cet"), "Yes")))
+            disable("ready")
+          }else{
+            enable("ready")
+          }
+        }
+      })
+      
+      
       #write or edit a future deployment
       observeEvent(input$future_deploy, {
         if(rv$add_new_future()){
@@ -961,26 +997,6 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   future_deployment_uid = '", rv$update_future_deployment_uid(), "'" 
                            ))
         }
-        
-        if(input$ready == 1){
-          cet_exists_query <- paste0("select * from fieldwork.capture_efficiency_full 
-                                            where system_id = smp_to_system(", rv$smp_id(), ") 
-                                            and test_date < ", rv$premonitoring_date(), "::timestamp + interval '1 day' 
-                                            and test_date > ", rv$premonitoring_date(), "::timestamp - interval '30 days'" )
-          
-          cet_exists_table <- dbGetQuery(poolConn, cet_exists_query)
-          
-          cet_exists <- nrow(cet_exists_table) > 0
-          
-          if(cet_exists == FALSE){
-            showModal(modalDialog(title = "Add Capture Efficiency Test", 
-                                  "Add capture efficiency tests from the pre-monitoring inspection?", 
-                                  modalButton("No"), 
-                                  actionButton(ns("add_cet"), "Yes")))
-          }
-          
-        }
-        
         
         rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
         rv$refresh_collect <- rv$refresh_collect + 1
@@ -1111,7 +1127,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       # })
       
       observe({toggleState(id = "future_deploy", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
-                             nchar(input$well_name) > 0) })
+                             nchar(input$well_name) > 0 & nchar(input$ready) > 0) })
       
       #toggle future deployment delete button
       observe({toggleState(id = "delete_future", condition = length(rv$future()) > 0 )})

@@ -55,7 +55,8 @@ special_investigationsUI <- function(id, label = "special_investigations",
                         textAreaInput(ns("notes"), "Notes", height = '90px'), 
                         conditionalPanel(condition = "input.date === null", 
                                          ns = ns, 
-                                         actionButton(ns("future_test"), "Add Future Special Investigation")),
+                                         actionButton(ns("future_test"), "Add Future Special Investigation"), 
+                                         actionButton(ns("delete_future_test"), "Delete Future SI")),
                         actionButton(ns("add_test"), "Add Special Investigation"), 
                         actionButton(ns("clear"), "Clear All Fields"),
                         fluidRow(
@@ -145,6 +146,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                             length(input$date) == 0 &
                             (nchar(input$type) > 0 & nchar(input$requested_by) > 0)
       ))
+      
+      #toggle future deployment delete button
+      observe(toggleState(id = "delete_future_test", condition = length(input$future_si_table_rows_selected) != 0))
       
       #toggle 'results fields' so they can only be filled when a test date is entered
       observe(toggleState("sensor_deployed", condition = length(input$date) > 0))
@@ -647,6 +651,27 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
           dataTableProxy('future_si_table') %>% selectRows(future_si_row)
         })
       })
+      
+      #delete a future SI
+      #first, intermediate dialog box
+      observeEvent(input$delete_future_test, {
+        showModal(modalDialog(title = "Delete Future Special Investigation", 
+                              "Delete Future Special Investigation?", 
+                              modalButton("No"), 
+                              actionButton(ns("confirm_delete_future"), "Yes")))
+      })
+      
+      observeEvent(input$confirm_delete_future, {
+        odbc::dbGetQuery(poolConn, 
+                         paste0("DELETE FROM fieldwork.future_special_investigation WHERE future_special_investigation_uid = '",
+                                rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
+        
+        #update future cet table
+        rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
+        rv$all_future_si_table_db <- reactive(reactive(odbc::dbGetQuery(poolConn, rv$all_future_si_query())))
+        #remove pop up
+        removeModal()
+      }) 
       
       return(
         list(
