@@ -53,7 +53,8 @@ inlet_conveyanceUI <- function(id, label = "inlet_conveyance", site_names, html_
                                   textAreaInput(ns("notes"), "Notes", height = '90px'), 
                                   conditionalPanel(condition = "input.date === null", 
                                                    ns = ns, 
-                                                   actionButton(ns("future_test"), "Add Future Inlet Conveyance Test")),
+                                                   actionButton(ns("future_test"), "Add Future Inlet Conveyance Test"), 
+                                                   actionButton(ns("delete_future_test"), "Delete Future ICT")),
                                   actionButton(ns("add_test"), "Add Inlet Conveyance Test"), 
                                   actionButton(ns("clear"), "Clear All Fields"), 
                         fluidRow(
@@ -140,6 +141,9 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
                             length(input$date) == 0&
                             (nchar(input$comp_id) > 0 | nchar(input$comp_id_custom) > 0)
                           ))
+      
+      #toggle future deployment delete button
+      observe(toggleState(id = "delete_future_test", condition = length(input$future_ict_table_rows_selected) != 0))
       
       #toggle 'results fields' so they can only be filled when a test date is entered
       observe(toggleState("eq_flow_rate", condition = length(input$date) > 0))
@@ -476,7 +480,6 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         	                                   rv$facility_id(), rv$phase_null(), rv$calc_flow_rate(), 
         	                                   rv$priority_lookup_uid(),  
         	                                   rv$notes(), sep = ", "), ")")
-          print(add_future_test_query)
           
           odbc::dbGetQuery(poolConn, add_future_test_query)
         }else{
@@ -709,6 +712,27 @@ inlet_conveyanceServer <- function(id, parent_session, poolConn, con_phase, sys_
         }
               )
       })
+      
+      #delete a future SI
+      #first, intermediate dialog box
+      observeEvent(input$delete_future_test, {
+        showModal(modalDialog(title = "Delete Future Inlet Conveyance Test", 
+                              "Delete Future Inlet Conveyance Test?", 
+                              modalButton("No"), 
+                              actionButton(ns("confirm_delete_future"), "Yes")))
+      })
+      
+      observeEvent(input$confirm_delete_future, {
+        odbc::dbGetQuery(poolConn, 
+                         paste0("DELETE FROM fieldwork.future_inlet_conveyance WHERE future_inlet_conveyance_uid = '",
+                                rv$future_ict_table_db()[input$future_ict_table_rows_selected, 1], "'"))
+        
+        #update future cet table
+        rv$future_ict_table_db <- reactive(odbc::dbGetQuery(poolConn, future_ict_table_query()))
+        rv$all_future_ict_table_db <- reactive(reactive(odbc::dbGetQuery(poolConn, rv$all_future_query())))
+        #remove pop up
+        removeModal()
+      }) 
       
       # observeEvent(rv$future_ict_table_db(), {
       #   if(length(input$future_ict_selected) > 0){

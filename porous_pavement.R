@@ -6,7 +6,9 @@ porous_pavementUI <- function(id, label = "porous_pavement", html_req, surface_t
   navbarMenu("Porous Pavement", 
              tabPanel("Add/Edit Porous Pavement Test", value = "ppt_tab", 
                       titlePanel("Add Porous Pavement Test"), 
-                      sidebarPanel(selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), choices = NULL, 
+                      sidebarPanel(fluidRow(h5()),
+                                   fluidRow(h5()),
+                                   selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), choices = NULL, 
                                                   options = list(
                                                     placeholder = 'Select an Option',
                                                     onInitialize = I('function() { this.setValue(""); }')
