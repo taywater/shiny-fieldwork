@@ -1,7 +1,7 @@
 #Deploy Sensor tab
 #Left Sidebar with 3 tables: Future, Active, and Past Deployments
 
-deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority, future_req){
+deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
   ns <- NS(id)
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
@@ -71,13 +71,22 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                  conditionalPanel(width = 12, 
                                                   condition = "input.collect_date",
                                                   ns = ns,
-                                                  selectInput(ns("download_error"), html_req("Did you encounter a download error?"), 
+                                                  selectInput(ns("download_error"), html_req("Did you encounter a sensor issue?"), 
                                                               choices = c("", "No" = 0, "Yes" = 1), selected = NULL)),
                                  #if there is a download error, ask if the sensor is broken
                                  conditionalPanel(width = 12, 
                                                   condition = "input.download_error == '1'", 
                                                   ns = ns,
-                                                  checkboxInput(ns("sensor_broken"), "Sensor Broken?")), 
+                                                  checkboxInput(ns("sensor_broken"), "Take Sensor Out of Service?")), 
+                                 #if sensor is out of service, ask what the issues are and if data should be requested
+                                 conditionalPanel(width = 12, 
+                                                  ns = ns, 
+                                                  condition = "input.sensor_broken", 
+                                                  selectInput(ns("issue_one"), html_req("Issue #1"), 
+                                                              choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL), 
+                                                  selectInput(ns("issue_two"), "Issue #2", 
+                                                              choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL), 
+                                                  checkboxInput(ns("request_data"), "Request Data Be Retrieved and Sent to PWD")),
                                  #if there is a collection date, ask if user wants to redeploy
                                  conditionalPanel(width = 12, 
                                                   condition = "input.collect_date",
@@ -127,7 +136,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
   )
 }
 
-deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si, cwl_history, smp_id){
+deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si, cwl_history, smp_id, sensor_issue_lookup){
   
   moduleServer(
     id, 
@@ -286,6 +295,16 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #toggle to make sure that only of SMP ID or Site Name is selected
       observe(toggleState("smp_id", condition = nchar(input$site_name) == 0))
       observe(toggleState("site_name", condition = nchar(input$smp_id) == 0))
+      
+      
+      #toggle label for redeployment
+      rv$redeploy_label <- reactive(if(input$sensor_broken == TRUE){
+        "Redeploy with Different Sensor"
+      }else{
+        "Redeploy with Same Sensor"
+      })
+      
+      observe(updateCheckboxInput(session, "redeploy", label = rv$redeploy_label()))
       
       #toggle labels for depth to water / water depth 
       rv$deploy_depth_to_water_label <- reactive(if(str_detect(input$well_name, "^SW")){
@@ -766,6 +785,14 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         }
       )
       
+      #if there is an end date, look for measurements with an overlap of that deployment
+      rv$count_end_date <- reactive(
+        odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements
+                                          where smp_id = '", input$smp_id, "' and ow_suffix = '", input$well_name, "' and 
+                                          well_measurements_uid is not null and start_dtime_est <= '", input$deploy_date, "'
+                                          and end_dtime_est is null or end_dtime_est >= '", input$collect_date, "'")) %>% pull()
+      )
+      
       #check if the well is a Shallow Well or Datalogger - they do not require measurements so we don't want a popup
       rv$sw_or_dl <- reactive(
         if(str_detect(input$well_name, "^SW") == TRUE | str_detect(input$well_name, "^DL") == TRUE){
@@ -775,7 +802,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         }
       )
       
-      #tell whether youa re adding new deployments or future deployments, or editing
+      #tell whether you are adding new deployments or future deployments, or editing
       rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
       rv$add_new_future <- reactive(length(input$future_deployment_rows_selected) == 0)
       
@@ -787,16 +814,18 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         "There is already a future deployment at this location. Add new deployment at same location without removing future deployment?"
       }else if(rv$add_new() & input$well_name %in% rv$future_table_db()$ow_suffix & rv$add_new_future() == FALSE){
         "Add New Deployment and Remove Future Deployment?"
-      }else if(rv$add_new() & rv$redeploy()){
-        "Add New Deployment and Redeploy Sensor?"
+      }else if(rv$add_new() & rv$redeploy() & input$sensor_broken != TRUE){
+        "Add New Deployment and Redeploy Same Sensor?"
+      }else if(rv$add_new() & rv$redeploy() & input$sensor_broken == TRUE){
+        paste0("Add New Deployment with Sensor ", input$sensor_id, ", Mark Sensor ", input$sensor_id, " As Out of Service, and Deploy Sensor ", input$new_sensor_id, "?")
       }else if(rv$add_new() & rv$redeploy() == FALSE){
         "Add New Deployment?"
       }else if(rv$add_new() == FALSE & rv$redeploy() == TRUE & input$sensor_broken != TRUE){
         "Edit Deployment and Redeploy Sensor?"
       }else if(rv$add_new() == FALSE & rv$redeploy() == TRUE & input$sensor_broken == TRUE){
-        paste0("Edit Deployment, Mark Sensor ", input$sensor_id, " As Broken, and Deploy Sensor ", input$new_sensor_id, "?")
+        paste0("Edit Deployment, Mark Sensor ", input$sensor_id, " As Out of Service, and Deploy Sensor ", input$new_sensor_id, "?")
       }else if(rv$add_new() == FALSE & rv$redeploy() == FALSE & input$sensor_broken == TRUE){
-        paste0("Edit Deployment and Mark Sensor ", input$sensor_id, " As Broken?")
+        paste0("Edit Deployment and Mark Sensor ", input$sensor_id, " As Out of Service?")
       }else if(rv$add_new() == FALSE & rv$redeploy() == FALSE){
         "Edit Deployment?"
       })
@@ -836,6 +865,20 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                               actionButton(ns("confirm_deploy"), "Yes")))
       })
       
+      #get sensor issue lookup uid and let it be NULL (for issue #1 and issue #2)
+      rv$issue_lookup_uid_one <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_one) %>% 
+                                            select(sensor_issue_lookup_uid) %>% pull())
+      
+      rv$sensor_issue_lookup_uid_one <- reactive(if(nchar(input$issue_one) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_one(), "'"))
+      
+      rv$issue_lookup_uid_two <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_two) %>% 
+                                            select(sensor_issue_lookup_uid) %>% pull())
+      
+      rv$sensor_issue_lookup_uid_two <- reactive(if(nchar(input$issue_two) == 0) "NULL" else paste0("'", rv$issue_lookup_uid_two(), "'"))
+      
+      #let checkbox input be NULL if blank (instead of FALSE)
+      rv$request_data <- reactive(if(input$request_data == TRUE) paste0("'TRUE'") else "NULL")
+      
       #create tickers that update to notify other modules of updates
       rv$refresh_collect <- 0 
       rv$refresh_sensor <- 0
@@ -869,7 +912,10 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         
         #write sensor status
         if(input$sensor_broken == TRUE){
-          dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_status_lookup_uid = '2'
+          dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_status_lookup_uid = '2', 
+                                            sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
+                                            sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
+                                            request_data = ", rv$request_data(), "
                                       WHERE sensor_serial = '", input$sensor_id, "'"))
           rv$refresh_sensor <- rv$refresh_sensor + 1
         }
@@ -902,12 +948,20 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         removeModal()
         
         #if you need to add a current deployment measurement:
-        if(rv$complete_end_dates() == FALSE & rv$sw_or_dl() == FALSE){
+        if(length(input$collect_date) > 0 & rv$sw_or_dl() == FALSE){
+          if(rv$count_end_date() == 0){
+            showModal(modalDialog(title = "Check Measurements", 
+                                  "This monitoring location does not have measurements form this period. Would you like to add?", 
+                                  modalButton("No"), 
+                                  actionButton(ns("confirm_add_measurements"), "Yes")))
+          }
+        }
+        if(rv$complete_end_dates() == FALSE & rv$sw_or_dl() == FALSE & length(input$collect_date) == 0){
           showModal(modalDialog(title = "Check Measurements", 
                                 "This monitoring location does not have current measurements. Would you like to add?", 
                                 modalButton("No"), 
                                 actionButton(ns("confirm_add_measurements"), "Yes")))
-          #if you need to add an end date when a sensor is not being redeployed
+        #if you need to add an end date when a sensor is not being redeployed
         }else if(rv$redeploy() == FALSE & rv$collect_date() != "NULL" & rv$complete_end_dates() == TRUE & rv$sw_or_dl() == FALSE){
           showModal(modalDialog(title = "Check Measurements", 
                                 "Did you collect hardware? Would you like to add an end date to these deployment measurements?", 
