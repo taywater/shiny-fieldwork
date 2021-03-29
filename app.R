@@ -193,7 +193,8 @@
                          append(collection_calendarUI("collection_calendar")) %>%
                          append(deployUI("deploy", sensor_serial = sensor_serial, site_names = site_names,
                                          html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup,
-                                         research_lookup = research_lookup, priority = priority, future_req = future_req))),
+                                         research_lookup = research_lookup, priority = priority, future_req = future_req, 
+                                         sensor_issue_lookup = sensor_issue_lookup))),
                    #Add/Edit Location
                     add_owUI("add_ow", site_names = site_names, html_req = html_req),
                    #Add/Edit Sensor
@@ -302,7 +303,8 @@
     #Deploy Sensor
     deploy <- deployServer("deploy", parent_session = session, ow = ow, collect = collection_cal,
                          sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup,
-                         srt = srt, si = special_investigations, cwl_history = cwl_history, smp_id = smp_id)
+                         srt = srt, si = special_investigations, cwl_history = cwl_history, smp_id = smp_id, 
+                         sensor_issue_lookup = sensor_issue_lookup)
     #SRT
     srt <- SRTServer("srt", parent_session = session, poolConn = poolConn,
                      srt_types = srt_types, con_phase = con_phase, sys_id = sys_id, special_char_replace = special_char_replace)
