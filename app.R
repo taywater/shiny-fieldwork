@@ -89,11 +89,7 @@
   source("add_sensor.R")
   source("deploy.R")
   source("srt.R")
-  source("porous_pavement.R")
-  source("capture_efficiency.R")
-  source("inlet_conveyance.R")
   source("special_investigations.R")
-  source("monitoring_stats.R")
   source("history.R")
   source("documentation.R")
   
@@ -143,15 +139,6 @@
       srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
       con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
       
-      #porous pavement surface types
-      surface_type <- dbGetQuery(poolConn, "select * from fieldwork.surface_type_lookup")
-      # 
-      # #capture efficiency high flow types
-      high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
-      
-      #capture efficiency asset types 
-      cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets_limited where component_id is not null order by asset_type")   
-      
       #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
       html_req <- function(label){
         HTML(paste(label, tags$span(style="color:red", tags$sup("*"))))
@@ -161,12 +148,6 @@
       future_req <- function(label){
         HTML(paste(label, tags$span(style="color:blue", tags$sup("†"))))
       }
-      
-      #monitoring stats
-      #get the current fiscal year and list of all years from start of data (2012) to now
-      current_fy <- lubridate::today() %m+% months(6) %>% year()
-      start_fy <- 2012
-      years <- start_fy:current_fy %>% sort(decreasing = TRUE)
       
       #project work numbers
       work_number <- dbGetQuery(poolConn, "select distinct worknumber from greenit_projectbestdata") %>% pull()
@@ -204,22 +185,10 @@
                    #SRT (Add/Edit SRT, View SRTs, View Future SRTs)
                     SRTUI("srt", srt_types = srt_types, html_req = html_req,
                           con_phase = con_phase, priority = priority, future_req = future_req),
-                   #Porous Pavement (Add/Edit Porous Pavement Test, View Porous Pavement Tests, View Future Porous Pavement Tests)
-                    porous_pavementUI("porous_pavement", html_req = html_req,
-                                    surface_type = surface_type, con_phase = con_phase, priority = priority, future_req = future_req),
-                   #Capture Efficiency (Add/Edit Capture Efficiency Test, View Capture Efficiency Tests, View Future Capture Efficiency Tests)
-                    capture_efficiencyUI("capture_efficiency", high_flow_type = high_flow_type,
-                                       html_req = html_req, con_phase = con_phase, priority = priority,
-                                       future_req = future_req, cet_asset_type = cet_asset_type),
-                   #Inlet Conveyance (Add/Edit Inlet Conveyance Test, View Inlet Conveyance Tests, View Future Inlet Conveyance Tests)
-                    inlet_conveyanceUI("inlet_conveyance", work_number = work_number, html_req = html_req,
-                                       con_phase = con_phase, priority = priority, site_names = site_names, future_req = future_req),
                    #Special Investigations (Add/Edit Special Investigations, View Special Investigations, View Future Special Investigations)
                     special_investigationsUI("special_investigations", work_number = work_number, html_req = html_req,
                                              con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup,
                                              requested_by_lookup = requested_by_lookup, future_req = future_req),
-                   #Stats
-                   m_statsUI("stats", current_fy = current_fy, years = years),
                    #Monitoring History 
                   historyUI("history"),
                    #Documentation
@@ -239,10 +208,6 @@
       dplyr::arrange(smp_id) %>% 
       dplyr::pull()
     
-    pp_smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid where asset_type = 'Permeable Pavement'")) %>% 
-      dplyr::arrange(smp_id) %>% 
-      dplyr::pull()
-    
     sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpid_facilityid_componentid")) %>% 
       dplyr::arrange(system_id) %>% 
       dplyr::pull()
@@ -258,18 +223,6 @@
     #srt_types & con phase
     srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
     con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
-    
-    #porous pavement surface types
-    surface_type <- dbGetQuery(poolConn, "select * from fieldwork.surface_type_lookup")
-    # 
-    # #capture efficiency high flow types
-    high_flow_type <- dbGetQuery(poolConn, "select * from fieldwork.est_high_flow_efficiency_lookup")
-    
-    #capture efficiency asset types 
-    cet_asset_type <- dbGetQuery(poolConn, "select distinct asset_type from smpid_facilityid_componentid_inlets_limited where component_id is not null order by asset_type")
-    
-    #monitoring stats
-    current_fy <- lubridate::today() %m+% months(6) %>% year()
     
     #special investigation types
     si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")
@@ -308,22 +261,10 @@
     #SRT
     srt <- SRTServer("srt", parent_session = session, poolConn = poolConn,
                      srt_types = srt_types, con_phase = con_phase, sys_id = sys_id, special_char_replace = special_char_replace)
-    #Porous Pavement
-    porous_pavement <- porous_pavementServer("porous_pavement", parent_session = session, surface_type = surface_type,
-                                  poolConn = poolConn, con_phase = con_phase, smp_id = pp_smp_id)
-    #Capture Efficiency
-    capture_efficiency <- capture_efficiencyServer("capture_efficiency", parent_session = session,
-                                     poolConn = poolConn, high_flow_type = high_flow_type, con_phase = con_phase,
-                                     cet_asset_type = cet_asset_type, deploy = deploy, sys_id = sys_id, special_char_replace = special_char_replace)
-    #Inlet Conveyance
-    inlet_conveyance <- inlet_conveyanceServer("inlet_conveyance", parent_session = session, poolConn = poolConn, con_phase = con_phase,
-                                               sys_id =sys_id, special_char_replace = special_char_replace)
     #Special Investigations
     special_investigations<- special_investigationsServer("special_investigations", parent_session = session,
                                         poolConn = poolConn, con_phase = con_phase, si_lookup = si_lookup,
                                         requested_by_lookup = requested_by_lookup, sys_id = sys_id, special_char_replace = special_char_replace)
-    #Stats
-    stats <- m_statsServer("stats", parent_session = session, current_fy = current_fy, poolConn = poolConn)
     #History
     cwl_history <- cwl_historyServer("history", parent_session = session, poolConn = poolConn, deploy = deploy)
     
