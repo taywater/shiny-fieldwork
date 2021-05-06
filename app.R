@@ -206,10 +206,12 @@
     #query all SMP IDs
     smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
       dplyr::arrange(smp_id) %>% 
-      dplyr::pull()
+      dplyr::filter(smp_id != "" & smp_id != "--") %>%
+      dplyr::pull()  
     
     sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpid_facilityid_componentid")) %>% 
       dplyr::arrange(system_id) %>% 
+      dplyr::filter(system_id != "" & system_id != "--") %>%
       dplyr::pull()
     
     #Sensor Model Number options
