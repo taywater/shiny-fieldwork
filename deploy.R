@@ -1,17 +1,29 @@
 #Deploy Sensor tab
 #Left Sidebar with 3 tables: Future, Active, and Past Deployments
+#4/29/21 adding section headers
 
-deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
+
+#1.0 UI -----
+
+deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, 
+                     deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
+  #namespace initializaiton
   ns <- NS(id)
+  #set this up as a list so it can be read into the app.R UI correctly
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
            titlePanel("Deploy Sensor"), 
            fluidRow(
+             #1.1 Sidebar ----
+             #set width of column where sidebar is, relative to full screen
              column(width = 4, 
                     sidebarPanel(width = 12, 
+                                 #put some empty space on top so the calendar shows enough
                                  fluidRow(h5()),
                                  fluidRow(h5()),
                                  fluidRow(
+                                   #selectizeInput for smps. server side is fast so this starts empty
+                                   #placeholder is necessary
                                    column(6,selectizeInput(ns("smp_id"), future_req(html_req("SMP ID")), 
                                                         choices = NULL, 
                                                         options = list(
@@ -119,6 +131,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                    HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.", "Check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")))
                     ), 
              ),
+             #1.2 Tables ----
              column(width = 8,
                     #show tables when an smp id is selected
                     conditionalPanel(condition = "input.smp_id || input.site_name",
@@ -136,43 +149,46 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
   )
 }
 
+#2.0 Server---------
 deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, deployment_lookup, srt, si, cwl_history, smp_id, sensor_issue_lookup){
   
   moduleServer(
     id, 
     function(input, output, session){
   
-      #define ns to use in modals
-      ns <- session$ns
+      #2.0.1 Set up ----
+        #define ns to use in modals
+        ns <- session$ns
+        
+        #start reactiveValues for this section/tab
+        rv <- reactiveValues()
+        
+        #update SMP IDs
+        updateSelectizeInput(session, "smp_id", choices = smp_id, selected = character(0), server = TRUE)
+        
+      #2.0.2 Some dependent inputs ----
+        #get a site name UID if a site name is selected
+        rv$site_name_lookup_uid_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
+        
+        rv$site_name_lookup_uid <- reactive(if (nchar(input$site_name) > 0) paste0("'", rv$site_name_lookup_uid_step(), "'") else "NULL")
+        
+        #set smp id to NULL if using site name
+        rv$smp_id <- reactive(if (nchar(input$smp_id) > 0) paste0("'", input$smp_id, "'") else "NULL")
+        
+        ## well panel
+        #update sensor id choices based on the hobo list
+        observe(updateSelectInput(session, inputId = "sensor_id", choices = c("", sensor$sensor_serial()), selected = NULL))
       
-      #start reactiveValues for this section/tab
-      rv <- reactiveValues()
+        #query ow_suffixes based on smp_id
+        rv$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
+          "select ow_suffix from fieldwork.ow_all where smp_id = ", rv$smp_id(), " OR site_name_lookup_uid = ", rv$site_name_lookup_uid())) %>% dplyr::pull())
+        
+        observe(updateSelectInput(session, "well_name", choices = c("", rv$ow_suffixes())))
+        
+        #set minimum collection date to be same day as deployment date
+        observe(updateDateInput(session, "collect_date", min = input$deploy_date))
       
-      #update SMP IDs
-      updateSelectizeInput(session, "smp_id", choices = smp_id, selected = character(0), server = TRUE)
-      
-      #get a site name UID if a site name is selected
-      rv$site_name_lookup_uid_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
-      
-      rv$site_name_lookup_uid <- reactive(if (nchar(input$site_name) > 0) paste0("'", rv$site_name_lookup_uid_step(), "'") else "NULL")
-      
-      #set smp id to NULL if using site name
-      rv$smp_id <- reactive(if (nchar(input$smp_id) > 0) paste0("'", input$smp_id, "'") else "NULL")
-      
-      ## well panel
-      #update sensor id choices based on the hobo list
-      observe(updateSelectInput(session, inputId = "sensor_id", choices = c("", sensor$sensor_serial()), selected = NULL))
-    
-      #query ow_suffixes based on smp_id
-      rv$ow_suffixes <- reactive(odbc::dbGetQuery(poolConn, paste0(
-        "select ow_suffix from fieldwork.ow_all where smp_id = ", rv$smp_id(), " OR site_name_lookup_uid = ", rv$site_name_lookup_uid())) %>% dplyr::pull())
-      
-      observe(updateSelectInput(session, "well_name", choices = c("", rv$ow_suffixes())))
-      
-      #set minimum collection date to be same day as deployment date
-      observe(updateDateInput(session, "collect_date", min = input$deploy_date))
-      
-      #COMING FROM OTHER MODULES -----------
+      #2.1 Coming from other Modules -----------
       #upon clicking "deploy at this smp" in add_ow
       observeEvent(ow$refresh_deploy(), {
         #using shinyjs::reset is too slow and will reset after the selection is updated to the desired SMPID
@@ -291,7 +307,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       }
       )
       
-    #back to this tab ----------
+    #2.2 back to this tab ----------
       #toggle to make sure that only of SMP ID or Site Name is selected
       observe(toggleState("smp_id", condition = nchar(input$site_name) == 0))
       observe(toggleState("site_name", condition = nchar(input$smp_id) == 0))
