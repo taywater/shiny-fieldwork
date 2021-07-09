@@ -1,13 +1,14 @@
 #Add Sensor tab
 #This page is for adding a new sensor to the database, so it can be used for deployments
 
-#UI
+#1.0 UI -------
 add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, sensor_status_lookup, sensor_issue_lookup){
   #initialize namespace
   ns <- NS(id)
   
   tabPanel(title = "Add/Edit Sensor", value = "add_sensor",
            titlePanel("Add Sensor to Inventory or Edit Existing Sensor"), 
+           #1.1 sidebarPanel-----
            sidebarPanel(
              numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA), 
              selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = hobo_options, selected = NULL), 
@@ -28,7 +29,7 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
              selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
              downloadButton(ns("download"), "Download Sensor Inventory")
            ),
-           
+           #1.2 table -------
            mainPanel(
              DTOutput(ns("sensor_table")),
              textOutput(ns("testing"))
@@ -36,28 +37,68 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
   )
 }
 
+#2.0 Server ---------
 add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup, sensor_issue_lookup, deploy){
   
   moduleServer(
     id, 
     function(input, output, session){
   
-      
+      #2.0.1 set up ------
       #define ns to use in modals
       ns <- session$ns
       
       #start reactiveValues for this section
       rv <- reactiveValues()
       
+      #2.1 Query sensor table ----
+      #2.1.1 intial query -----
       #Sensor Serial Number List
       sensor_table_query <-  "select * from fieldwork.inventory_sensors_full"
       rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       
+      #2.1.2 query on update ----
       #upon breaking a sensor in deploy
       observeEvent(deploy$refresh_sensor(),{
         rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       })
       
+      #2.1.3 show sensor table
+      rv$sensor_table_display <- reactive(rv$sensor_table %>% 
+                                            mutate("date_purchased" = as.character(date_purchased)) %>% 
+                                            select("sensor_serial", "sensor_model", "date_purchased", "smp_id", 
+                                                   "site_name", "ow_suffix", "sensor_status", "issue_one", "issue_two", "request_data") %>% 
+                                            mutate_at(vars(one_of("request_data")), 
+                                                      funs(case_when(. == 1 ~ "Yes"))) %>% 
+                                            rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
+                                                   "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", 
+                                                   "Location" = "ow_suffix", "Status" = "sensor_status", 
+                                                   "Issue #1" = "issue_one", "Issue #2" = "issue_two", "Request Data" = "request_data")
+      )
+      
+      output$sensor_table <- renderDT(
+        rv$sensor_table_display(),
+        selection = "single",
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover',
+        options = list(scroller = TRUE, 
+                       scrollX = TRUE, 
+                       scrollY = 550), 
+        callback = JS('table.page("next").draw(false);')
+      )
+      
+      
+      #2.3 prefilling inputs based on model serial number -----
+      
+      #select a row in the table to update the serial no. you can also just type in the serial number
+      #see above for how updating the serial number updates the rest of the fields
+      #this is different than the other tabs because there is no fixed smp_id type of primary key here - so you can either type OR select a row to get to the sensor, and you have to be able to type because you might want to add a new sensor this way. 
+      #it works it's just different
+      observeEvent(input$sensor_table_rows_selected, {
+        updateTextInput(session, "serial_no", value = rv$sensor_table$sensor_serial[input$sensor_table_rows_selected])
+      })
+      
+      #not sure why this is so many of the same ifs. can be consolidated later
       #if input serial number is already in the list, then suggest the existing model number. if it isn't already there, show NULL
       rv$model_no_select <- reactive(if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(sensor_model) %>% dplyr::pull() else "")
       
@@ -80,7 +121,6 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
         
        updateSelectInput(session, "issue_one", selected = rv$issue_one_select)
         
-        
         #if input serial number is already in the list, then suggest issue #2
         rv$issue_two_select <- if(input$serial_no %in% rv$sensor_table$sensor_serial) dplyr::filter(rv$sensor_table, sensor_serial == input$serial_no) %>% dplyr::select(issue_two) %>% dplyr::pull() else ""
         
@@ -93,6 +133,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
       
         })
       
+      #2.3 preparing inputs
       #get sensor status uid
       rv$status_lookup_uid <- reactive(sensor_status_lookup %>% dplyr::filter(sensor_status == input$sensor_status) %>% 
                                select(sensor_status_lookup_uid) %>% pull())
@@ -115,6 +156,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
       #let checkbox input be NULL if blank (instead of FALSE)
       rv$request_data <- reactive(if(input$request_data == TRUE) paste0("'TRUE'") else "NULL")
       
+      #2.4 toggle states/labels -----
       #enable/disable the "add sensor button" if all fields are not empty
       observe({toggleState(id = "add_sensor", condition = nchar(input$serial_no) > 0 & nchar(input$model_no) > 0)})
       observe({toggleState(id = "add_sensor_deploy", input$serial_no %in% rv$sensor_table$sensor_serial)})
@@ -139,6 +181,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
         }
       })
       
+      #2.5 add/edit table ------
       #Write to database when button is clicked
       observeEvent(input$add_sensor, { #write new sensor info to db
         
@@ -189,56 +232,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
         updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
       })
       
-      #show sensor table
-      rv$sensor_table_display <- reactive(rv$sensor_table %>% 
-                                            mutate("date_purchased" = as.character(date_purchased)) %>% 
-                                            select("sensor_serial", "sensor_model", "date_purchased", "smp_id", 
-                                                   "site_name", "ow_suffix", "sensor_status", "issue_one", "issue_two", "request_data") %>% 
-                                            mutate_at(vars(one_of("request_data")), 
-                                                      funs(case_when(. == 1 ~ "Yes"))) %>% 
-                                            rename("Serial Number" = "sensor_serial", "Model Number" = "sensor_model", 
-                                                "Date Purchased" = "date_purchased", "SMP ID" = "smp_id", "Site" = "site_name", 
-                                                "Location" = "ow_suffix", "Status" = "sensor_status", 
-                                                "Issue #1" = "issue_one", "Issue #2" = "issue_two", "Request Data" = "request_data")
-                                          )
-      
-      output$sensor_table <- renderDT(
-        rv$sensor_table_display(),
-        selection = "single",
-        style = 'bootstrap', 
-        class = 'table-responsive, table-hover',
-        options = list(scroller = TRUE, 
-                       scrollX = TRUE, 
-                       scrollY = 550), 
-        callback = JS('table.page("next").draw(false);')
-      )
-      
-    
-      #downloading the sensor table
-      #filter based on selected status
-      rv$sensor_table_download <- reactive(if(input$sensor_status_dl == "All"){
-        rv$sensor_table_display()
-      }else{
-        rv$sensor_table_display() %>% dplyr::filter(Status == input$sensor_status_dl)
-      })
-      
-      output$download <- downloadHandler(
-        filename = function(){
-          paste("Sensor_inventory", "_", Sys.Date(), ".csv", sep = "")
-        }, 
-        content = function(file){
-          write.csv(rv$sensor_table_download(), file, row.names = FALSE)
-        }
-      )
-      
-      #select a row in the table to update the serial no. 
-      #see above for how updating the serial number updates the rest of the fields
-      #this is different than the other tabs because there is no fixed smp_id type of primary key here - so you can either type OR select a row to get to the sensor, and you have to be able to type because you might want to add a new sensor this way. 
-      #it works it's just different
-      observeEvent(input$sensor_table_rows_selected, {
-        updateTextInput(session, "serial_no", value = rv$sensor_table$sensor_serial[input$sensor_table_rows_selected])
-      })
-      
+      #2.6 clear fields
       #clear all fields
       #bring up dialogue box to confirm
       observeEvent(input$clear, {
@@ -255,7 +249,27 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
         reset("sensor_status")
         removeModal()
       })
+
       
+      #2.7 download ----
+      #downloading the sensor table
+      #filter based on selected status
+      rv$sensor_table_download <- reactive(if(input$sensor_status_dl == "All"){
+        rv$sensor_table_display()
+      }else{
+        rv$sensor_table_display() %>% dplyr::filter(Status == input$sensor_status_dl)
+      })
+      
+      output$download <- downloadHandler(
+        filename = function(){
+          paste("Sensor_inventory", "_", Sys.Date(), ".csv", sep = "")
+        }, 
+        content = function(file){
+          write.csv(rv$sensor_table_download(), file, row.names = FALSE)
+        }
+      )
+
+      #2.8 return values ------
       return(
         list(
           refresh_serial_no = reactive(rv$refresh_serial_no),

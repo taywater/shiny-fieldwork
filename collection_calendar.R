@@ -1,3 +1,8 @@
+#Collection Calendar 
+#This module contains the UI for collection calendar and future deployments
+#in app.R the UI is merged with the deploy module UI in a tabset since they are all directly related to deployments
+
+#1.0 UI -------
 collection_calendarUI <- function(id, label = "collection_calendar"){
   #Collection Calendar ##
   ns <- NS(id)
@@ -5,11 +10,13 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
   
   #create a tabPanel for each tab
   list(
+    #1.1 Collection Calendar -------
     tabPanel("Collection Calendar", value = "calendar_tab", 
              #tags$style(HTML('table.dataTable tr.selected td, table.dataTable td.selected {background-color: pink !important;}')),
              
              titlePanel("Collection Calendar"), 
              useShinyjs(), #this function needs to be called anywhere in the UI to use any other Shinyjs() functions
+             #1.1.2 SidebarPanel ----
              sidebarPanel(
                selectInput(ns("property_type"), "Property Type", choices = c("All" = .5, "Public" = 1, "Private" = 0)),
                selectInput(ns("interval_filter"), "Interval", choices = c("All" = 10, "5" = 5, "15" = 15)),
@@ -18,10 +25,12 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
                selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3, "Special" = 4)),
                selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1))
              ), 
+             #1.1.3 Tables ---
              mainPanel(
                DTOutput(ns("collection"))
              )
     ), 
+    #1.2 Future Deployments ----
     tabPanel("Future Deployments", value = "future_tab", 
              
              titlePanel("Future Deployments"), 
@@ -29,8 +38,9 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
              downloadButton(ns("download_future"), "Download Future Deployments")
     )
   )
-  
 }
+
+#2.0 Server ----
 
 collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) {
   
@@ -38,11 +48,13 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
     id, 
     function(input, output, session){
       
+      #2.0.1 set up ----
       #define ns to use in modals
       ns <- session$ns
       
       rv <- reactiveValues()  
       
+      #2.0.2 querying tables ---
       #query the collection calendar and arrange by deployment_uid
       collect_query <- "select * from fieldwork.active_deployments"
       rv$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
@@ -51,6 +63,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
       future_query <- "select * from fieldwork.future_deployments_full order by field_test_priority_lookup_uid"
       rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
       
+      #2.0.3 updating tables following changes in other modules
       #upon editing a row in add_ow
       observeEvent(ow$refresh_collect(),{
         rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
@@ -63,6 +76,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
         rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
       })
       
+      #2.0.4 filtering collection calendar table -----
       rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3, 4)} else {input$term_filter})
       rv$purpose_filter <- reactive(if(input$purpose_filter == 1.5){c(0, 1, 2, 3)} else {input$purpose_filter})
       
@@ -108,6 +122,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
                                             "Deploy Date" = "deployment_dtime_est", 
                                             "80% Full Date" = "date_80percent", "100% Full Date" = "date_100percent"))
       
+      #2.1 showing table ----
       output$collection <- renderDT(
         DT::datatable(
           rv$collect_table(), 
@@ -134,16 +149,6 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
             backgroundColor = styleEqual('Yes', 'yellow')
           )
       )
-      
-      rv$deploy_refresh <- 0
-      rv$future_deploy_refresh <- 0
-      
-      #this is a two-step observeEvent
-      #when a line in the calendar is clicked, go toggle and update "smp_id_deploy", and switch tabs
-      observeEvent(input$collection_rows_selected, {
-        rv$deploy_refresh <- rv$deploy_refresh + 1
-        updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
-      })
       
       ##Future table details
       #this is set up slightly different than other reactables
@@ -191,7 +196,23 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
       )
       )
       
+      #2.2 click rows-----
+      rv$deploy_refresh <- 0
+      rv$future_deploy_refresh <- 0
       
+      #this is a two-step observeEvent
+      #when a line in the calendar is clicked, go toggle and update "smp_id_deploy", and switch tabs
+      observeEvent(input$collection_rows_selected, {
+        rv$deploy_refresh <- rv$deploy_refresh + 1
+        updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+      })
+      
+      observeEvent(input$fd_selected, {
+        rv$future_deploy_refresh <- rv$future_deploy_refresh + 1
+        updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
+      })
+      
+      #2.3 download future table -----
       output$download_future <- downloadHandler(
         filename = function(){
           paste("future_deployments_", Sys.Date(), ".csv", sep = "")
@@ -201,11 +222,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
         }
       )
       
-      observeEvent(input$fd_selected, {
-        rv$future_deploy_refresh <- rv$future_deploy_refresh + 1
-        updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
-      })
-      
+      #2.4 return values
       return(
         list(
           sensor_serial = reactive(rv$collect_table_db$sensor_serial),

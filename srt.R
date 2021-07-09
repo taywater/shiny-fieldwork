@@ -1,12 +1,16 @@
 #SRT tabs
 #This has a tab dropdown with two tabs, one for adding SRTs and one for viewing all SRTs
 
+#1.0 UI -----
+
 SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, future_req){
   ns <- NS(id)
   navbarMenu("SRT", 
+             #1.1 Add/Edit ----
              tabPanel("Add/Edit SRT", value = "srt_tab", 
                       titlePanel("Add/Edit Simulated Runoff Test (SRT)"), 
                       fluidRow(
+                        #1.1.1 SidebarPanel ----
                         column(width = 5,
                                #split layout with left and right
                                sidebarPanel(width = 12, 
@@ -65,6 +69,7 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
                                                                       ")))
                                                                         )
                         ),
+                        #1.1.2 Tables -----
                         column(width = 7,
                                conditionalPanel(condition = "input.system_id", 
                                                 ns = ns, 
@@ -76,23 +81,26 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
                         )
                       )
              ),
+             #1.2 View SRTs -----
              tabPanel("View SRTs", value = "view_SRT", 
                       titlePanel("All Simulated Runoff Tests"),
                       reactableOutput(ns("all_srt_table"))
              ), 
+             #1.3 View Future ------
              tabPanel("View Future SRTs", value = "view_future_SRT", 
                       titlePanel("All Future Simulated Runoff Tests"), 
                       reactableOutput(ns("all_future_srt_table")))
   )
 }
 
+#2.0 Server -------
 SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id, special_char_replace){
   
   moduleServer(
     id,
     function(input, output, session){
   
-  
+      #2.0.1 Set up ----
       #define ns to use in modals
       ns <- session$ns
       
@@ -105,6 +113,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #                                    srt.srt_stormsize_in, srt.srt_summary, md.srt_metadata_uid, md.flow_data_recorded, md.water_level_recorded, 
       #                                    md.photos_uploaded, md.sensor_collection_date, md.qaqc_complete, md.srt_summary_date FROM fieldwork.srt srt LEFT JOIN fieldwork.srt_metadata md ON srt.srt_uid = md.srt_uid WHERE system_id = '", input$system_id, "'"))
     
+      #2.1 Add/Edit ---------
+      #2.1.1 Headers ---------
+      
       #Get the Project name, combine it with System ID, and create a reactive header
       rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
       
@@ -118,6 +129,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         paste("Future SRTs at", rv$sys_and_name())
       )
       
+      #2.1.2 Query and Display Tables -----
       srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.srt_full WHERE system_id = '", input$system_id, "'"))
       rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
       
@@ -126,10 +138,35 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                         "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
                                  dplyr::select("system_id", "test_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
       
+      #query metadata for stuff not in the main table
       rv$srt_metadata <- reactive(rv$srt_table_db() %>% 
                                     mutate(across(where(is.POSIXct), trunc, "days")) %>% 
                                     mutate(across(where(is.POSIXlt), as.character)))
       
+      output$srt_table <- renderDT(
+        rv$srt_table(), 
+        selection = 'single',
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover', 
+        colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Simulated Depth (in)', 'Results Summary') 
+      )
+      
+      #future table 
+      future_srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_srt_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
+      rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
+      
+      rv$future_srt_table <- reactive(rv$future_srt_table_db() %>% 
+                                        dplyr::select("system_id", "phase", "type", "dcia_ft2", "field_test_priority", "notes"))
+      
+      output$future_srt_table <- renderDT(
+        rv$future_srt_table(), 
+        selection = 'single', 
+        style = 'bootstrap', 
+        class = 'table-responsive, table-hover', 
+        colnames = c('System ID', 'Phase', 'Type', 'DCIA (sf)', 'Priority', 'Notes')
+      )
+      
+      #2.1.3 Prepare Inputs ---------
       rv$type <- reactive(srt_types %>% dplyr::filter(type == input$srt_type) %>% 
                             select(srt_type_lookup_uid) %>% pull())
       
@@ -144,6 +181,28 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
       rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
       
+      #set inputs to reactive values so "NULL" can be entered
+      #important to correctly place quotations
+      rv$test_volume <- reactive(if(is.na(input$test_volume)) "NULL" else paste0("'", input$test_volume, "'"))
+      rv$dcia_write <- reactive(if(is.na(input$dcia)) "NULL" else paste0("'", input$dcia, "'"))
+      rv$storm_size <- reactive(if(is.na(input$storm_size)) "NULL" else paste0("'", input$storm_size, "'"))
+      rv$srt_summary_step <- reactive(gsub('\'', '\'\'', input$srt_summary))
+      rv$srt_summary_step_two <- reactive(special_char_replace(rv$srt_summary_step()))
+      rv$srt_summary <- reactive(if(nchar(rv$srt_summary_step_two()) == 0) "NULL" else paste0("'", rv$srt_summary_step_two(), "'"))
+      
+      rv$flow_data_rec <- reactive(if(nchar(input$flow_data_rec) == 0 | input$flow_data_rec == "N/A") "NULL" else paste0("'", input$flow_data_rec, "'"))
+      rv$water_level_rec <- reactive(if(nchar(input$water_level_rec) == 0 | input$water_level_rec == "N/A") "NULL" else paste0("'", input$water_level_rec, "'"))
+      rv$photos_uploaded <- reactive(if(nchar(input$photos_uploaded) == 0 | input$photos_uploaded == "N/A") "NULL" else paste0("'", input$photos_uploaded, "'"))
+      rv$sensor_collect_date <- reactive(if(length(input$sensor_collect_date) == 0) "NULL" else paste0("'", input$sensor_collect_date, "'"))
+      rv$qaqc_complete <- reactive(if(nchar(input$qaqc_complete) == 0 | input$qaqc_complete == "N/A") "NULL" else paste0("'", input$qaqc_complete, "'"))
+      rv$srt_summary_date <- reactive(if(length(input$srt_summary_date) == 0) "NULL" else paste0("'", input$srt_summary_date, "'"))
+      rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0 | input$sensor_deployed == "N/A") "NULL" else paste0("'", input$sensor_deployed, "'"))
+      
+      #assure that the summary date does not precede the srt date
+      observe(updateDateInput(session, "srt_summary_date", min = input$srt_date))
+      observe(updateDateInput(session, "sensor_collect_date", min = input$srt_date))
+      
+      #2.1.4 Toggle states depending on inputs -----
       #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
       observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 &
                             nchar(input$srt_type) >0 & nchar(input$con_phase) > 0))
@@ -164,6 +223,17 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       observe(toggleState(id = "qaqc_complete", condition = length(input$srt_date) > 0))
       observe(toggleState(id = "srt_summary_date", condition = length(input$srt_date) > 0))
       
+      #update button names
+      rv$label <- reactive(if(length(input$srt_table_rows_selected) == 0) "Add New" else "Edit Selected")
+      observe(updateActionButton(session, "add_srt", label = rv$label()))
+      
+      rv$future_label <- reactive(if(length(input$future_srt_table_rows_selected) == 0) "Add Future SRT" else "Edit Selected Future SRT")
+      observe(updateActionButton(session, "future_srt", label = rv$future_label()))
+      
+      rv$summary_label <- reactive(if(length(input$srt_date) == 0) "Notes" else "Results Summary")
+      observe(updateTextAreaInput(session, "srt_summary", rv$summary_label()))
+      
+      #2.1.5 do the math -------
       #update Impervous Drainage Area
       srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE 
                                         system_id = '", input$system_id, "'"))
@@ -177,28 +247,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$eq_storm_size_in <- reactive(input$test_volume/rv$one_inch_storm_vol_cf())
       observe(updateNumericInput(session, "storm_size", value = rv$eq_storm_size_in()))
       
-      output$srt_table <- renderDT(
-        rv$srt_table(), 
-        selection = 'single',
-        style = 'bootstrap', 
-        class = 'table-responsive, table-hover', 
-        colnames = c('System ID', 'Test Date', 'Phase', 'Type', 'Volume (cf)', 'DCIA (sf)', 'Simulated Depth (in)', 'Results Summary') 
-      )
-      
-      future_srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_srt_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
-      rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
-      
-      rv$future_srt_table <- reactive(rv$future_srt_table_db() %>% 
-                                        dplyr::select("system_id", "phase", "type", "dcia_ft2", "field_test_priority", "notes"))
-      
-      output$future_srt_table <- renderDT(
-        rv$future_srt_table(), 
-        selection = 'single', 
-        style = 'bootstrap', 
-        class = 'table-responsive, table-hover', 
-        colnames = c('System ID', 'Phase', 'Type', 'DCIA (sf)', 'Priority', 'Notes')
-      )
-      
+      #2.1.6 Editing on clicks ---------
+      #future table
       observeEvent(input$future_srt_table_rows_selected, {
         #deselect from other table
         dataTableProxy('srt_table') %>% selectRows(NULL)
@@ -222,7 +272,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         reset("sensor_deployed")
       })
       
-      
+      #current table
       observeEvent(input$srt_table_rows_selected,{ 
         dataTableProxy('future_srt_table') %>% selectRows(NULL)
         #rv_ow$fac <- (rv$srt_table()[input$srt_table_rows_selected, 4])
@@ -247,36 +297,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         
       })
       
-      rv$label <- reactive(if(length(input$srt_table_rows_selected) == 0) "Add New" else "Edit Selected")
-      observe(updateActionButton(session, "add_srt", label = rv$label()))
-      
-      rv$future_label <- reactive(if(length(input$future_srt_table_rows_selected) == 0) "Add Future SRT" else "Edit Selected Future SRT")
-      observe(updateActionButton(session, "future_srt", label = rv$future_label()))
-      
-      rv$summary_label <- reactive(if(length(input$srt_date) == 0) "Notes" else "Results Summary")
-      observe(updateTextAreaInput(session, "srt_summary", rv$summary_label()))
-      
-      #set inputs to reactive values so "NULL" can be entered
-      #important to correctly place quotations
-      rv$test_volume <- reactive(if(is.na(input$test_volume)) "NULL" else paste0("'", input$test_volume, "'"))
-      rv$dcia_write <- reactive(if(is.na(input$dcia)) "NULL" else paste0("'", input$dcia, "'"))
-      rv$storm_size <- reactive(if(is.na(input$storm_size)) "NULL" else paste0("'", input$storm_size, "'"))
-      rv$srt_summary_step <- reactive(gsub('\'', '\'\'', input$srt_summary))
-      rv$srt_summary_step_two <- reactive(special_char_replace(rv$srt_summary_step()))
-      rv$srt_summary <- reactive(if(nchar(rv$srt_summary_step_two()) == 0) "NULL" else paste0("'", rv$srt_summary_step_two(), "'"))
-      
-      rv$flow_data_rec <- reactive(if(nchar(input$flow_data_rec) == 0 | input$flow_data_rec == "N/A") "NULL" else paste0("'", input$flow_data_rec, "'"))
-      rv$water_level_rec <- reactive(if(nchar(input$water_level_rec) == 0 | input$water_level_rec == "N/A") "NULL" else paste0("'", input$water_level_rec, "'"))
-      rv$photos_uploaded <- reactive(if(nchar(input$photos_uploaded) == 0 | input$photos_uploaded == "N/A") "NULL" else paste0("'", input$photos_uploaded, "'"))
-      rv$sensor_collect_date <- reactive(if(length(input$sensor_collect_date) == 0) "NULL" else paste0("'", input$sensor_collect_date, "'"))
-      rv$qaqc_complete <- reactive(if(nchar(input$qaqc_complete) == 0 | input$qaqc_complete == "N/A") "NULL" else paste0("'", input$qaqc_complete, "'"))
-      rv$srt_summary_date <- reactive(if(length(input$srt_summary_date) == 0) "NULL" else paste0("'", input$srt_summary_date, "'"))
-      rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0 | input$sensor_deployed == "N/A") "NULL" else paste0("'", input$sensor_deployed, "'"))
-      
-      #assure that the summary date does not precede the srt date
-      observe(updateDateInput(session, "srt_summary_date", min = input$srt_date))
-      observe(updateDateInput(session, "sensor_collect_date", min = input$srt_date))
-      
+      #2.1.7 Add/Edit/Clear buttons-------
+      #future table
       observeEvent(input$future_srt, {
         if(length(input$future_srt_table_rows_selected) == 0){
           add_future_srt_query <- paste0("INSERT INTO fieldwork.future_srt (system_id, con_phase_lookup_uid, srt_type_lookup_uid, 
@@ -357,6 +379,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
           dbGetQuery(poolConn, edit_srt_meta_query)
         }
         
+        #if editing a future test to become a completed test, delete the future test
         if(length(input$future_srt_table_rows_selected) > 0){
           odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_srt 
                                             WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
@@ -387,6 +410,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
         rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
         
+        #clear contents aside from System ID
         reset("srt_date")
         reset("con_phase")
         reset("srt_type")
@@ -461,9 +485,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       })
       
       
-      #View SRTs tab####
+      #2.2 View SRTs ---------
       
-      #query srt table
+      #2.2.1 query and display table -------
       all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY test_date DESC"
       rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
       
@@ -564,6 +588,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         )
       )
       
+      #2.2.2 click a row ------
       #click a row in the all srt table, switch tabs, and select the correct SMP ID, then select the correct test
       observeEvent(input$srt_selected, {
         updateSelectizeInput(session, "system_id", choices = sys_id, 
@@ -581,7 +606,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         )
       })
       
-      #Future SRTs tab ####
+      #2.3 Future SRTs tab ------
+      #2.3.1 query and display table -----
       all_future_srt_table_query <- "select * from fieldwork.future_srt_full order by field_test_priority_lookup_uid"
       rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
       
@@ -624,6 +650,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   }
         ))
       
+      #2.3.2 on click ----
       observeEvent(input$future_srt_selected, {
         updateSelectizeInput(session, "system_id", choices = sys_id,
                              selected = rv$all_future_srt_table()$system_id[input$future_srt_selected], 
@@ -640,6 +667,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         )
       })
       
+      #2.4 return values ----
       return(
         list(
           refresh_deploy = reactive(rv$refresh_deploy),

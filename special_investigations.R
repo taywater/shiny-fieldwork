@@ -1,12 +1,16 @@
 #Special Investigation Module
 #3 tabs: View future SI, past SI, add/edit SIs by site
 
+#1.0 UI _-----
+
 special_investigationsUI <- function(id, label = "special_investigations", 
                                      site_names, html_req, work_number, priority, con_phase, si_lookup, requested_by_lookup, future_req){
   ns <- NS(id)
   navbarMenu("Special Investigations", 
+             #1.1 Add/Edit
              tabPanel("Add/Edit Special Investigation", value = "si_tab", 
                       titlePanel("Add/Edit Special Investigation"), 
+                      #1.1.1 sidebarPanel ----
                       sidebarPanel(
                         #style = "overflow-y:scroll; overflow-x:hidden; max-height: 650px",
                          fluidRow(h5("Prioritize System ID, then Work Number, then Site Name. Only one is required")),
@@ -62,7 +66,7 @@ special_investigationsUI <- function(id, label = "special_investigations",
                         fluidRow(
                         HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.")))
                       ),
-                      
+                      #1.1.2 tables ----
                       mainPanel(
                         conditionalPanel(condition = "input.system_id || input.work_number || input.site_name", 
                                          ns  = ns, 
@@ -72,23 +76,26 @@ special_investigationsUI <- function(id, label = "special_investigations",
                                          DTOutput(ns("si_table"))),
                       )
              ), 
+             #1.2 View --------
              tabPanel("View Special Investigations", value = ns("view_si"), 
                       titlePanel("All Special Investigations"), 
                       reactableOutput(ns("all_si_table"))
-             ), 
+             ),
+             #1.3 View Future ------
              tabPanel("View Future Special Investigations", value = ns("view_future_si"), 
                       titlePanel("All Future Special Investigations"), 
                       reactableOutput(ns("all_future_si_table")))
   )
 }
 
-
+#2.0 server ------
 special_investigationsServer <- function(id, parent_session, poolConn, con_phase, si_lookup, requested_by_lookup, sys_id, special_char_replace){
   
   moduleServer(
     id,
     function(input, output, session){
   
+      #2.0.1 set up ----------
       #define ns to use in modals 
       ns <- session$ns
       
@@ -97,11 +104,14 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       rv <- reactiveValues()
       
+      #2.1 Add/Edit -----
+      #2.1.0 Root ------
       #toggle work number/system id/site names so when one is selected, the others are disabled
       observe(toggleState("work_number", condition = nchar(input$system_id) == 0 & nchar(input$site_name) == 0))
       observe(toggleState("system_id", condition = nchar(input$work_number) == 0 & nchar(input$site_name) == 0))
       observe(toggleState("site_name", condition = nchar(input$system_id) == 0 & nchar(input$work_number) == 0 ))
       
+      #2.1.1 Headers -----
       #Get the Project name, combine it with System ID, and create a reactive header
       rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
       
@@ -134,6 +144,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         paste("Future Special Investigations at", rv$header_input())
       )
       
+      #2.1.2 Toggle states based on inputs --------
       #toggle "add test" button so it is only active when certain fields are complete
       observe(toggleState("add_test", condition = (nchar(input$system_id) | nchar(input$work_number) > 0 | nchar(input$site_name) > 0) &
                             length(input$date) > 0 &
@@ -158,6 +169,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       observe(toggleState("summary_needed", condition = length(input$date) > 0))
       observe(toggleState("summary_date", condition = length(input$date) > 0 & nchar(input$summary_needed) > 0))
       
+      
+      #2.1.3 Prepare Inputs --------
       #reset sensor collection and qa/c IF sensor deployed = NO
       observeEvent(input$sensor_deployed == "No", {
         reset("sensor_collect_date")
@@ -209,6 +222,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       rv$notes_step_two <- reactive(special_char_replace(rv$notes_step()))
       rv$notes <- reactive(if(nchar(rv$notes_step_two()) == 0) "NULL" else paste0("'", rv$notes_step_two(), "'"))
       
+      #2.1.4 Query and show tables -------
       #get the table of SIs
       rv$si_table_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full 
                                             WHERE system_id = '", input$system_id, "'
@@ -234,6 +248,30 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                   escape = FALSE 
         ))
       
+      #get the table of future SIs
+      rv$future_si_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full 
+                                            WHERE system_id = '", input$system_id, "'
+                                            OR work_number = ", rv$work_number(), " 
+                                            OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
+      rv$future_si_table_db <- reactive(dbGetQuery(poolConn, rv$future_si_table_query()))
+      rv$future_si_table <- reactive(rv$future_si_table_db() %>% 
+                                       dplyr::select("special_investigation_type",
+                                                     "requested_by", "phase", "field_test_priority",
+                                                     "notes"))
+      
+      #show table of future SIs
+      output$future_si_table <- renderDT(
+        datatable(rv$future_si_table(), 
+                  colnames = c('Type', 'Requested By', 
+                               'Phase', 'Priority', 'Notes'),
+                  selection = 'single', 
+                  style = 'bootstrap', 
+                  class = 'table-responsive, table-hover', 
+                  escape = FALSE 
+        ))
+      
+      #2.1.5 Editing -----
+      
       #when you click on a row, populate fields with data from that row
       observeEvent(input$si_table_rows_selected, {
         
@@ -252,30 +290,6 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         updateTextAreaInput(session, "notes", value = rv$si_table_db()$results_summary[input$si_table_rows_selected])
         reset("priority")
       })
-      
-      
-      #get the table of future SIs
-      rv$future_si_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full 
-                                            WHERE system_id = '", input$system_id, "'
-                                            OR work_number = ", rv$work_number(), " 
-                                            OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
-      rv$future_si_table_db <- reactive(dbGetQuery(poolConn, rv$future_si_table_query()))
-      rv$future_si_table <- reactive(rv$future_si_table_db() %>% 
-                                dplyr::select("special_investigation_type",
-                                              "requested_by", "phase", "field_test_priority",
-                                              "notes"))
-      
-      #show table of future SIs
-      output$future_si_table <- renderDT(
-        datatable(rv$future_si_table(), 
-                  colnames = c('Type', 'Requested By', 
-                               'Phase', 'Priority', 'Notes'),
-                  selection = 'single', 
-                  style = 'bootstrap', 
-                  class = 'table-responsive, table-hover', 
-                  escape = FALSE 
-        ))
-      
       
       observeEvent(input$future_si_table_rows_selected, {
         
@@ -296,6 +310,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         reset("summary_date")
       })
       
+      #2.1.6 Labels -------
+      
       #add/edit button toggle
       rv$label <- reactive(if(length(input$si_table_rows_selected) == 0) "Add New" else "Edit Selected")
       observe(updateActionButton(session, "add_test", label = rv$label()))
@@ -303,6 +319,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       rv$future_label <- reactive(if(length(input$future_si_table_rows_selected) == 0) "Add Future Special Investigation" else "Edit Selected Future SI")
       observe(updateActionButton(session, "future_test", label = rv$future_label()))
       
+      
+      #2.1.7 Add/Edit/Clear buttons -----
       #add and edit special investigation records
       observeEvent(input$add_test, {
         print(rv$qaqc_complete())
@@ -379,6 +397,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         }
         )
       
+      #set ticker to notify other module
       rv$refresh_deploy <- 0
       
       observeEvent(input$future_test, {
@@ -463,8 +482,29 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         removeModal()
       })
       
-      # View all SIs -----------------------------------------------------------
+      #delete a future SI
+      #first, intermediate dialog box
+      observeEvent(input$delete_future_test, {
+        showModal(modalDialog(title = "Delete Future Special Investigation", 
+                              "Delete Future Special Investigation?", 
+                              modalButton("No"), 
+                              actionButton(ns("confirm_delete_future"), "Yes")))
+      })
       
+      observeEvent(input$confirm_delete_future, {
+        odbc::dbGetQuery(poolConn, 
+                         paste0("DELETE FROM fieldwork.future_special_investigation WHERE future_special_investigation_uid = '",
+                                rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
+        
+        #update future cet table
+        rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
+        rv$all_future_si_table_db <- reactive(reactive(odbc::dbGetQuery(poolConn, rv$all_future_si_query())))
+        #remove pop up
+        removeModal()
+      }) 
+      
+      #2.2 View all SIs -----------------------------------------------------------
+      #2.2.1 query and show table ------
       rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full ORDER BY test_date DESC"))
       rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
       rv$all_si_table <- reactive(rv$all_si_table_db() %>% mutate(across(c("test_date", "sensor_collection_date", "summary_date"),
@@ -557,6 +597,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
          )
       )
       
+      #2.2.2  click row -------
       #select row in full si table
       observeEvent(input$si_selected, {
         
@@ -585,8 +626,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         })
       })
       
-      #View Future SIs
-      
+      #2.3 View Future SIs --------
+      #2.3.1 query and display table -------
       rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full ORDER BY field_test_priority_lookup_uid DESC"))
       rv$all_future_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_future_query()))
       rv$all_future_si_table <- reactive(rv$all_future_si_table_db() %>% 
@@ -624,6 +665,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         )
       )
       
+      #2.3.2 click row ------
       #select fow in full si table
       observeEvent(input$future_si_selected, {
         
@@ -652,27 +694,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         })
       })
       
-      #delete a future SI
-      #first, intermediate dialog box
-      observeEvent(input$delete_future_test, {
-        showModal(modalDialog(title = "Delete Future Special Investigation", 
-                              "Delete Future Special Investigation?", 
-                              modalButton("No"), 
-                              actionButton(ns("confirm_delete_future"), "Yes")))
-      })
-      
-      observeEvent(input$confirm_delete_future, {
-        odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.future_special_investigation WHERE future_special_investigation_uid = '",
-                                rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
-        
-        #update future cet table
-        rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
-        rv$all_future_si_table_db <- reactive(reactive(odbc::dbGetQuery(poolConn, rv$all_future_si_query())))
-        #remove pop up
-        removeModal()
-      }) 
-      
+      #2.4 return values
       return(
         list(
           refresh_deploy = reactive(rv$refresh_deploy),
