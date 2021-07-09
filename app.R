@@ -245,6 +245,40 @@
       
     }
     
+    #function to highlight datatables based on NAs/blanks
+    
+    newstyleEqual <- function (levels, values, default = NULL) 
+    {
+      n = length(levels)
+      if (n != length(values)) 
+        stop("length(levels) must be equal to length(values)")
+      if (!is.null(default) && (!is.character(default) || length(default) != 
+                                1)) 
+        stop("default must be null or a string")
+      if (n == 0) 
+        return("''")
+      levels = DT:::jsValues(levels)
+      values = DT:::jsValues(values)
+      js = ""
+      for (i in seq_len(n)) {
+        if(levels[i]=="\"NA\""){ # needed because jsValues converts NA to a string
+          js = paste0(js, sprintf("isNaN(parseFloat(value)) ? %s : ",
+                                  values[i]))
+          
+        }else{
+          js = paste0(js, sprintf("value == %s ? %s : ", levels[i], 
+                                  values[i]))
+        }
+        
+      }
+      default = if (is.null(default)) 
+        "value"
+      else jsValues(default)
+      DT::JS(paste0(js, default))
+    }
+    
+    
+    
     # 2.2: Server Module functions ---------------------------
     # Collection Calendar
     collection_cal <- collection_calendarServer("collection_calendar", parent_session = session,
@@ -259,7 +293,7 @@
     deploy <- deployServer("deploy", parent_session = session, ow = ow, collect = collection_cal,
                          sensor = sensor, poolConn = poolConn, deployment_lookup = deployment_lookup,
                          srt = srt, si = special_investigations, cwl_history = cwl_history, smp_id = smp_id, 
-                         sensor_issue_lookup = sensor_issue_lookup)
+                         sensor_issue_lookup = sensor_issue_lookup, newstyleEqual = newstyleEqual)
     #SRT
     srt <- SRTServer("srt", parent_session = session, poolConn = poolConn,
                      srt_types = srt_types, con_phase = con_phase, sys_id = sys_id, special_char_replace = special_char_replace)
