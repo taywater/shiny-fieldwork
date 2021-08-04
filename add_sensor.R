@@ -2,7 +2,7 @@
 #This page is for adding a new sensor to the database, so it can be used for deployments
 
 #1.0 UI -------
-add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, sensor_status_lookup, sensor_issue_lookup){
+add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req, sensor_status_lookup, sensor_issue_lookup){
   #initialize namespace
   ns <- NS(id)
   
@@ -11,7 +11,8 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
            #1.1 sidebarPanel-----
            sidebarPanel(
              numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA), 
-             selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = hobo_options, selected = NULL), 
+             selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = c("", sensor_model_lookup$sensor_model), 
+                         selected = NULL), 
              dateInput(ns("date_purchased"), "Purchase Date", value = as.Date(NA)), 
              selectInput(ns("sensor_status"), html_req("Sensor Status"), choices = sensor_status_lookup$sensor_status, selected = "Good Order"),
              conditionalPanel(width = 12, 
@@ -38,7 +39,7 @@ add_sensorUI <- function(id, label = "add_sensor", hobo_options, html_req, senso
 }
 
 #2.0 Server ---------
-add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup, sensor_issue_lookup, deploy){
+add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, sensor_status_lookup, sensor_issue_lookup, deploy){
   
   moduleServer(
     id, 
@@ -141,6 +142,11 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
       #let date purchased be null
       rv$date_purchased <- reactive(if(length(input$date_purchased) == 0) "NULL" else paste0("'", input$date_purchased, "'"))
       
+      #get sensor model lookup UID and let it be NULL 
+      rv$model_lookup_uid <- reactive(sensor_model_lookup %>% dplyr::filter(sensor_model == input$model_no) %>% 
+                                            select(sensor_model_lookup_uid) %>% pull())
+      
+      rv$sensor_model_lookup_uid <- reactive(if(nchar(input$model_no) == 0) "NULL" else paste0("'", rv$model_lookup_uid(), "'"))
       
       #get sensor issue lookup uid and let it be NULL (for issue #1 and issue #2)
       rv$issue_lookup_uid_one <- reactive(sensor_issue_lookup %>% dplyr::filter(sensor_issue == input$issue_one) %>% 
@@ -187,9 +193,10 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
         
         if(!(input$serial_no %in% rv$sensor_table$sensor_serial)){
           add_sensor_query <- paste0(
-            "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model, date_purchased, sensor_status_lookup_uid, 
+            "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model_lookup_uid, date_purchased, sensor_status_lookup_uid, 
             sensor_issue_lookup_uid_one, sensor_issue_lookup_uid_two, request_data) 
-    	      VALUES ('", input$serial_no, "','", input$model_no, "',",  rv$date_purchased(), ", '", rv$status_lookup_uid(), "', ", 
+    	      VALUES ('", input$serial_no, "', ",rv$sensor_model_lookup_uid(), ", ",  
+            rv$date_purchased(), ", '", rv$status_lookup_uid(), "', ", 
     	                   rv$sensor_issue_lookup_uid_one(), ", ", rv$sensor_issue_lookup_uid_two(), ", ", rv$request_data(), ")")
           
           odbc::dbGetQuery(poolConn, add_sensor_query)
@@ -198,8 +205,9 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_status_lookup,
             isolate(paste("Sensor", input$serial_no, "added."))
           })
         }else{ #edit sensor info
-          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET sensor_model = '", input$model_no, 
-                                            "', date_purchased = ", rv$date_purchased(), ", 
+          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET 
+                                            sensor_model_lookup_uid = ", rv$sensor_model_lookup_uid(), ",
+                                            date_purchased = ", rv$date_purchased(), ", 
                                             sensor_status_lookup_uid = '", rv$status_lookup_uid(), "', 
                                             sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
                                             sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 

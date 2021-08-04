@@ -109,7 +109,7 @@
         dplyr::pull()
       
       #Sensor Model Number options
-      hobo_options <- c("", "U20-001-01", "U20-001-04", "U20L-01", "U20L-04")
+      sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_model_lookup order by sensor_model_lookup_uid")
       
       sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
       
@@ -117,7 +117,7 @@
       
       #Sensor Serial Number List
       hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, 
-      ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors inv
+      ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors_full inv
                           left join fieldwork.deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
                             left join fieldwork.ow ow on ow.ow_uid = d.ow_uid"
       hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
@@ -179,7 +179,7 @@
                    #Add/Edit Location
                     add_owUI("add_ow", site_names = site_names, html_req = html_req),
                    #Add/Edit Sensor
-                    add_sensorUI("add_sensor", hobo_options = hobo_options, html_req = html_req,
+                    add_sensorUI("add_sensor", sensor_model_lookup = sensor_model_lookup, html_req = html_req,
                                  sensor_status_lookup = sensor_status_lookup,
                                  sensor_issue_lookup = sensor_issue_lookup),
                    #SRT (Add/Edit SRT, View SRTs, View Future SRTs)
@@ -215,6 +215,8 @@
       dplyr::pull()
     
     #Sensor Model Number options
+    sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_model_lookup order by sensor_model_lookup_uid")
+    
     sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
     
     sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_issue_lookup order by sensor_issue_lookup_uid")
@@ -287,6 +289,7 @@
     ow <- add_owServer("add_ow", parent_session = session, smp_id = smp_id, poolConn = poolConn, deploy = deploy)
     #Add Edit/Sensor
     sensor <- add_sensorServer("add_sensor", parent_session = session, poolConn = poolConn,
+                               sensor_model_lookup = sensor_model_lookup,
                          sensor_status_lookup = sensor_status_lookup, deploy = deploy,
                          sensor_issue_lookup = sensor_issue_lookup)
     #Deploy Sensor
