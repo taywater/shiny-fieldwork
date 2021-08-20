@@ -877,7 +877,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         updateSelectInput(session, "research", selected = rv$research_step())
         updateSelectInput(session, "interval", selected = rv$mea_int())
         updateDateInput(session, "deploy_date", value = rv$deploy_date())
-        updateDateInput(session, "collect_date", value = rv$collect())
+        delay(250, updateDateInput(session, "collect_date", value = rv$collect()))
         updateSelectInput(session, "priority", selected = rv$priority_step())
         updateTextAreaInput(session, "notes", value = rv$notes_step())
         updateSelectInput(session, "download_error", selected = rv$download_error_step())
