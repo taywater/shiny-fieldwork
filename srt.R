@@ -109,9 +109,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #use reactive values to read in table, and see which tests already exist at the system
       rv <- reactiveValues()
-      # srt_table_query <- reactive(paste0("SELECT srt.srt_uid, srt.system_id, srt.srt_date, srt.srt_type_lookup_uid, srt.srt_volume_ft3, srt.dcia_ft2,
-      #                                    srt.srt_stormsize_in, srt.srt_summary, md.srt_metadata_uid, md.flow_data_recorded, md.water_level_recorded, 
-      #                                    md.photos_uploaded, md.sensor_collection_date, md.qaqc_complete, md.srt_summary_date FROM fieldwork.srt srt LEFT JOIN fieldwork.srt_metadata md ON srt.srt_uid = md.srt_uid WHERE system_id = '", input$system_id, "'"))
+
     
       #2.1 Add/Edit ---------
       #2.1.1 Headers ---------
@@ -137,11 +135,6 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                  mutate("test_date" = as.character(test_date), 
                                         "srt_stormsize_in" = round(srt_stormsize_in, 2)) %>% 
                                  dplyr::select("system_id", "test_date", "phase", "type", "srt_volume_ft3", "dcia_ft2", "srt_stormsize_in", "srt_summary"))
-      
-      #query metadata for stuff not in the main table
-      rv$srt_metadata <- reactive(rv$srt_table_db() %>% 
-                                    mutate(across(where(is.POSIXct), trunc, "days")) %>% 
-                                    mutate(across(where(is.POSIXlt), as.character)))
       
       output$srt_table <- renderDT(
         rv$srt_table(), 
@@ -280,20 +273,20 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateDateInput(session, "srt_date", value = rv$srt_table()$test_date[input$srt_table_rows_selected])
         
         #update to values from selected row
-        updateSelectInput(session, "con_phase", selected = rv$srt_table()$phase[input$srt_table_rows_selected])
-        updateSelectInput(session, "srt_type", selected = rv$srt_table()$type[input$srt_table_rows_selected])
+        updateSelectInput(session, "con_phase", selected = rv$srt_table_db()$phase[input$srt_table_rows_selected])
+        updateSelectInput(session, "srt_type", selected = rv$srt_table_db()$type[input$srt_table_rows_selected])
         updateNumericInput(session, "test_volume", value = rv$srt_table()$srt_volume_ft3[input$srt_table_rows_selected])
         #updateNumericInput(session, "storm_size", value = rv$srt_table()[input$srt_table_rows_selected, 7])
-        updateTextAreaInput(session, "srt_summary", value = rv$srt_table()$srt_summary[input$srt_table_rows_selected])
+        updateTextAreaInput(session, "srt_summary", value = rv$srt_table_db()$srt_summary[input$srt_table_rows_selected])
         
         #update metadata values
-        updateSelectInput(session, "flow_data_rec", selected = rv$srt_metadata()$flow_data_recorded[input$srt_table_rows_selected])
-        updateSelectInput(session, "water_level_rec", selected = rv$srt_metadata()$water_level_recorded[input$srt_table_rows_selected])
-        updateSelectInput(session, "photos_uploaded", selected = rv$srt_metadata()$photos_uploaded[input$srt_table_rows_selected])
-        updateTextInput(session, "sensor_collect_date", value = rv$srt_metadata()$sensor_collection_date[input$srt_table_rows_selected])
-        updateSelectInput(session, "qaqc_complete", selected = rv$srt_metadata()$qaqc_complete[input$srt_table_rows_selected])
-        updateDateInput(session, "srt_summary_date", value = rv$srt_metadata()$srt_summary_date[input$srt_table_rows_selected])
-        updateDateInput(session, "sensor_deployed", value = rv$srt_metadata()$sensor_deployed[input$srt_table_rows_selected])
+        updateSelectInput(session, "flow_data_rec", selected = rv$srt_table_db()$flow_data_recorded[input$srt_table_rows_selected])
+        updateSelectInput(session, "water_level_rec", selected = rv$srt_table_db()$water_level_recorded[input$srt_table_rows_selected])
+        updateSelectInput(session, "photos_uploaded", selected = rv$srt_table_db()$photos_uploaded[input$srt_table_rows_selected])
+        updateTextInput(session, "sensor_collect_date", value = rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected])
+        updateSelectInput(session, "qaqc_complete", selected = rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected])
+        updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected])
+        updateDateInput(session, "sensor_deployed", value = rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected])
         
       })
       
@@ -337,23 +330,18 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #when button is clicked
       #add to srt table
-      #then add to the srt_metadata table
       #use the MAX(srt_uid) from srt table to get the SRT UID of the most recent addition to the table (calculated by SERIAL), which is the current addition
       observeEvent(input$add_srt, {
         if(length(input$srt_table_rows_selected) == 0){
           add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, test_date, con_phase_lookup_uid, srt_type_lookup_uid, 
-                          srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary) 
+                          srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary, flow_data_recorded, water_level_recorded, photos_uploaded, 
+                                  sensor_collection_date, qaqc_complete, srt_summary_date, sensor_deployed) 
       	                  VALUES ('", input$system_id, "','", input$srt_date, "','", rv$phase(), "', ",  rv$type(), ",", rv$test_volume(), ",", 
-                                  rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ")")
-          
-          add_srt_meta_query <- paste0("INSERT INTO fieldwork.srt_metadata (srt_uid, flow_data_recorded, water_level_recorded, photos_uploaded, 
-                                  sensor_collection_date, qaqc_complete, srt_summary_date, sensor_deployed)
-                                  VALUES ((SELECT MAX(srt_uid) FROM fieldwork.srt), ", rv$flow_data_rec(), ",", rv$water_level_rec(), ",",  
-                                       rv$photos_uploaded(), ",", rv$sensor_collect_date(), ",", rv$qaqc_complete(), ",", 
-                                       rv$srt_summary_date(), ", ", rv$sensor_deployed(), ")")
+                                  rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ", ", rv$flow_data_rec(), ",", rv$water_level_rec(), ",",  
+                                  rv$photos_uploaded(), ",", rv$sensor_collect_date(), ",", rv$qaqc_complete(), ",", 
+                                  rv$srt_summary_date(), ", ", rv$sensor_deployed(), ")")
           
           odbc::dbGetQuery(poolConn, add_srt_query)
-          odbc::dbGetQuery(poolConn, add_srt_meta_query)
           #else update srt table
         }else{
           edit_srt_query <- paste0(
@@ -363,20 +351,18 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
             "', srt_volume_ft3 = ", rv$test_volume(),
             ", dcia_ft2 = " , rv$dcia_write(),
             ", srt_stormsize_in = ", rv$storm_size(), 
-            ", srt_summary = ", rv$srt_summary(), "
+            ", srt_summary = ", rv$srt_summary(), 
+            ", flow_data_recorded = ", rv$flow_data_rec(), 
+            ", water_level_recorded = ", rv$water_level_rec(), 
+            ", photos_uploaded = ", rv$photos_uploaded(), 
+            ", sensor_collection_date = ", rv$sensor_collect_date(),
+            ", qaqc_complete = ", rv$qaqc_complete(),
+            ", srt_summary_date = ", rv$srt_summary_date(), 
+            ", sensor_deployed = ", rv$sensor_deployed(), "
             WHERE srt_uid = '", rv$srt_table_db()[input$srt_table_rows_selected, 1], "'")
           
-          edit_srt_meta_query <- paste0("UPDATE fieldwork.srt_metadata  SET flow_data_recorded = ", rv$flow_data_rec(), 
-                                        ", water_level_recorded = ", rv$water_level_rec(), 
-                                        ", photos_uploaded = ", rv$photos_uploaded(), 
-                                        ", sensor_collection_date = ", rv$sensor_collect_date(),
-                                        ", qaqc_complete = ", rv$qaqc_complete(),
-                                        ", srt_summary_date = ", rv$srt_summary_date(), 
-                                        ", sensor_deployed = ", rv$sensor_deployed(),
-                                        " WHERE srt_uid = '", rv$srt_table_db()[input$srt_table_rows_selected, 1], "'")
           
-          dbGetQuery(poolConn, edit_srt_query)
-          dbGetQuery(poolConn, edit_srt_meta_query)
+           dbGetQuery(poolConn, edit_srt_query)
         }
         
         #if editing a future test to become a completed test, delete the future test
