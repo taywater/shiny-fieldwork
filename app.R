@@ -306,11 +306,8 @@
                                         requested_by_lookup = requested_by_lookup, sys_id = sys_id, special_char_replace = special_char_replace)
     #History
     cwl_history <- cwl_historyServer("history", parent_session = session, poolConn = poolConn, deploy = deploy)
-    
-    
-    
-    
-  }
+
+}
 
 #Run this function to run the app!
 shinyApp(ui, server)

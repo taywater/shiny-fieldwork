@@ -85,17 +85,17 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                    column(6, selectInput(ns("sensor_one_in"), html_req("Sensor Installed 1\" off Bottom?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL)),
                    column(6, selectInput(ns("weir"), html_req("Is there a Weir?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL))),
                  #show panel if the sensor is NOT installed 1" off bottom
-                 conditionalPanel("input.sensor_one_in == \"0\"", 
-                                  ns = ns, 
+                 conditionalPanel("input.sensor_one_in == \"0\"",
+                                  ns = ns,
                                   fluidRow(
                                     column(6, numericInput(ns("cth"), "Cap-to-Hook (ft)", value = NULL)), 
-                                    column(6, numericInput(ns("hts"), "Hook-to-Sensor (ft)", value = NULL))
-                                  )),
+                                    column(6, numericInput(ns("hts"), "Hook-to-Sensor (ft)", value = NULL)))
+                 ),
                  #disable this field, auto calculate it later
                  disabled(numericInput(ns("install_height"), "Installation Height (ft)", value = NULL)),
                  #show panel if there is a weir
-                 conditionalPanel("input.weir == \"1\"", 
-                                  ns = ns, 
+                 conditionalPanel("input.weir == \"1\"",
+                                  ns = ns,
                                   fluidRow(
                                     column(6, numericInput(ns("ctw"), "Cap-to-Weir (ft)", value = NULL)), 
                                     column(6, numericInput(ns("cto"), "Cap-to-Orifice (ft)", value = NULL))),
@@ -103,8 +103,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                                     #disable these fields, auto calculate later
                                     column(4, disabled(numericInput(ns("wts"), "Weir-to-Sensor (ft)", value = NULL))), 
                                     column(4, disabled(numericInput(ns("wto"), "Weir-to-Orifice (ft)", value = NULL))), 
-                                    column(4, disabled(numericInput(ns("ots"), "Orifice-to-Sensor (ft)", value = NULL))))
-                                  ),
+                                    column(4, disabled(numericInput(ns("ots"), "Orifice-to-Sensor (ft)", value = NULL))))),
                  fluidRow(
                    column(6, dateInput(ns("start_date"), "Initial Deployment Date", value = as.Date(NA))), 
                    column(6, dateInput(ns("end_date"), "Sensor Removal Date", value = as.Date(NA)))
@@ -510,19 +509,22 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateSelectInput(session, "weir", selected = rv$weir_edit)
         
         #get measurements from db table
+        #browser()
         rv$cth_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 13]
         rv$hts_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 14]
         rv$ctw_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 17]
         rv$cto_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 18]
         rv$wto_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 19]
-        
+
         #udpate inputs in app with values from table
+        #browser()
         updateNumericInput(session, "cth", value = rv$cth_edit)
         updateNumericInput(session, "hts", value = rv$hts_edit)
         updateNumericInput(session, "ctw", value = rv$ctw_edit)
         updateNumericInput(session, "cto", value = rv$cto_edit)
         updateNumericInput(session, "wto", value = rv$wto_edit)
         
+       # browser()
         #get dates from table
         rv$start_date_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 9]
         rv$end_date_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 10]
@@ -530,7 +532,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #update inputs in app with values from table
         updateDateInput(session, "start_date", value = rv$start_date_edit)
         updateDateInput(session, "end_date", value = rv$end_date_edit)
-        
+        #browser()
       })
       
       #2.6 transferring a site's location to an SMP ---------
@@ -594,7 +596,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #if weir is set to no, remove ctw and cto values. 
       observeEvent(input$weir, {
-        if(input$weir == "1"){
+        if(input$weir == "0"){
         updateNumericInput(session, "ctw", value =  NA)
         updateNumericInput(session, "cto", value =  NA)
         }
@@ -687,6 +689,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #2.7.4 write/edit measruements to table
       observeEvent(input$add_well_meas, {
+        #browser()
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
           if(input$at_smp == 1){
           odbc::dbGetQuery(poolConn, paste0(
