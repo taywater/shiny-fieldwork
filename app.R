@@ -63,6 +63,8 @@
   library(DT)
   #reactable for reactable tables
   library(reactable)
+  #Not in logical
+  `%!in%` <- Negate(`%in%`)
 
 #0.1: database connection and global options --------
 

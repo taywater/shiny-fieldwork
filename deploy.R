@@ -420,7 +420,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0){
+      rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0 & paste0("'",input$smp_id,"'") %!in% rv$smp_id()) {
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL
@@ -431,7 +431,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       )
       
       #new sensor warning
-      rv$new_sensor_warning <- reactive(if(input$new_sensor_id %in% collect$sensor_serial()){
+      rv$new_sensor_warning <- reactive(if(input$new_sensor_id %in% collect$sensor_serial() ){
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL

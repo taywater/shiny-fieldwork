@@ -403,13 +403,15 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #accept similar site names in the search. this will help the user see if they may have made a mistake with the site  name they are typing
       rv$similar_site <- reactive(
-        agrep(input$new_site_name, rv$site_names(), max = .3, value = T)
+        if(nchar(input$new_site_name) > 0){
+          agrep(input$new_site_name, rv$site_names(), max = .3, value = T)
+        }
       )
       
       #show similar sites if there are any` `
       output$similar_site <- renderText(
-        if(nchar(input$new_site_name) > 3){
-        paste0("The entered site name, ", input$new_site_name, ", is similar to existing site(s) ", paste(rv$similar_site(), collapse = ", "), ".")
+        if(nchar(input$new_site_name) > 3 & length(rv$similar_site()) >= 1){
+            paste0("The entered site name, ", input$new_site_name, ", is similar to existing site(s) ", paste(rv$similar_site(), collapse = ", "), ".")            
         }else{
           NULL
         }
