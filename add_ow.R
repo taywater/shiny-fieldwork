@@ -465,6 +465,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #if at SMP
         if(input$at_smp == 1){
+          # browser() #browser for debugging facility id's not populating in input ui after clicking row
           #get facility id from table
           rv$fac <- rv$ow_view_db()[input$ow_table_rows_selected, 5]
           #get component id
