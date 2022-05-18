@@ -593,15 +593,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #update orifice to sensor
       rv$ots <- reactive(input$cth+input$hts - input$cto)
-      
-      #if sensor is set to one inch, remove cth and hts values. these are hidden, so they need to be automatically removed
-      #commented out 05/09/2022
-      # observeEvent(input$sensor_one_in, {
-      #   if(input$sensor_one_in == "1"){
-      #   updateNumericInput(session, "cth", value = NA)
-      #   updateNumericInput(session, "hts", value = NA)
-      #   }
-      # })
+    
       
       #if weir is set to no, remove ctw and cto values. 
       observeEvent(input$weir, {
