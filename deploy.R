@@ -2,6 +2,8 @@
 #Left Sidebar with 3 tables: Future, Active, and Past Deployments
 #4/29/21 adding section headers
 
+#Not in logical
+`%!in%` <- Negate(`%in%`)
 
 #1.0 UI -----
 
@@ -67,14 +69,14 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                  #ask about manual depth to water measurement during deployment
                                  fluidRow(column(6,
                                    conditionalPanel(width = 12, 
-                                                    condition = "input.deploy_date",
+                                                    condition = "input.deploy_date && input.sensor_purpose != \"BARO\"",
                                                     ns = ns,
                                                     numericInput(ns("deploy_depth_to_water"), 
                                                                  "Deployment Depth-to-Water (ft)", value = NA, min = 0))),               
                                    column(6, 
                                           #ask about manual depth to water measurement during collection
                                  conditionalPanel(width = 12, 
-                                                  condition = "input.collect_date",
+                                                  condition = "input.collect_date && input.sensor_purpose != \"BARO\"",
                                                   ns = ns,
                                                   numericInput(ns("collect_depth_to_water"), 
                                                                "Collection Depth-to-Water (ft)", value = NA, min = 0),
@@ -420,7 +422,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0 & paste0("'",input$smp_id,"'") %!in% rv$smp_id()) {
+      rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0 & input$smp_id %!in% collect$smp_id()) {
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL
@@ -1085,7 +1087,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         if(length(input$collect_date) > 0 & rv$sw_or_dl() == FALSE){
           if(rv$count_end_date() == 0){
             showModal(modalDialog(title = "Check Measurements", 
-                                  "This monitoring location does not have measurements form this period. Would you like to add?", 
+                                  "This monitoring location does not have measurements from this period. Would you like to add?", 
                                   modalButton("No"), 
                                   actionButton(ns("confirm_add_measurements"), "Yes")))
           }
