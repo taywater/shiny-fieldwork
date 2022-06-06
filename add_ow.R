@@ -702,8 +702,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
-            input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", '", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", rv$well_meas_notes, "')"
+            input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
+            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", rv$well_meas_notes(), ")"
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
@@ -711,7 +711,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", rv$well_meas_notes,"')"
+            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", rv$well_meas_notes(),"')"
             ))
           }
         }else{
