@@ -43,9 +43,9 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                                     column(6, selectInput(ns("priority"), "Future Test Priority", 
                                                                           choices = c("", priority$field_test_priority), selected = NULL))
                                                   )),
-                                 disabled(selectInput(ns("ready"), "Ready for Deployment?", 
-                                                              choices = c("", "Yes" = 1, "No" = 0), selected = 0)
-                                 ),
+                                 selectInput(ns("ready"), "Ready for Deployment?", 
+                                                              choices = c("", "Yes" = 1, "No" = 0, "Unknown" = 2), selected = 2)
+                                 ,
                                  fluidRow(
                                    column(6,selectInput(ns("well_name"), future_req(html_req("Location")), 
                                                         choices = "")), 
@@ -59,11 +59,11 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                    column(6, selectInput(ns("research"), "Research", choices = c("", research_lookup$type), selected = NULL)),
                                    column(6, selectInput(ns("interval"), html_req("Interval (min)"), choices = c("", 5, 15), selected = NULL))),
                                  fluidRow(
-                                   column(6,dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA))),
-                                   column(6,dateInput(ns("collect_date"), "Collection Date", value = as.Date(NA)))), 
+                                   column(6,disabled(dateInput(ns("deploy_date"), html_req("Deployment Date"), value = as.Date(NA)))),
+                                   column(6,disabled(dateInput(ns("collect_date"), "Collection Date", value = as.Date(NA))))), 
                                  #ask about download error and redeploying sensor once you add a collection date
                                  conditionalPanel(width = 12, 
-                                                  condition = "input.deploy_date", 
+                                                  condition = "input.deploy_date && input.sensor_purpose != \"BARO\"", 
                                                   ns = ns, 
                                                   HTML("If well is dry, enter 0")),
                                  #ask about manual depth to water measurement during deployment
@@ -348,8 +348,13 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         "Completed Deployment Notes"
       })
       
-      observe(toggleState("priority", condition = input$ready != 0))
+
       
+      #toggle future deployment delete button
+      observe({toggleState(id = "deploy_date", condition = input$ready == 1 )})
+      observe({toggleState(id = "collect_date", condition = input$ready == 1 )})
+      observe({toggleState(id = "priority", condition = input$ready != 0)})
+            
       observeEvent(input$ready, {
         if(input$ready == 0){
         updateSelectInput(session, "priority", selected = "Dependent (see Notes)")
@@ -422,11 +427,15 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$sensor_warning <- reactive(if(input$sensor_id %in% collect$sensor_serial() & length(input$collect_date) == 0 & input$smp_id %!in% collect$smp_id()) {
+      rv$sensor_warning <- reactive( if(length(paste0(input$smp_id) != collect$smp_id()) != 0){
+                                        if(input$sensor_id %in% collect$sensor_serial() & 
+                                        length(input$collect_date) == 0 & 
+                                        collect$smp_id() != input$smp_id) {
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL
-      })
+      }}
+        )
       
       output$sensor_warning <- renderText(
         rv$sensor_warning()
@@ -565,6 +574,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #future deployments - premonitoring date 
       #see if there were CETs during the premonitoring date, if so, say READY
       observeEvent(input$premonitoring_date, {
+        
         if(length(input$premonitoring_date) > 0){
           
           rv$cet_asset_query <- reactive(paste0("SELECT count(*) FROM smpid_facilityid_componentid_inlets_limited WHERE smp_id = '", input$smp_id, "' AND component_id != 'NULL'"))
@@ -580,7 +590,6 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           
           #print(rv$cet_count_query())
           
-          rv$cet_count <- reactive(dbGetQuery(poolConn, rv$cet_count_query()) %>% pull())
           
           #print(rv$cet_count())
           
@@ -591,10 +600,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   "Add capture efficiency tests from the pre-monitoring inspection?", 
                                   modalButton("No"), 
                                   actionButton(ns("add_cet"), "Yes", onclick = "window.open('https://pwdrstudio.water.gov/content/157/', '_blank')")))
-            enable("ready")
+            # enable("ready")
           }else{
-            enable("ready")
+            # enable("ready")
           }
+        } else {
+          # disable("ready")
         }
       })
       
@@ -719,6 +730,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #when a row in active deployments table is clicked
       observeEvent(input$current_deployment_rows_selected, {
         #deselect from other tables
+        # browser()
         dataTableProxy('prev_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
       })
