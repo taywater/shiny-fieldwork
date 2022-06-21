@@ -245,9 +245,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         updateSelectInput(session, "site_name", selected = "")
         # need to get through the initial load where length == 0 for collection calendar smp_id (is.na does not work in that case)
         # go to either smp id or site name
-        if(length(collect$smp_id()) > 0){
-          if(!is.na(collect$smp_id())){
-          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = collect$smp_id(), server = TRUE)
+        if(length(collect$smp_id()[collect$rows_selected()]) > 0){
+          if(!is.na(collect$smp_id()[collect$rows_selected()])){
+          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = collect$smp_id()[collect$rows_selected()], server = TRUE)
           }else{
           updateSelectInput(session, "site_name", selected = collect$site_name())
           }
@@ -427,14 +427,16 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$sensor_warning <- reactive( if(length(paste0(input$smp_id) != collect$smp_id()) != 0){
-                                        if(input$sensor_id %in% collect$sensor_serial() & 
-                                        length(input$collect_date) == 0 & 
-                                        collect$smp_id() != input$smp_id) {
+      rv$sensor_warning <-       reactive( if(length(collect$rows_selected() > 0) != 0){
+                                            if(input$sensor_id %in% collect$sensor_serial() &
+                                               length(input$collect_date) == 0 &
+                                                input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL
-      }}
+      }}else{
+        NULL
+      }
         )
       
       output$sensor_warning <- renderText(
@@ -586,24 +588,25 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           
           rv$cet_asset_count <- reactive(dbGetQuery(poolConn, rv$cet_asset_query()) %>% pull())
           
-          #print(rv$cet_asset_count())
+          # print(rv$cet_asset_count())
+          # 
+          # print(rv$cet_count_query())
           
-          #print(rv$cet_count_query())
           
+          # print(rv$cet_count())
           
-          #print(rv$cet_count())
-          
-          cet_good <- rv$cet_asset_count() == rv$cet_count()
-          
-          if(cet_good == FALSE){
-            showModal(modalDialog(title = "Add Capture Efficiency Test", 
-                                  "Add capture efficiency tests from the pre-monitoring inspection?", 
-                                  modalButton("No"), 
-                                  actionButton(ns("add_cet"), "Yes", onclick = "window.open('https://pwdrstudio.water.gov/content/157/', '_blank')")))
-            # enable("ready")
-          }else{
-            # enable("ready")
-          }
+          #Commented out by BPC on 06/21/2022. Originally removed enable/disable "ready" features week of 06/13-06/17.
+          # cet_good <- rv$cet_asset_count() == rv$cet_count()
+          # 
+          # if(cet_good == FALSE){
+          #   showModal(modalDialog(title = "Add Capture Efficiency Test",
+          #                         "Add capture efficiency tests from the pre-monitoring inspection?",
+          #                         modalButton("No"),
+          #                         actionButton(ns("add_cet"), "Yes", onclick = "window.open('https://pwdrstudio.water.gov/content/157/', '_blank')")))
+          #   # enable("ready")
+          # }else{
+          #   # enable("ready")
+          # }
         } else {
           # disable("ready")
         }
