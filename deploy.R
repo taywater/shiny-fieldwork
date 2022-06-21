@@ -427,12 +427,14 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$sensor_warning <-       reactive( if(length(collect$rows_selected() > 0) != 0){
-                                            if(input$sensor_id %in% collect$sensor_serial() &
-                                               length(input$collect_date) == 0 &
+      rv$sensor_warning <-       reactive( if(nchar(input$sensor_id) > 0){
+                                            if(input$sensor_id %in% collect$sensor_serial()){
+                                              if(length(input$collect_date) == 0 &
                                                 input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
+        NULL                                      
+      }}else{
         NULL
       }}else{
         NULL
@@ -444,11 +446,19 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       )
       
       #new sensor warning
-      rv$new_sensor_warning <- reactive(if(input$new_sensor_id %in% collect$sensor_serial() ){
-        "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
-      }else{
-        NULL
-      })
+      rv$new_sensor_warning <- reactive(if(nchar(input$sensor_id) > 0){
+        if(input$sensor_id %in% collect$sensor_serial()){
+          if(length(input$collect_date) == 0 &
+             input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
+            "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
+          }else{
+            NULL                                      
+          }}else{
+            NULL
+          }}else{
+            NULL
+          }
+        )
       
       output$new_sensor_warning <- renderText(
         rv$new_sensor_warning()
@@ -589,24 +599,26 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           rv$cet_asset_count <- reactive(dbGetQuery(poolConn, rv$cet_asset_query()) %>% pull())
           
           # print(rv$cet_asset_count())
-          # 
+          
+          rv$cet_count <- reactive(dbGetQuery(poolConn, rv$cet_count_query()) %>% pull()) 
+          
           # print(rv$cet_count_query())
           
           
           # print(rv$cet_count())
           
-          #Commented out by BPC on 06/21/2022. Originally removed enable/disable "ready" features week of 06/13-06/17.
-          # cet_good <- rv$cet_asset_count() == rv$cet_count()
-          # 
-          # if(cet_good == FALSE){
-          #   showModal(modalDialog(title = "Add Capture Efficiency Test",
-          #                         "Add capture efficiency tests from the pre-monitoring inspection?",
-          #                         modalButton("No"),
-          #                         actionButton(ns("add_cet"), "Yes", onclick = "window.open('https://pwdrstudio.water.gov/content/157/', '_blank')")))
-          #   # enable("ready")
-          # }else{
-          #   # enable("ready")
-          # }
+
+          cet_good <- rv$cet_asset_count() == rv$cet_count()
+
+          if(cet_good == FALSE){
+            showModal(modalDialog(title = "Add Capture Efficiency Test",
+                                  "Add capture efficiency tests from the pre-monitoring inspection?",
+                                  modalButton("No"),
+                                  actionButton(ns("add_cet"), "Yes", onclick = "window.open('https://pwdrstudio.water.gov/content/157/', '_blank')")))
+            # enable("ready")
+          }else{
+            # enable("ready")
+          }
         } else {
           # disable("ready")
         }
@@ -733,7 +745,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #when a row in active deployments table is clicked
       observeEvent(input$current_deployment_rows_selected, {
         #deselect from other tables
-        # browser()
+         # browser()
         dataTableProxy('prev_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
       })
@@ -741,6 +753,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #when a row in the previous deployments table is clicked
       observeEvent(input$prev_deployment_rows_selected, {
         #deselect from other table
+        # browser()
         dataTableProxy('current_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
       })
