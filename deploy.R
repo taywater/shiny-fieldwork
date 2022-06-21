@@ -245,9 +245,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         updateSelectInput(session, "site_name", selected = "")
         # need to get through the initial load where length == 0 for collection calendar smp_id (is.na does not work in that case)
         # go to either smp id or site name
-        if(length(collect$smp_id()[collect$rows_selected()]) > 0){
-          if(!is.na(collect$smp_id()[collect$rows_selected()])){
-          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = collect$smp_id()[collect$rows_selected()], server = TRUE)
+        if(length(collect$cal_smp_id()) > 0){
+          if(!is.na(collect$cal_smp_id())){
+          updateSelectizeInput(session, "smp_id", choices = smp_id, selected = collect$cal_smp_id(), server = TRUE)
           }else{
           updateSelectInput(session, "site_name", selected = collect$site_name())
           }
