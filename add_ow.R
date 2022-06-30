@@ -330,8 +330,29 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
       })
       
-      observeEvent(input$ow_table_rows_selected == 0, {
-        updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
+      observeEvent(is.null(input$ow_table_rows_selected), {
+        
+        # updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
+        #Purge any values for pre-selected wells, keep SMP/site name and "At SMP?" input
+        updateTextInput(session, "ow_suffix", value = "")
+        updateTextInput(session, "facility_id", value = "")
+        updateSelectInput(session, "component_id", selected = NA)
+        
+        #Purging measurement values associated with previous measurement
+        updateSelectInput(session, "weir", selected = NA)
+        updateNumericInput(session, "well_depth", value = NA)
+        updateNumericInput(session, "cth", value = NA)
+        updateNumericInput(session, "hts", value = NA)
+        updateNumericInput(session, "ctw", value = NA)
+        updateNumericInput(session, "cto", value = NA)
+        updateNumericInput(session, "wts", value = NA)
+        updateNumericInput(session, "wto", value = NA)
+        updateNumericInput(session, "ots", value = NA)
+        updateNumericInput(session, "install_height", value = NA)
+        updateDateInput(session, "start_date", value = as.Date(NA))
+        updateDateInput(session, "end_date", value = as.Date(NA))
+        updateTextInput(session, "well_meas_notes", value = NA)
+        # browser()
       })
       
       rv$toggle_suffix <- reactive(!(input$ow_suffix %in% rv$ow_view_db()$ow_suffix) | length(input$ow_table_rows_selected) > 0)
@@ -339,7 +360,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.3.5 toggle state / labels -------
       #toggle state (enable/disable) buttons based on whether smp id, component id, and ow suffix are selected (this is shinyjs)
       observe({toggleState(id = "add_ow", condition = nchar(input$smp_id) > 0 & nchar(input$component_id) > 0 & nchar(input$ow_suffix) >0 &
-                             rv$toggle_suffix())})
+                             rv$toggle_suffix()) })
       
       #Add ow
       rv$add_ow_label <- reactive(if(length(input$ow_table_rows_selected) == 0) "Add New Location" else "Edit Selected Location")
@@ -500,6 +521,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           }
         }
         
+        if(length(input$ow_table_rows_selected) > 0){
         #update well depth based on selected row
         rv$well_depth_edit <- rv$ow_view_db()$well_depth_ft[input$ow_table_rows_selected]
         updateNumericInput(session, "well_depth", value= rv$well_depth_edit)
@@ -519,13 +541,12 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #get measurements from db table
         #browser()
         rv$cth_edit <- rv$ow_view_db()$cap_to_hook_ft[input$ow_table_rows_selected]
-        
         rv$hts_edit <- rv$ow_view_db()$hook_to_sensor_ft[input$ow_table_rows_selected]
         rv$ctw_edit <- rv$ow_view_db()$cap_to_weir_ft[input$ow_table_rows_selected]
         rv$cto_edit <- rv$ow_view_db()$cap_to_orifice_ft[input$ow_table_rows_selected]
         rv$wto_edit <- rv$ow_view_db()$weir_to_orifice_ft[input$ow_table_rows_selected]
 
-        #udpate inputs in app with values from table
+        #update inputs in app with values from table
         #browser()
         updateNumericInput(session, "cth", value = rv$cth_edit)
         updateNumericInput(session, "hts", value = rv$hts_edit)
@@ -541,7 +562,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #update inputs in app with values from table
         updateDateInput(session, "start_date", value = rv$start_date_edit)
         updateDateInput(session, "end_date", value = rv$end_date_edit)
-        #browser()
+        # browser()
+        }
       })
       
       #2.6 transferring a site's location to an SMP ---------

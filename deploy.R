@@ -44,7 +44,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                                                           choices = c("", priority$field_test_priority), selected = NULL))
                                                   )),
                                  selectInput(ns("ready"), "Ready for Deployment?", 
-                                                              choices = c("", "Yes" = 1, "No" = 0, "Unknown" = 2), selected = 2)
+                                                              choices = c("", "Yes" = 1, "No" = 0, "Unknown"), selected = "Unknown")
                                  ,
                                  fluidRow(
                                    column(6,selectInput(ns("well_name"), future_req(html_req("Location")), 
