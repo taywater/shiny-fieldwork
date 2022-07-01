@@ -315,7 +315,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #need to do the first "if" first to confirm that length is not 0 before checking if it is NA
       rv$ow_suggested <- reactive(if(nchar(input$component_id) == 0){
         NA
-      }else if(length(input$ow_table_rows_selected) > 0 & rv$asset_comp_code_click == select_combo_row()$asset_comp_code){
+      }else if(length(input$ow_table_rows_selected) > 0 & select_combo_row()$asset_comp_code %in% rv$asset_comp_code_click){
         rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected]
       }else{
         rv$ow_suggested_pre()
@@ -539,7 +539,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateTextInput(session,"well_meas_notes", value = rv$well_meas_notes_edit)
         
         #get measurements from db table
-        #browser()
         rv$cth_edit <- rv$ow_view_db()$cap_to_hook_ft[input$ow_table_rows_selected]
         rv$hts_edit <- rv$ow_view_db()$hook_to_sensor_ft[input$ow_table_rows_selected]
         rv$ctw_edit <- rv$ow_view_db()$cap_to_weir_ft[input$ow_table_rows_selected]
@@ -547,14 +546,12 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$wto_edit <- rv$ow_view_db()$weir_to_orifice_ft[input$ow_table_rows_selected]
 
         #update inputs in app with values from table
-        #browser()
         updateNumericInput(session, "cth", value = rv$cth_edit)
         updateNumericInput(session, "hts", value = rv$hts_edit)
         updateNumericInput(session, "ctw", value = rv$ctw_edit)
         updateNumericInput(session, "cto", value = rv$cto_edit)
         updateNumericInput(session, "wto", value = rv$wto_edit)
         
-       # browser()
         #get dates from table
         rv$start_date_edit <- rv$ow_view_db()$start_dtime_est[input$ow_table_rows_selected]
         rv$end_date_edit <- rv$ow_view_db()$end_dtime_est[input$ow_table_rows_selected]
@@ -631,8 +628,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                             (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
                             (nchar(input$component_id) > 0 | input$at_smp == 2) & 
                             (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
-                rv$toggle_suffix() #& nchar(input$sensor_one_in) > 0))
-                ))
+                rv$toggle_suffix() ))
+
       
       observe(updateNumericInput(session, "wts", value = rv$wts()))
       observe(updateNumericInput(session, "wto", value = rv$wto()))
