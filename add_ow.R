@@ -317,6 +317,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         NA
       }else if(length(input$ow_table_rows_selected) > 0 & select_combo_row()$asset_comp_code %in% rv$asset_comp_code_click){
         rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected]
+      }else if(facility_id() %in% rv$ow_view_db()$facility_id){
+        rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())][1]
       }else{
         rv$ow_suggested_pre()
       })
