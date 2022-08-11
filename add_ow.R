@@ -5,7 +5,7 @@
 #User can also add well measurements
 
 #1.0 UI ------
-add_owUI <- function(id, label = "add_ow", site_names, html_req){
+add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
   #namespace
   ns <- NS(id)
   tabPanel(title = "Add/Edit Location", value = "add_ow",  
@@ -104,8 +104,8 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                                     column(4, disabled(numericInput(ns("wto"), "Weir-to-Orifice (ft)", value = NULL, step = 0.0001))), 
                                     column(4, disabled(numericInput(ns("ots"), "Orifice-to-Sensor (ft)", value = NULL, step = 0.0001))))),
                  fluidRow(
-                   column(6, dateInput(ns("start_date"), "Initial Deployment Date", value = as.Date(NA))), 
-                   column(6, dateInput(ns("end_date"), "Sensor Removal Date", value = as.Date(NA)))
+                   column(6, dateInput(ns("start_date"), future_req(html_req("Hardware Installation Date")), value = as.Date(NA))), 
+                   column(6, dateInput(ns("end_date"), future_req(html_req("Hardware Removal Date")), value = as.Date(NA)))
                  ),
                  conditionalPanel(condition = "input.start_date", 
                                   ns=ns, 
@@ -113,7 +113,10 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req){
                  textInput(ns("well_meas_notes"), "Notes", value = NULL),
                  actionButton(ns("add_well_meas"), "Add Well Measurements"),
                  actionButton(ns("add_ow_deploy"), "Deploy Sensor at this SMP"),
-                 actionButton(ns("clear_ow"), "Clear All Fields")
+                 actionButton(ns("clear_ow"), "Clear All Fields"),
+                 ##notes about requirements
+                 fluidRow(HTML(paste(html_req(""), " indicates a required field."))),
+                 fluidRow(HTML(paste(future_req(""),"Hardware refers to equipment used to install sensors i.e. cable for observation wells (OW) and control structures (CS) or the rebar and PVC pipe for shallow wells (SW)")))
              )),
              #1.4 main panel - tables --------
              column(width = 8, 

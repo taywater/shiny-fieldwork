@@ -42,8 +42,10 @@ documentationUI <- function(id, label = "documentation"){
                   h5("View all future Special Investigations. This works the same as the View Special Investigations tab.")
                   ),
            column(width = 5, offset = 1,
-                  h2("Current Status"), 
-                  h3("v1.4.1"),
+                  h2("Current Status"),
+                  h3("v.1.4.2"),
+                  h5("Patched bugs related to 1.4.1 UI improvements, edited SRT collection times, and reworded well measurement sections to remove ambiguity. \"Collection calendar\" now passes more data to \"deploy\" to improve logic."),
+                  h3("v.1.4.1"),
                   h5("UI improvements within 'Add Location' and warning messaging."),
                   h3("v.1.4"), 
                   h5("Removed Stats, Inlet Conveyance, Porous Pavement, and Capture Efficiency and moved to their own apps."),

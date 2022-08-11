@@ -227,6 +227,8 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
         list(
           sensor_serial = reactive(rv$collect_table_db$sensor_serial),
           smp_id = reactive(rv$collect_table_db$smp_id),
+          deploy_dates = reactive(rv$collect_table_db$deployment_dtime_est),
+          ow_suffix = reactive(rv$collect_table_db$ow_suffix),
           cal_smp_id = reactive(rv$collect_table_filter()$smp_id[input$collection_rows_selected]),
           site_name = reactive(rv$collect_table_filter()$site_name[input$collection_rows_selected]),
           deploy_refresh = reactive(rv$deploy_refresh),

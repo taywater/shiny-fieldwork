@@ -430,7 +430,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       rv$sensor_warning <-       reactive( if(nchar(input$sensor_id) > 0){
                                             if(input$sensor_id %in% collect$sensor_serial()){
                                               if(length(input$collect_date) == 0 &
-                                                input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
+                                                 (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] |
+                                                 (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &
+                                                 input$well_name != collect$ow_suffix()[which(collect$sensor_serial() == input$sensor_id)]))){
         "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
       }else{
         NULL                                      
@@ -475,12 +477,18 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #also check to make sure the sensor is not already deployed, or the sensor has a collection date, or a row selected
+      #allow editing to a sensor already deployed if date, well, and smp match active deployment
       observe({toggleState(id = "deploy_sensor", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
                              nchar(input$well_name) > 0 & (nchar(input$sensor_id) > 0 | input$sensor_purpose == "DATALOGGER") & 
                              nchar(input$sensor_purpose) > 0 &
                              nchar(input$interval) > 0 & length(input$deploy_date) > 0 & nchar(input$term) > 0 &
                              rv$req_dl_error() & rv$sensor_break() &
-                             (!(input$sensor_id %in% collect$sensor_serial()) |
+                             
+                             (!(input$sensor_id %in% collect$sensor_serial() &
+                                (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] |
+                                (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &  
+                                input$well_name != rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]))) |
+                                
                                 (length(input$collect_date) > 0 & rv$redeploy() == TRUE & !(input$sensor_id %in% collect$sensor_serial())) |
                                 (length(input$collect_date) >0 & rv$redeploy() == FALSE) |
                                 length(input$current_deployment_rows_selected) > 0 |
@@ -745,9 +753,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #when a row in active deployments table is clicked
       observeEvent(input$current_deployment_rows_selected, {
         #deselect from other tables
-         # browser()
         dataTableProxy('prev_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
+        # browser()
       })
       
       #when a row in the previous deployments table is clicked
@@ -891,7 +899,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       rv$ready_step <- reactive(if(length(rv$active()) > 0){
-        NULL
+        1
       }else if(length(rv$future()) > 0){
         rv$future_table_db()$ready[rv$future()]
       }else if(length(rv$prev()) > 0){
@@ -979,7 +987,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #2.2.7 Labels and Modals -----
       #tell whether you are adding new deployments or future deployments, or editing
-      rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
+      rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0) | rv$redeploy() == TRUE)
       rv$add_new_future <- reactive(length(input$future_deployment_rows_selected) == 0)
       
       #Create a modal title depending on the last criteria
@@ -1128,7 +1136,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         #if you need to add an end date when a sensor is not being redeployed
         }else if(rv$redeploy() == FALSE & rv$collect_date() != "NULL" & rv$complete_end_dates() == TRUE & rv$sw_or_dl() == FALSE){
           showModal(modalDialog(title = "Check Measurements", 
-                                "Did you collect hardware? Would you like to add an end date to these deployment measurements?", 
+                                "Did you collect hardware from the monitoring location (i.e. cable for observation wells and control structures or the rebar and PVC pipe for shallow wells)? Would you like to add an end date to the deployment measurements associated with this hardware?", 
                                 modalButton("No"), 
                                 actionButton(ns("confirm_add_end_date"), "Yes")))
         }else{
