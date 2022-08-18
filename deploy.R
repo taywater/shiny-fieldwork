@@ -987,7 +987,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #2.2.7 Labels and Modals -----
       #tell whether you are adding new deployments or future deployments, or editing
-      rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0) | rv$redeploy() == TRUE)
+      rv$add_new <- reactive((length(input$prev_deployment_rows_selected) == 0 & length(input$current_deployment_rows_selected) == 0))
       rv$add_new_future <- reactive(length(input$future_deployment_rows_selected) == 0)
       
       #Create a modal title depending on the last criteria
@@ -1015,7 +1015,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #relabel deploy button if editing
-      rv$label <- reactive(if(rv$add_new()) "Add New Deployment" else "Edit Selected Deployment")
+      rv$label <- reactive(if(rv$add_new()){ "Add New Deployment" } else if(rv$redeploy()){ "Collect and Redeploy" } else "Edit Selected Deployment")
       
       observe(updateActionButton(session, "deploy_sensor", label = rv$label()))
       
@@ -1047,6 +1047,8 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                               rv$modal_text(), 
                               modalButton("No"), 
                               actionButton(ns("confirm_deploy"), "Yes")))
+        # 08/18/2022
+        # browser()
       })
       
       #2.2.8 Add/Edit/Clear --------
