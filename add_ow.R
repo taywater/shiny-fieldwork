@@ -105,7 +105,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                                     column(4, disabled(numericInput(ns("ots"), "Orifice-to-Sensor (ft)", value = NULL, step = 0.0001))))),
                  fluidRow(
                    column(6, dateInput(ns("start_date"), future_req(html_req("Hardware Installation Date")), value = as.Date(NA))), 
-                   column(6, dateInput(ns("end_date"), future_req(html_req("Hardware Removal Date")), value = as.Date(NA)))
+                   column(6, dateInput(ns("end_date"), future_req("Hardware Removal Date"), value = as.Date(NA)))
                  ),
                  conditionalPanel(condition = "input.start_date", 
                                   ns=ns, 
@@ -332,7 +332,22 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #the "== 0" was added so that the observeEvents also trigger when a row is deselected
       
       observeEvent(input$component_id, {
+        
+        #auto populate suffix in input UI
         updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
+        
+        #select row if location is already added and/or has measurements
+        if(facility_id() %in% rv$ow_view_db()$facility_id){
+          # browser()
+          selectRows(
+            proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
+            selected = which(rv$ow_view_db()$facility_id == facility_id())
+          )
+        } else
+          selectRows(
+            proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
+            selected = NULL
+          )
       })
       
       observeEvent(is.null(input$ow_table_rows_selected), {
