@@ -341,7 +341,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
-            selected = which(rv$ow_view_db()$facility_id == facility_id())
+            selected = max(which(rv$ow_view_db()$facility_id == facility_id()))
           )
         } else
           selectRows(
