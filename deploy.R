@@ -448,10 +448,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       )
       
       #new sensor warning
-      rv$new_sensor_warning <- reactive(if(nchar(input$sensor_id) > 0){
-        if(input$sensor_id %in% collect$sensor_serial()){
-          if(length(input$collect_date) == 0 &
-             input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
+      rv$new_sensor_warning <- reactive(if(nchar(input$new_sensor_id) > 0){
+        if(input$new_sensor_id %in% collect$sensor_serial()){
+          if(
+             (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$new_sensor_id)] |
+              (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$new_sensor_id)] &
+               input$well_name != collect$ow_suffix()[which(collect$sensor_serial() == input$new_sensor_id)]))){
             "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
           }else{
             NULL                                      
