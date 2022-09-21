@@ -113,12 +113,12 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       #2.1.1 Headers -----
       #Get the Project name, combine it with System ID, and create a reactive header
-      rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
+      rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from fieldwork.viw_project_names where system_id = '", input$system_id, "'")))
       
       rv$sys_and_name <- reactive(paste(rv$sys_and_name_step()$system_id[1], rv$sys_and_name_step()$project_name[1]))
       
       #Get project name from work number
-      rv$worknumber_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select worknumber, project_name from project_names where worknumber = '", input$work_number, "'")))
+      rv$worknumber_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select worknumber, project_name from fieldwork.viw_project_names where worknumber = '", input$work_number, "'")))
       
       rv$worknumber_and_name <- reactive(paste(rv$worknumber_and_name_step()$worknumber[1],
                                                rv$worknumber_and_name_step()$project_name[1]))
@@ -182,12 +182,12 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       })
       
       #lookup priority uid
-      rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
+      rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.tbl_field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
       rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
       rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
       
       #lookup site name uid
-      rv$site_name_lookup_uid_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
+      rv$site_name_lookup_uid_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.tbl_site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
       
       rv$site_name_lookup_uid <- reactive(if (nchar(input$site_name) > 0) paste0("'", rv$site_name_lookup_uid_step(), "'") else "NULL")
       
@@ -224,7 +224,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       #2.1.4 Query and show tables -------
       #get the table of SIs
-      rv$si_table_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full 
+      rv$si_table_query <- reactive(paste0("SELECT * FROM fieldwork.viw_special_investigation_full 
                                             WHERE system_id = '", input$system_id, "'
                                             OR work_number = ", rv$work_number(), " 
                                             OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
@@ -326,7 +326,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         print(rv$qaqc_complete())
         if(length(input$si_table_rows_selected) == 0){
           #add to special investigation
-          add_test_query <- paste0("INSERT INTO fieldwork.special_investigation (system_id, work_number, site_name_lookup_uid, 
+          add_test_query <- paste0("INSERT INTO fieldwork.tbl_special_investigation (system_id, work_number, site_name_lookup_uid, 
           test_date, special_investigation_lookup_uid, requested_by_lookup_uid,  con_phase_lookup_uid, 
           photos_uploaded, sensor_collection_date,  qaqc_complete, summary_date, results_summary, sensor_deployed, summary_needed)
         	                  VALUES (", paste(rv$system_id(), rv$work_number(), rv$site_name_lookup_uid(),
@@ -337,7 +337,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
           odbc::dbGetQuery(poolConn, add_test_query)
         }else{
           #edit special investigation
-          edit_test_query <- paste0("UPDATE fieldwork.special_investigation SET system_id = ", rv$system_id(), ",
+          edit_test_query <- paste0("UPDATE fieldwork.tbl_special_investigation SET system_id = ", rv$system_id(), ",
                                    work_number = ", rv$work_number(), ", 
                                    site_name_lookup_uid = ", rv$site_name_lookup_uid(), ", 
                                     test_date = ", rv$test_date(), ", 
@@ -357,7 +357,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         }
         
         if(length(input$future_si_table_rows_selected) > 0){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_special_investigation 
+          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_special_investigation 
                                             WHERE future_special_investigation_uid = '", rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
         }
         
@@ -369,7 +369,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialoge box asking the user
         #if they would like to create a deployment. If yes, that takes them to the deployment page
-        si_deployment_exists_query <- paste0("select * from fieldwork.deployment_full where term = 'Special' and (smp_to_system(smp_id) = ", rv$system_id(), " OR site_name = ", rv$system_id(), ") and deployment_dtime_est < '", input$date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$date, "'::timestamp - interval '3 days'")
+        si_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'Special' and (smp_to_system(smp_id) = ", rv$system_id(), " OR site_name = ", rv$system_id(), ") and deployment_dtime_est < '", input$date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$date, "'::timestamp - interval '3 days'")
         
         si_deployment_exists_table <- dbGetQuery(poolConn, si_deployment_exists_query)
         
@@ -404,7 +404,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         if(length(input$future_si_table_rows_selected) == 0){
           #add to future special investigation
           
-          add_future_test_query <- paste0("INSERT INTO fieldwork.future_special_investigation (system_id, work_number, site_name_lookup_uid, 
+          add_future_test_query <- paste0("INSERT INTO fieldwork.tbl_future_special_investigation (system_id, work_number, site_name_lookup_uid, 
           special_investigation_lookup_uid, requested_by_lookup_uid,  con_phase_lookup_uid, 
           field_test_priority_lookup_uid, notes)
         	                  VALUES (", paste(rv$system_id(), rv$work_number(), rv$site_name_lookup_uid(),
@@ -416,7 +416,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         }else{
           #edit future special investigation
           
-          edit_future_test_query <- paste0("UPDATE fieldwork.future_special_investigation SET system_id = ", rv$system_id(), ",
+          edit_future_test_query <- paste0("UPDATE fieldwork.tbl_future_special_investigation SET system_id = ", rv$system_id(), ",
                                    work_number = ", rv$work_number(), ", 
                                    site_name_lookup_uid = ", rv$site_name_lookup_uid(), ", 
                                     special_investigation_lookup_uid = ", rv$si_type(), ",
@@ -493,7 +493,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       observeEvent(input$confirm_delete_future, {
         odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.future_special_investigation WHERE future_special_investigation_uid = '",
+                         paste0("DELETE FROM fieldwork.tbl_future_special_investigation WHERE future_special_investigation_uid = '",
                                 rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
         
         #update future cet table
@@ -505,7 +505,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       #2.2 View all SIs -----------------------------------------------------------
       #2.2.1 query and show table ------
-      rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.special_investigation_full ORDER BY test_date DESC"))
+      rv$all_query <- reactive(paste0("SELECT * FROM fieldwork.viw_special_investigation_full ORDER BY test_date DESC"))
       rv$all_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_query()))
       rv$all_si_table <- reactive(rv$all_si_table_db() %>% mutate(across(c("test_date", "sensor_collection_date", "summary_date"),
                                                                          as.character)) %>% 

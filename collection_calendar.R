@@ -56,11 +56,11 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
       
       #2.0.2 querying tables ---
       #query the collection calendar and arrange by deployment_uid
-      collect_query <- "select * from fieldwork.active_deployments"
+      collect_query <- "select * from fieldwork.viw_active_deployments"
       rv$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
       
       #query the future deployment table
-      future_query <- "select * from fieldwork.future_deployments_full order by field_test_priority_lookup_uid"
+      future_query <- "select * from fieldwork.viw_future_deployments_full order by field_test_priority_lookup_uid"
       rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
       
       #2.0.3 updating tables following changes in other modules

@@ -115,7 +115,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #2.1.1 Headers ---------
       
       #Get the Project name, combine it with System ID, and create a reactive header
-      rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from project_names where system_id = '", input$system_id, "'")))
+      rv$sys_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select system_id, project_name from fieldwork.viw_project_names where system_id = '", input$system_id, "'")))
       
       rv$sys_and_name <- reactive(paste(rv$sys_and_name_step()$system_id[1], rv$sys_and_name_step()$project_name[1]))
       
@@ -170,7 +170,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       rv$phase_null <- reactive(if(nchar(input$con_phase) == 0) "NULL" else paste0("'", rv$phase(), "'"))
       
-      rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
+      rv$priority_lookup_uid_query <- reactive(paste0("select field_test_priority_lookup_uid from fieldwork.tbl_field_test_priority_lookup where field_test_priority = '", input$priority, "'"))
       rv$priority_lookup_uid_step <- reactive(dbGetQuery(poolConn, rv$priority_lookup_uid_query()))
       rv$priority_lookup_uid <- reactive(if(nchar(input$priority) == 0) "NULL" else paste0("'", rv$priority_lookup_uid_step(), "'"))
       
@@ -373,7 +373,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         
         #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialogue box asking the user
         #if they would like to create a deployment. If yes, that takes them to the deployment page
-        srt_deployment_exists_query <- paste0("select * from fieldwork.deployment_full where term = 'SRT' and smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
+        srt_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'SRT' and smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
         
         srt_deployment_exists_table <- dbGetQuery(poolConn, srt_deployment_exists_query)
         

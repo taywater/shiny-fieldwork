@@ -27,7 +27,7 @@
         rv <- reactiveValues()
         
         #2.1 active table ----
-          active_cwl_sites_query <- "select * from fieldwork.active_cwl_sites order by smp_id, site_name"
+          active_cwl_sites_query <- "select * from fieldwork.viw_active_cwl_sites order by smp_id, site_name"
           
           rv$active_cwl_sites_db <- reactive(dbGetQuery(poolConn, active_cwl_sites_query))
           
@@ -54,7 +54,7 @@
           )
         
         #2.2 past table
-          past_cwl_sites_query <- "select * from fieldwork.previous_cwl_sites order by smp_id, site_name"
+          past_cwl_sites_query <- "select * from fieldwork.viw_previous_cwl_sites order by smp_id, site_name"
           
           rv$past_cwl_sites_db <- reactive(dbGetQuery(poolConn, past_cwl_sites_query))
           
