@@ -128,7 +128,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       )
       
       #2.1.2 Query and Display Tables -----
-      srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.srt_full WHERE system_id = '", input$system_id, "'"))
+      srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.viw_srt_full WHERE system_id = '", input$system_id, "'"))
       rv$srt_table_db <- reactive(odbc::dbGetQuery(poolConn, srt_table_query()))
       
       rv$srt_table <- reactive(rv$srt_table_db() %>% 
@@ -145,7 +145,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       )
       
       #future table 
-      future_srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_srt_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
+      future_srt_table_query <- reactive(paste0("SELECT * FROM fieldwork.viw_future_srt_full WHERE system_id = '", input$system_id, "' order by field_test_priority_lookup_uid"))
       rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
       
       rv$future_srt_table <- reactive(rv$future_srt_table_db() %>% 
@@ -228,7 +228,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #2.1.5 do the math -------
       #update Impervous Drainage Area
-      srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM public.greenit_systembestdatacache WHERE 
+      srt_dcia_query <- reactive(paste0("SELECT sys_impervda_ft2 FROM external.tbl_systembdv WHERE 
                                         system_id = '", input$system_id, "'"))
       rv$dcia_x <- reactive(odbc::dbGetQuery(poolConn, srt_dcia_query()) %>% dplyr::pull())
       rv$dcia <- reactive(as.numeric(rv$dcia_x()))
@@ -474,7 +474,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #2.2 View SRTs ---------
       
       #2.2.1 query and display table -------
-      all_srt_table_query <- "SELECT * FROM fieldwork.srt_full ORDER BY test_date DESC"
+      all_srt_table_query <- "SELECT * FROM fieldwork.viw_srt_full ORDER BY test_date DESC"
       rv$all_srt_table_db <- reactive(dbGetQuery(poolConn, all_srt_table_query))
       
       #convert 1s and 0s to yes and no, make dates characters so they show properly, and round storm size
@@ -594,7 +594,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #2.3 Future SRTs tab ------
       #2.3.1 query and display table -----
-      all_future_srt_table_query <- "select * from fieldwork.future_srt_full order by field_test_priority_lookup_uid"
+      all_future_srt_table_query <- "select * from fieldwork.viw_future_srt_full order by field_test_priority_lookup_uid"
       rv$all_future_srt_table_db <- odbc::dbGetQuery(poolConn, all_future_srt_table_query)
       
       rv$all_future_srt_table <- reactive(rv$all_future_srt_table_db %>% 

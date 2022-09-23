@@ -249,7 +249,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         ))
       
       #get the table of future SIs
-      rv$future_si_table_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full 
+      rv$future_si_table_query <- reactive(paste0("SELECT * FROM fieldwork.viw_future_special_investigation_full 
                                             WHERE system_id = '", input$system_id, "'
                                             OR work_number = ", rv$work_number(), " 
                                             OR site_name_lookup_uid = ", rv$site_name_lookup_uid()))
@@ -628,7 +628,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       #2.3 View Future SIs --------
       #2.3.1 query and display table -------
-      rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.future_special_investigation_full ORDER BY field_test_priority_lookup_uid DESC"))
+      rv$all_future_query <- reactive(paste0("SELECT * FROM fieldwork.viw_future_special_investigation_full ORDER BY field_test_priority_lookup_uid DESC"))
       rv$all_future_si_table_db <- reactive(dbGetQuery(poolConn, rv$all_future_query()))
       rv$all_future_si_table <- reactive(rv$all_future_si_table_db() %>% 
                                             dplyr::select("system_id", "project_name", "special_investigation_type", 
