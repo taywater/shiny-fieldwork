@@ -74,7 +74,9 @@
   #set db connection
   #using a pool connection so separate connnections are unified
   #gets environmental variables saved in local or pwdrstudio environment
-  poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+   poolConn <- dbPool(odbc(), dsn = "mars_data_pg14")
+  #poolConn <- dbPool(odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  
   
   #disconnect from db on stop 
   onStop(function(){
@@ -126,7 +128,7 @@
       sensor_serial <- hobo_list$sensor_serial
       
       #Deployment purpose lookup table
-      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_deployment_lookup")
+      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
       
       #long term lookup types
       long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_long_term_lookup")
@@ -168,7 +170,7 @@
         tags$head(tags$script(jscode)),
         #must call useShinyjs() for shinyjs() functionality to work in app
         useShinyjs(),
-        navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
+        navbarPage("Fieldwork",  id = "inTabset",#theme = shinytheme("cerulean"),
                    #do.call is needed to use a list with appended UI functions with navbarMenu
                    #this is so a navbarMenu (dropdown) can consist of tabs from different modules
                    #this navbarMenu has both tabs from collection calendar (cc & future deployments) and "Deploy Sensor"
@@ -224,7 +226,7 @@
     sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_issue_lookup order by sensor_issue_lookup_uid")
     
     #Deployment purpose lookup table
-    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_deployment_lookup")
+    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
     
     #srt_types & con phase
     srt_types <- dbGetQuery(poolConn, "select * from fieldwork.tbl_srt_type_lookup")
