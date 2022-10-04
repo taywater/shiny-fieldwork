@@ -1066,7 +1066,10 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                            paste0("INSERT INTO fieldwork.deployment (deployment_dtime_est, ow_uid,
          inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error, deployment_dtw_or_depth_ft, collection_dtw_or_depth_ft)
             VALUES ('", input$deploy_date, "', fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ",
-                                  rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", rv$notes(),",", rv$download_error(), ", ", rv$deploy_depth_to_water(), ", ", rv$collect_depth_to_water(), ")"))
+                                  rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", 
+                                  iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                                #This is dumb.
+                                  ",", rv$download_error(), ", ", rv$deploy_depth_to_water(), ", ", rv$collect_depth_to_water(), ")"))
         }else{
           #update existing deployment
           odbc::dbGetQuery(poolConn, 
@@ -1078,7 +1081,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   research_lookup_uid = ", rv$research_lookup_uid(), ",
                                   interval_min = '", input$interval, "',
                                   collection_dtime_est = ", rv$collect_date(), ",
-                                  notes = ", rv$notes(), ", 
+                                  notes = ", iconv(rv$notes(), "latin1", "ASCII", sub=""), ", 
                                   download_error = ", rv$download_error(), ", 
                                   deployment_dtw_or_depth_ft = ", rv$deploy_depth_to_water(), ", 
                                   collection_dtw_or_depth_ft = ", rv$collect_depth_to_water(), " WHERE 
@@ -1101,7 +1104,10 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
          inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, notes, deployment_dtw_or_depth_ft)
             VALUES (", rv$collect_date(), ", fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), '",
                                       rv$new_inventory_sensors_uid(), "','", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), 
-                                      ",'",input$interval, "', ", rv$redeployment_notes(), ", ", rv$collect_depth_to_water(), ")"))
+                                      ",'",input$interval, "', ", 
+                                      iconv(rv$redeployment_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                                                 #This is dumb. 
+                                      ", ", rv$collect_depth_to_water(), ")"))
         }
         
         #delete from future table when a future deployment is converted to current
@@ -1173,7 +1179,10 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
     			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid, premonitoring_inspection, ready)
     			VALUES (fieldwork.get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ", rv$inventory_sensors_uid_null(),
                                   ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
-                                  ", ", rv$research_lookup_uid(), ", ", rv$notes(), ", ", rv$priority_lookup_uid(), 
+                                  ", ", rv$research_lookup_uid(), ", ", 
+                                  iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                                #This is dumb. 
+                                  ", ", rv$priority_lookup_uid(), 
                                   ", ", rv$premonitoring_date(), ", ", rv$ready(), ")"))
         }else{
           odbc::dbGetQuery(poolConn, 
@@ -1184,7 +1193,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   long_term_lookup_uid = ", rv$term_null(), ",
                                   research_lookup_uid = ", rv$research_lookup_uid(), ",
                                   interval_min = ", rv$interval_min() , ",
-                                  notes = ", rv$notes(), ", 
+                                  notes = ", iconv(rv$notes(), "latin1", "ASCII", sub=""), ", 
                                   field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
                                   premonitoring_inspection = ", rv$premonitoring_date(), ", 
                                   ready = ", rv$ready(), " WHERE 

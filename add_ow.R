@@ -770,7 +770,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
             input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", rv$well_meas_notes(), ")"
+            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", 
+            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                    #This is dumb.
+             ")"
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
@@ -778,7 +781,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", rv$well_meas_notes(),"')"
+            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", 
+            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                    #This is dumb.
+            "')"
             ))
           }
         }else{
@@ -790,7 +796,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             hook_to_sensor_ft = ", rv$hts(), ", 
             cap_to_weir_ft = ", rv$ctw(), ", 
             cap_to_orifice_ft = ", rv$cto(), ",
-            notes = ", rv$well_meas_notes(), ", 
+            notes = ", iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", 
             weir = '", input$weir, "'
             WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected], "'"))
         }
