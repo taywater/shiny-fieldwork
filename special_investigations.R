@@ -332,7 +332,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                  VALUES (", paste(rv$system_id(), rv$work_number(), rv$site_name_lookup_uid(),
         	                                   rv$test_date(), rv$si_type(), rv$requested_by(), rv$phase_null(), 
         	                                   rv$photos(), rv$sensor_collect_date(),  rv$qaqc_complete(), rv$summary_date(),
-        	                                   rv$notes(), rv$sensor_deployed(), rv$summary_needed(), sep = ", "), ")")
+        	                                   iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+        	                                                                                 #This is dumb.
+        	                                   rv$sensor_deployed(), rv$summary_needed(), sep = ", "), ")")
           
           odbc::dbGetQuery(poolConn, add_test_query)
         }else{
@@ -348,7 +350,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                     sensor_collection_date = ", rv$sensor_collect_date(), ", 
                                     qaqc_complete = ", rv$qaqc_complete(), ", 
                                     summary_date = ", rv$summary_date(), ",
-                                    results_summary = ", rv$notes(), ", 
+                                    results_summary = ", iconv(rv$notes(), "latin1", "ASCII", sub=""), ", 
                                     sensor_deployed = ", rv$sensor_deployed(), ", 
                                     summary_needed = ", rv$summary_needed(), "
                                    WHERE special_investigation_uid = '", rv$si_table_db()[input$si_table_rows_selected, 1], "'")
@@ -410,7 +412,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                  VALUES (", paste(rv$system_id(), rv$work_number(), rv$site_name_lookup_uid(),
         	                                   rv$si_type(), rv$requested_by(), rv$phase_null(),
         	                                   rv$priority_lookup_uid(),
-        	                                   rv$notes(), sep = ", "), ")")
+        	                                   iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+        	                                                                                 #This is dumb. 
+        	                                   sep = ", "), ")")
           
           odbc::dbGetQuery(poolConn, add_future_test_query)
         }else{
@@ -423,7 +427,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                     requested_by_lookup_uid =", rv$requested_by(), ", 
                                     con_phase_lookup_uid = ", rv$phase_null(), ", 
                                     field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
-                                    notes = ", rv$notes(), "
+                                    notes = ", iconv(rv$notes(), "latin1", "ASCII", sub=""), "
                                    WHERE future_special_investigation_uid = '", rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'")
           
           dbGetQuery(poolConn, edit_future_test_query)

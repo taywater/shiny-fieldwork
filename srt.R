@@ -296,14 +296,17 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         if(length(input$future_srt_table_rows_selected) == 0){
           add_future_srt_query <- paste0("INSERT INTO fieldwork.future_srt (system_id, con_phase_lookup_uid, srt_type_lookup_uid, 
                                          dcia_ft2, notes, field_test_priority_lookup_uid)
-                                         VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", rv$srt_summary(), ", ", rv$priority_lookup_uid(), ")")
+                                         VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", 
+                                         iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                                             #This is dumb.
+                                         ", ", rv$priority_lookup_uid(), ")")
           
           odbc::dbGetQuery(poolConn, add_future_srt_query)
         }else{
           edit_future_srt_query <- paste0("UPDATE fieldwork.future_srt SET con_phase_lookup_uid = ", rv$phase_null(), ", 
                                           srt_type_lookup_uid = ", rv$type_null(), ", 
                                           dcia_ft2 = ", rv$dcia_write(), ", 
-                                          notes = ", rv$srt_summary(), ",
+                                          notes = ", iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), ",
                                           field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), "
                                           WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'")
           
@@ -337,7 +340,10 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                           srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary, flow_data_recorded, water_level_recorded, photos_uploaded, 
                                   sensor_collection_date, qaqc_complete, srt_summary_date, sensor_deployed) 
       	                  VALUES ('", input$system_id, "','", input$srt_date, "','", rv$phase(), "', ",  rv$type(), ",", rv$test_volume(), ",", 
-                                  rv$dcia_write(), ", ", rv$storm_size(), ",", rv$srt_summary(), ", ", rv$flow_data_rec(), ",", rv$water_level_rec(), ",",  
+                                  rv$dcia_write(), ", ", rv$storm_size(), ",", 
+                                  iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                                      #This is dumb. 
+                                  ", ", rv$flow_data_rec(), ",", rv$water_level_rec(), ",",  
                                   rv$photos_uploaded(), ",", rv$sensor_collect_date(), ",", rv$qaqc_complete(), ",", 
                                   rv$srt_summary_date(), ", ", rv$sensor_deployed(), ")")
           
@@ -351,7 +357,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
             "', srt_volume_ft3 = ", rv$test_volume(),
             ", dcia_ft2 = " , rv$dcia_write(),
             ", srt_stormsize_in = ", rv$storm_size(), 
-            ", srt_summary = ", rv$srt_summary(), 
+            ", srt_summary = ", iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), 
             ", flow_data_recorded = ", rv$flow_data_rec(), 
             ", water_level_recorded = ", rv$water_level_rec(), 
             ", photos_uploaded = ", rv$photos_uploaded(), 

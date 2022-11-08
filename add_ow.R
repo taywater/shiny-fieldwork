@@ -300,19 +300,28 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       }
       )
       
+      #Know the smp facility id
+      ow_suffix_input <- reactive(if(length(input$ow_suffix) > 0){
+        input$ow_suffix
+      }else{
+        ""
+      }
+      )
+      
+      #2.3.4 auto-select row ------
       #update facility id shown based on above
       observe(updateTextInput(session, "facility_id", value = facility_id()))
       
-      #2.3.4 suggest ow suffix ------
+
       #count how many existing observation wells of the selected type already exist at the SMP
-      rv$well_count <- reactive(length(rv$existing_ow_prefixes()[rv$existing_ow_prefixes() == select_ow_prefix()]))
+      # rv$well_count <- reactive(length(rv$existing_ow_prefixes()[rv$existing_ow_prefixes() == select_ow_prefix()]))
       
       #OW + (Count + 1) for suggested name of the new well 
-      rv$ow_suggested_pre <- reactive(if(!is.na(select_ow_prefix())){
-        paste0(select_ow_prefix(), (rv$well_count() + 1))
-      }else{
-        NA
-      })
+      # rv$ow_suggested_pre <- reactive(if(!is.na(select_ow_prefix())){
+      #   paste0(select_ow_prefix(), (rv$well_count() + 1))
+      # }else{
+      #   NA
+      # })
       
       #only show suggested suffix if there is a selected component id
       #need to do the first "if" first to confirm that length is not 0 before checking if it is NA
@@ -322,8 +331,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected]
       }else if(facility_id() %in% rv$ow_view_db()$facility_id){
         rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())][1]
-      }else{
-        rv$ow_suggested_pre()
       })
       
       #only update ow_suffix when component ID changes, or when a table row is selected or deselected. 
@@ -331,28 +338,43 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #this was likely because there was a blank instance, which led to ow_suffix trying to populate off of an item of length zero
       #the "== 0" was added so that the observeEvents also trigger when a row is deselected
       
+      #select row if inputted suffix and facility id match an existing location
+      #check upon component_id input change
       observeEvent(input$component_id, {
         
-        #auto populate suffix in input UI
-        updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
-        
-        #select row if location is already added and/or has measurements
-        if(facility_id() %in% rv$ow_view_db()$facility_id){
+        #select row if location is already added and/or has measurements; only works when facility id is unique
+        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
-            selected = max(which(rv$ow_view_db()$facility_id == facility_id()))
+            selected = max(which(rv$ow_view_db()$ow_suffix == ow_suffix_input()))
           )
         } else
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
-            selected = NULL
+            selected = input$ow_table_rows_selected
+          )
+      })
+      
+      #perform same check upon ow_suffix input change            
+      observeEvent(input$ow_suffix, {
+        #select row if location is already added and/or has measurements; only works when facility id is unique
+        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+          # browser()
+          selectRows(
+            proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
+            selected = max(which(rv$ow_view_db()$ow_suffix == ow_suffix_input()))
+          )
+        } else
+          selectRows(
+            proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
+            selected = input$ow_table_rows_selected
           )
       })
       
       observeEvent(is.null(input$ow_table_rows_selected), {
         
-        # updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
+        updateTextInput(session, "ow_suffix", value = rv$ow_suggested())
         #Purge any values for pre-selected wells, keep SMP/site name and "At SMP?" input
         updateTextInput(session, "ow_suffix", value = "")
         updateTextInput(session, "facility_id", value = "")
@@ -389,6 +411,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
       
       #2.3.6 prepare inputs
+      # browser()
       rv$ow_suffix <- reactive(gsub('\'', '\'\'', input$ow_suffix))
       
       #use to check for ow validity
@@ -510,6 +533,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           # browser() #browser for debugging facility id's not populating in input ui after clicking row
           #get facility id from table
           rv$fac <- rv$ow_view_db()$facility_id[input$ow_table_rows_selected]
+          updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
+          
           #get component id
           comp_id_query <- paste0("select distinct component_id from external.mat_assets where facility_id = '", rv$fac, "' 
               AND component_id IS NOT NULL")
@@ -545,6 +570,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #update well depth based on selected row
         rv$well_depth_edit <- rv$ow_view_db()$well_depth_ft[input$ow_table_rows_selected]
         updateNumericInput(session, "well_depth", value= rv$well_depth_edit)
+        
         
         #update sensor one inch, removed 05/09/2022
         # rv$sensor_one_inch_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 11]
@@ -742,7 +768,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
             input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", rv$well_meas_notes(), ")"
+            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ",
+            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                    #This is dumb.
+            ")"
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
@@ -750,7 +779,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
             VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", rv$well_meas_notes(),"')"
+            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '",
+              iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                      #This is dumb.
+              ")"
             ))
           }
         }else{
@@ -762,7 +794,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             hook_to_sensor_ft = ", rv$hts(), ", 
             cap_to_weir_ft = ", rv$ctw(), ", 
             cap_to_orifice_ft = ", rv$cto(), ",
-            notes = ", rv$well_meas_notes(), ", 
+            notes = ", iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", 
             weir = '", input$weir, "'
             WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected], "'"))
         }
