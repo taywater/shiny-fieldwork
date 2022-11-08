@@ -335,6 +335,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                                   iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
         	                                                                                 #This is dumb.
         	                                   rv$sensor_deployed(), rv$summary_needed(), sep = ", "), ")")
+
           
           odbc::dbGetQuery(poolConn, add_test_query)
         }else{
@@ -415,6 +416,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                                   iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
         	                                                                                 #This is dumb. 
         	                                   sep = ", "), ")")
+
           
           odbc::dbGetQuery(poolConn, add_future_test_query)
         }else{

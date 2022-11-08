@@ -344,6 +344,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #select row if location is already added and/or has measurements; only works when facility id is unique
         if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
@@ -355,6 +356,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             selected = input$ow_table_rows_selected
           )
       })
+
+
       
       #perform same check upon ow_suffix input change            
       observeEvent(input$ow_suffix, {
@@ -371,6 +374,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             selected = input$ow_table_rows_selected
           )
       })
+      
       
       observeEvent(is.null(input$ow_table_rows_selected), {
         
@@ -534,7 +538,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           #get facility id from table
           rv$fac <- rv$ow_view_db()$facility_id[input$ow_table_rows_selected]
           updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
-          
+
           #get component id
           comp_id_query <- paste0("select distinct component_id from external.mat_assets where facility_id = '", rv$fac, "' 
               AND component_id IS NOT NULL")
@@ -772,17 +776,20 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                     #This is dumb.
             ")"
+
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
               "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
-            VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '",
-              iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                      #This is dumb.
-              ")"
+
+            VALUES(fieldwork.get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
+            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", 
+            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                    #This is dumb.
+            "')"
+            
             ))
           }
         }else{

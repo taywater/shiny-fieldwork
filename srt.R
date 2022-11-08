@@ -299,6 +299,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                          VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", 
                                          iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                                              #This is dumb.
+
                                          ", ", rv$priority_lookup_uid(), ")")
           
           odbc::dbGetQuery(poolConn, add_future_srt_query)

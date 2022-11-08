@@ -448,10 +448,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       )
       
       #new sensor warning
-      rv$new_sensor_warning <- reactive(if(nchar(input$sensor_id) > 0){
-        if(input$sensor_id %in% collect$sensor_serial()){
-          if(length(input$collect_date) == 0 &
-             input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]){
+      rv$new_sensor_warning <- reactive(if(nchar(input$new_sensor_id) > 0){
+        if(input$new_sensor_id %in% collect$sensor_serial()){
+          if(
+             (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$new_sensor_id)] |
+              (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$new_sensor_id)] &
+               input$well_name != collect$ow_suffix()[which(collect$sensor_serial() == input$new_sensor_id)]))){
             "Sensor is deployed at another location. Search Sensor ID in \"Add Sensor\" tab for more info."
           }else{
             NULL                                      
@@ -1063,7 +1065,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           odbc::dbGetQuery(poolConn,
                            paste0("INSERT INTO fieldwork.tbl_deployment (deployment_dtime_est, ow_uid,
          inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error, deployment_dtw_or_depth_ft, collection_dtw_or_depth_ft)
+
             VALUES ('", input$deploy_date, "', fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ",
+
                                   rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", 
                                   iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                                 #This is dumb.
