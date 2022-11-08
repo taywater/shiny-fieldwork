@@ -74,7 +74,9 @@
   #set db connection
   #using a pool connection so separate connnections are unified
   #gets environmental variables saved in local or pwdrstudio environment
-  poolConn <- dbPool(odbc(), dsn = "mars_testing", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+   poolConn <- dbPool(odbc(), dsn = "mars_data_pg14")
+  #poolConn <- dbPool(odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
+  
   
   #disconnect from db on stop 
   onStop(function(){
@@ -105,41 +107,41 @@
       #define global variables that will be required each time the UI runs
       
       #query site names (non SMP)
-      site_name_query <- "select * from fieldwork.site_name_lookup"
+      site_name_query <- "select * from fieldwork.tbl_site_name_lookup"
       site_names <- odbc::dbGetQuery(poolConn, site_name_query) %>% 
         dplyr::arrange(site_name) %>% 
         dplyr::pull()
       
       #Sensor Model Number options
-      sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_model_lookup order by sensor_model_lookup_uid")
+      sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup order by sensor_model_lookup_uid")
       
-      sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
+      sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_status_lookup order by sensor_status_lookup_uid")
       
-      sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_issue_lookup order by sensor_issue_lookup_uid")
+      sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_issue_lookup order by sensor_issue_lookup_uid")
       
       #Sensor Serial Number List
       hobo_list_query <-  "select inv.sensor_serial, inv.sensor_model, inv.date_purchased, 
-      ow.smp_id, ow.ow_suffix from fieldwork.inventory_sensors_full inv
-                          left join fieldwork.deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
-                            left join fieldwork.ow_all ow on ow.ow_uid = d.ow_uid"
+      ow.smp_id, ow.ow_suffix from fieldwork.viw_inventory_sensors_full inv
+                          left join fieldwork.tbl_deployment d on d.inventory_sensors_uid = inv.inventory_sensors_uid AND d.collection_dtime_est is NULL
+                            left join fieldwork.tbl_ow ow on ow.ow_uid = d.ow_uid"
       hobo_list <- odbc::dbGetQuery(poolConn, hobo_list_query)
       sensor_serial <- hobo_list$sensor_serial
       
       #Deployment purpose lookup table
-      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
+      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
       
       #long term lookup types
-      long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.long_term_lookup")
+      long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_long_term_lookup")
       
       #research types
-      research_lookup <- dbGetQuery(poolConn, "select * from fieldwork.research_lookup")
+      research_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_research_lookup")
       
       #field test priority
-      priority <- dbGetQuery(poolConn, "select * from fieldwork.field_test_priority_lookup")
+      priority <- dbGetQuery(poolConn, "select * from fieldwork.tbl_field_test_priority_lookup")
       
       #srt_types & construction phase types
-      srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
-      con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
+      srt_types <- dbGetQuery(poolConn, "select * from fieldwork.tbl_srt_type_lookup")
+      con_phase <- dbGetQuery(poolConn, "select * from fieldwork.tbl_con_phase_lookup")
       
       #this function adds a little red star to indicate that a field is required. It uses HTML, hence "html_req"
       html_req <- function(label){
@@ -152,13 +154,13 @@
       }
       
       #project work numbers
-      work_number <- dbGetQuery(poolConn, "select distinct worknumber from greenit_projectbestdata") %>% pull()
+      work_number <- dbGetQuery(poolConn, "select distinct worknumber from external.tbl_projectbdv") %>% pull()
       
       #special investigation types
-      si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")
+      si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_special_investigation_lookup")
       
       #"requested by" lookup for special investigations
-      requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
+      requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_requested_by_lookup")
     
     # 1.2: actual UI------------------------
     
@@ -168,7 +170,7 @@
         tags$head(tags$script(jscode)),
         #must call useShinyjs() for shinyjs() functionality to work in app
         useShinyjs(),
-        navbarPage("Fieldwork", theme = shinytheme("cerulean"), id = "inTabset",
+        navbarPage("Fieldwork",  id = "inTabset",#theme = shinytheme("cerulean"),
                    #do.call is needed to use a list with appended UI functions with navbarMenu
                    #this is so a navbarMenu (dropdown) can consist of tabs from different modules
                    #this navbarMenu has both tabs from collection calendar (cc & future deployments) and "Deploy Sensor"
@@ -206,35 +208,35 @@
     # 2.1: required variables -----
     #define global variables that will be defined each time server runs
     #query all SMP IDs
-    smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from smpid_facilityid_componentid")) %>% 
+    smp_id <- odbc::dbGetQuery(poolConn, paste0("select distinct smp_id from external.mat_assets")) %>% 
       dplyr::arrange(smp_id) %>% 
       dplyr::filter(smp_id != "" & smp_id != "--") %>%
       dplyr::pull()  
     
-    sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from smpid_facilityid_componentid")) %>% 
+    sys_id <- odbc::dbGetQuery(poolConn, paste0("select distinct system_id from external.mat_assets")) %>% 
       dplyr::arrange(system_id) %>% 
       dplyr::filter(system_id != "" & system_id != "--") %>%
       dplyr::pull()
     
     #Sensor Model Number options
-    sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_model_lookup order by sensor_model_lookup_uid")
+    sensor_model_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup order by sensor_model_lookup_uid")
     
-    sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_status_lookup order by sensor_status_lookup_uid")
+    sensor_status_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_status_lookup order by sensor_status_lookup_uid")
     
-    sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.sensor_issue_lookup order by sensor_issue_lookup_uid")
+    sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_issue_lookup order by sensor_issue_lookup_uid")
     
     #Deployment purpose lookup table
-    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.deployment_lookup")
+    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
     
     #srt_types & con phase
-    srt_types <- dbGetQuery(poolConn, "select * from fieldwork.srt_type_lookup")
-    con_phase <- dbGetQuery(poolConn, "select * from fieldwork.con_phase_lookup")
+    srt_types <- dbGetQuery(poolConn, "select * from fieldwork.tbl_srt_type_lookup")
+    con_phase <- dbGetQuery(poolConn, "select * from fieldwork.tbl_con_phase_lookup")
     
     #special investigation types
-    si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.special_investigation_lookup")
+    si_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_special_investigation_lookup")
     
     #request by lookup
-    requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.requested_by_lookup")
+    requested_by_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_requested_by_lookup")
     
     #refresh starter 
     refresh_location <- 0

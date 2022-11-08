@@ -55,7 +55,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       #2.1 Query sensor table ----
       #2.1.1 intial query -----
       #Sensor Serial Number List
-      sensor_table_query <-  "select * from fieldwork.inventory_sensors_full"
+      sensor_table_query <-  "select * from fieldwork.viw_inventory_sensors_full"
       rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       
       #2.1.2 query on update ----
@@ -193,7 +193,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
         
         if(!(input$serial_no %in% rv$sensor_table$sensor_serial)){
           add_sensor_query <- paste0(
-            "INSERT INTO fieldwork.inventory_sensors (sensor_serial, sensor_model_lookup_uid, date_purchased, sensor_status_lookup_uid, 
+            "INSERT INTO fieldwork.tbl_inventory_sensors (sensor_serial, sensor_model_lookup_uid, date_purchased, sensor_status_lookup_uid, 
             sensor_issue_lookup_uid_one, sensor_issue_lookup_uid_two, request_data) 
     	      VALUES ('", input$serial_no, "', ",rv$sensor_model_lookup_uid(), ", ",  
             rv$date_purchased(), ", '", rv$status_lookup_uid(), "', ", 
@@ -205,7 +205,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
             isolate(paste("Sensor", input$serial_no, "added."))
           })
         }else{ #edit sensor info
-          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.inventory_sensors SET 
+          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.tbl_inventory_sensors SET 
                                             sensor_model_lookup_uid = ", rv$sensor_model_lookup_uid(), ",
                                             date_purchased = ", rv$date_purchased(), ", 
                                             sensor_status_lookup_uid = '", rv$status_lookup_uid(), "', 

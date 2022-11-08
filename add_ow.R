@@ -194,7 +194,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.2 Headers ----
       
       #Get the Project name, combine it with SMP ID, and create a reactive header
-      rv$smp_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select smp_id, project_name from project_names where smp_id = '", input$smp_id, "'")))
+      rv$smp_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select smp_id, project_name from fieldwork.viw_project_names where smp_id = '", input$smp_id, "'")))
       
       rv$smp_and_name <- reactive(paste(rv$smp_and_name_step()$smp_id[1], rv$smp_and_name_step()$project_name[1]))
       
@@ -211,7 +211,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.3 add location at SMP ----
       #2.3.1  determine ow prefixes, component IDs, asset types ----
       #read in ow prefixes and names
-      ow_prefixes_db <- dbGetQuery(poolConn, "select * from fieldwork.ow_prefixes") %>% rename("asset_type" = "ow_name")
+      ow_prefixes_db <- dbGetQuery(poolConn, "select * from fieldwork.tbl_ow_prefixes") %>% rename("asset_type" = "ow_name")
       #new an existing wells
       new_and_ex_wells <- ow_prefixes_db %>% dplyr::select(ow_prefix, asset_type) 
       #new wells - these are the wells (locations) that are componentless, so they can be added without having a corresponding component
@@ -222,7 +222,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #set component IDs based on SMP ID
       component_and_asset_query <- reactive(paste0(
-        "select distinct component_id, asset_type from smpid_facilityid_componentid where smp_id = '", input$smp_id, "' 
+        "select distinct component_id, asset_type from external.mat_assets where smp_id = '", input$smp_id, "' 
             AND component_id IS NOT NULL"))
       component_and_asset <- reactive(odbc::dbGetQuery(poolConn, component_and_asset_query()))
       
@@ -240,7 +240,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #2.3.2 query, get prefixes, show table -------
       #get locations at this smp_id or site
-      ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
+      ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.viw_ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
       
       rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
       
@@ -292,9 +292,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #get facility ID. Either use SMP footprint (for a new well) or the facility ID of the existing component
       facility_id <- reactive(if(input$component_id != "" & length(select_ow_prefix() > 0 )){
         if(is.na(select_component_id())) odbc::dbGetQuery(poolConn, paste0(
-          "SELECT facility_id FROM smpid_facilityid_componentid WHERE component_id IS NULL AND smp_id = '", input$smp_id, "'"))[1,1] else 
+          "SELECT facility_id FROM external.mat_assets WHERE component_id IS NULL AND smp_id = '", input$smp_id, "'"))[1,1] else 
             odbc::dbGetQuery(poolConn, paste0(
-              "SELECT facility_id from smpid_facilityid_componentid WHERE component_id = '", select_component_id(), "'"))[1,1]
+              "SELECT facility_id from external.mat_assets WHERE component_id = '", select_component_id(), "'"))[1,1]
       }else{
         ""
       }
@@ -312,7 +312,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #update facility id shown based on above
       observe(updateTextInput(session, "facility_id", value = facility_id()))
       
-      
+
       #count how many existing observation wells of the selected type already exist at the SMP
       # rv$well_count <- reactive(length(rv$existing_ow_prefixes()[rv$existing_ow_prefixes() == select_ow_prefix()]))
       
@@ -344,6 +344,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #select row if location is already added and/or has measurements; only works when facility id is unique
         if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
@@ -356,9 +357,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           )
       })
 
+
+      
       #perform same check upon ow_suffix input change            
       observeEvent(input$ow_suffix, {
-        
         #select row if location is already added and/or has measurements; only works when facility id is unique
         if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
           # browser()
@@ -423,17 +425,17 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$asset_comp_code_click <- 0
       
       #2.3.6 add/edit ow at SMP ------
-      #Write to database (fieldwork.ow_all) when "add_ow" button is clicked
+      #Write to database (fieldwork.tbl_ow) when "add_ow" button is clicked
       #update if editing
       observeEvent(input$add_ow, {
         if(length(input$ow_table_rows_selected) == 0){
           odbc::dbGetQuery(poolConn, paste0(
-            "INSERT INTO fieldwork.ow_all (smp_id, ow_suffix, facility_id) 
+            "INSERT INTO fieldwork.tbl_ow (smp_id, ow_suffix, facility_id) 
       	      VALUES ('", input$smp_id, "','", rv$ow_suffix(), "','",  facility_id(), "')"
           ))
         }else{
           edit_ow_query <- paste0(
-            "UPDATE fieldwork.ow_all SET ow_suffix = '", rv$ow_suffix(), "', facility_id = '", facility_id(), "' 
+            "UPDATE fieldwork.tbl_ow SET ow_suffix = '", rv$ow_suffix(), "', facility_id = '", facility_id(), "' 
             WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'")
           dbGetQuery(poolConn, edit_ow_query)
         }
@@ -451,11 +453,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #2.4 add location at non SMP----
       #2.4.1 query sites
-      site_name_query <- "select * from fieldwork.site_name_lookup"
+      site_name_query <- "select * from fieldwork.tbl_site_name_lookup"
       rv$site_name_db <- reactive(odbc::dbGetQuery(poolConn, site_name_query))
       rv$site_names <- reactive(rv$site_name_db() %>% dplyr::select("site_name") %>% pull())
       
-      rv$site_name_lookup_uid <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
+      rv$site_name_lookup_uid <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.tbl_site_name_lookup where site_name = '", input$site_name, "'")) %>% pull())
       
       #use to check for ow validity
       rv$site_name_lookup_uid_null <- reactive(if(length(rv$site_name_lookup_uid()) == 0) "NULL" else paste0("'", rv$site_name_lookup_uid(), "'"))
@@ -497,7 +499,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.4.3 add new site ------
       #Query to add new site name
       observeEvent(input$add_site_name, {
-        add_site_name_query <- paste0("INSERT INTO fieldwork.site_name_lookup (site_name) VALUES ('", rv$new_site_name(), "')")
+        add_site_name_query <- paste0("INSERT INTO fieldwork.tbl_site_name_lookup (site_name) VALUES ('", rv$new_site_name(), "')")
         odbc::dbGetQuery(poolConn, add_site_name_query)
         rv$site_name_db <- reactive(odbc::dbGetQuery(poolConn, site_name_query))
         
@@ -510,12 +512,12 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observeEvent(input$add_non_smp_ow, {
         if(length(input$ow_table_rows_selected) == 0){
           odbc::dbGetQuery(poolConn, paste0(
-            "INSERT INTO fieldwork.ow_all (site_name_lookup_uid, ow_suffix)
+            "INSERT INTO fieldwork.tbl_ow (site_name_lookup_uid, ow_suffix)
             VALUES ('", rv$site_name_lookup_uid(), "','", rv$ow_suffix(), "')"
           ))
         }else{
           odbc::dbGetQuery(poolConn, paste0(
-            "UPDATE fieldwork.ow_all SET ow_suffix = '", rv$ow_suffix(), "' WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'"
+            "UPDATE fieldwork.tbl_ow SET ow_suffix = '", rv$ow_suffix(), "' WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'"
           ))
         }
         #update ow_table with new well
@@ -538,7 +540,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
 
           #get component id
-          comp_id_query <- paste0("select distinct component_id from smpid_facilityid_componentid where facility_id = '", rv$fac, "' 
+          comp_id_query <- paste0("select distinct component_id from external.mat_assets where facility_id = '", rv$fac, "' 
               AND component_id IS NOT NULL")
           comp_id_step <- odbc::dbGetQuery(poolConn, comp_id_query) %>% pull()
           #determine whether component id exists and is useful
@@ -620,14 +622,14 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observe(toggleState(id = "convert_wells", condition = nchar(input$old_site_name) > 1 & nchar(input$new_smp_id)))
       
       
-      rv$old_site_name_lookup_uid <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.site_name_lookup where site_name = '", input$old_site_name, "'")) %>% pull())
+      rv$old_site_name_lookup_uid <- reactive(odbc::dbGetQuery(poolConn, paste0("select site_name_lookup_uid from fieldwork.tbl_site_name_lookup where site_name = '", input$old_site_name, "'")) %>% pull())
       
       #2.6.2 on click ------
       observeEvent(input$convert_wells, {
         
-        rv$new_fac_id <- odbc::dbGetQuery(poolConn, paste0("SELECT facility_id FROM smpid_facilityid_componentid WHERE component_id IS NULL AND smp_id = '", input$new_smp_id, "'"))[1,1]
+        rv$new_fac_id <- odbc::dbGetQuery(poolConn, paste0("SELECT facility_id FROM external.mat_assets WHERE component_id IS NULL AND smp_id = '", input$new_smp_id, "'"))[1,1]
         
-        convert_query <- paste0("UPDATE fieldwork.ow_all SET smp_id = '", input$new_smp_id, "', facility_id = '", rv$new_fac_id, "', site_name_lookup_uid = NULL WHERE site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'; delete from fieldwork.site_name_lookup where site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'")
+        convert_query <- paste0("UPDATE fieldwork.tbl_ow SET smp_id = '", input$new_smp_id, "', facility_id = '", rv$new_fac_id, "', site_name_lookup_uid = NULL WHERE site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'; delete from fieldwork.tbl_site_name_lookup where site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'")
         
         odbc::dbGetQuery(poolConn, convert_query)
         
@@ -701,11 +703,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #check if there are existing measurements at this ow
       rv$well_measurements_at_ow_uid <- reactive(
         if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select well_measurements_uid from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select well_measurements_uid from fieldwork.viw_ow_plus_measurements 
                                                        where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>% pull()
         }else if(nchar(input$site_name) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select well_measurements_uid from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select well_measurements_uid from fieldwork.viw_ow_plus_measurements 
                                                        where site_name = '", input$site_name, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>%  pull()
         }
@@ -714,11 +716,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #check if there are end dates to the existing measurements at this ow
       rv$end_dates_at_ow_uid <- reactive(
         if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.viw_ow_plus_measurements 
                                                        where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>% pull()
         }else if(nchar(input$site_name) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select end_dtime_est from fieldwork.viw_ow_plus_measurements 
                                                        where site_name = '", input$site_name, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>%  pull()
         }
@@ -727,11 +729,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #check the count of measurements at this ow
       rv$count_at_ow_uid <- reactive(
         if(nchar(input$smp_id) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.viw_ow_plus_measurements 
                                                        where smp_id = '", input$smp_id, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>% pull()
         }else if(nchar(input$site_name) > 0 & nchar(rv$ow_suffix()) > 0){
-          odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.ow_plus_measurements 
+          odbc::dbGetQuery(poolConn, paste0("select count(*) from fieldwork.viw_ow_plus_measurements 
                                                        where site_name = '", input$site_name, "' and ow_suffix = '", rv$ow_suffix(), "' and
                                           well_measurements_uid is not null")) %>%  pull()
         }
@@ -749,7 +751,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$smp_id <- reactive(if(nchar(input$smp_id) == 0) "NULL" else paste0("'", input$smp_id, "'"))
       
       #check if ow exists
-      rv$ow_validity <- reactive(!is.na(odbc::dbGetQuery(poolConn, paste0("select fieldwork.get_ow_uid_no_error(", rv$smp_id(), ", ", rv$ow_suffix_null(), ", ", rv$site_name_lookup_uid_null(), ")")) %>% pull()))
+      rv$ow_validity <- reactive(!is.na(odbc::dbGetQuery(poolConn, paste0("select fieldwork.fun_get_ow_uid_no_error(", rv$smp_id(), ", ", rv$ow_suffix_null(), ", ", rv$site_name_lookup_uid_null(), ")")) %>% pull()))
       
       #add well measurement
       rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE) "Add Well Measurements" else "Edit Selected Well Measurements")
@@ -765,31 +767,34 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
           if(input$at_smp == 1){
           odbc::dbGetQuery(poolConn, paste0(
-            "INSERT INTO fieldwork.well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
+            "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
-            VALUES(fieldwork.get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
+            VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
             input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", 
+            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ",
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                     #This is dumb.
-             ")"
+            ")"
+
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
-              "INSERT INTO fieldwork.well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
+              "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
+
             VALUES(fieldwork.get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
             '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", 
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                     #This is dumb.
             "')"
+            
             ))
           }
         }else{
           odbc::dbGetQuery(poolConn, paste0(
-            "UPDATE fieldwork.well_measurements SET well_depth_ft = '", input$well_depth, "', 
+            "UPDATE fieldwork.tbl_well_measurements SET well_depth_ft = '", input$well_depth, "', 
             start_dtime_est = ", rv$start_date(), ", 
             end_dtime_est = ", rv$end_date(), ", 
             cap_to_hook_ft = ", rv$cth(), ", 
