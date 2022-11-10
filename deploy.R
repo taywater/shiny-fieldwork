@@ -369,7 +369,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #2.2.1 Headers -----
       #Get the Project name, combine it with SMP ID, and create a reactive header
-      rv$smp_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select smp_id, project_name from project_names where smp_id = '", input$smp_id, "'")))
+      rv$smp_and_name_step <- reactive(odbc::dbGetQuery(poolConn, paste0("select smp_id, project_name from external.mat_project_names where smp_id = '", input$smp_id, "'")))
       
       rv$smp_and_name <- reactive(paste(rv$smp_and_name_step()$smp_id[1], rv$smp_and_name_step()$project_name[1]))
       
@@ -427,7 +427,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       #sensor warning
-      rv$new_sensor_warning <- reactive(if(nchar(input$new_sensor_id) > 0){
+      rv$sensor_warning <- reactive(if(nchar(input$new_sensor_id) > 0){
         if(input$new_sensor_id %in% collect$sensor_serial()){
           if(
             (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$new_sensor_id)] |
@@ -602,7 +602,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           rv$cet_asset_query <- reactive(paste0("SELECT count(*) FROM external.mat_assets_ict_limited WHERE smp_id = '", input$smp_id, "' AND component_id != 'NULL'"))
           
           rv$cet_count_query <- reactive(paste0("select count(*) from fieldwork.viw_capture_efficiency_full 
-                                              where component_to_smp(component_id) = ", rv$smp_id(), "
+                                              where admin.fun_component_to_smp(component_id) = ", rv$smp_id(), "
                                               and test_date < ", rv$premonitoring_date(), "::timestamp + interval '1 day' 
                                               and test_date > ", rv$premonitoring_date(), "::timestamp - interval '30 days'" ))
           
