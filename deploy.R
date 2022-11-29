@@ -505,11 +505,17 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #2.2.3 prepare inputs ------
       ## sensor panel
       #get sensor purpose lookup uid
-      rv$purpose <- reactive(deployment_lookup %>% dplyr::filter(type == input$sensor_purpose) %>% 
-                               select(sensor_purpose_lookup_uid) %>% pull())
+      
+      # select through different method to avoid issue
+      rv$purpose <- reactive(deployment_lookup %>% dplyr::filter(type == input$sensor_purpose) %>%
+                              select(sensor_purpose_lookup_uid) %>% pull())
+      
+      # select through different method to avoid issue
+      # rv$purpose <- reactive(deployment_lookup$sensor_purpose_lookup_uid[deployment_lookup$type == input$sensor_purpose])
       
       #for future deployment - make inputs equal to NULL if blank
       rv$purpose_null <- reactive(if(nchar(input$sensor_purpose) == 0) "NULL" else paste0(rv$purpose()))
+      
       
       rv$inventory_sensors_uid <- reactive(odbc::dbGetQuery(poolConn, paste0(
         "SELECT inventory_sensors_uid FROM fieldwork.tbl_inventory_sensors WHERE sensor_serial = '", input$sensor_id, "'"

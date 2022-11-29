@@ -128,7 +128,7 @@
       sensor_serial <- hobo_list$sensor_serial
       
       #Deployment purpose lookup table
-      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
+      deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_purpose_lookup")
       
       #long term lookup types
       long_term_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_long_term_lookup")

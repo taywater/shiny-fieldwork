@@ -294,7 +294,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #future table
       observeEvent(input$future_srt, {
         if(length(input$future_srt_table_rows_selected) == 0){
-          add_future_srt_query <- paste0("INSERT INTO fieldwork.future_srt (system_id, con_phase_lookup_uid, srt_type_lookup_uid, 
+          add_future_srt_query <- paste0("INSERT INTO fieldwork.tbl_future_srt (system_id, con_phase_lookup_uid, srt_type_lookup_uid, 
                                          dcia_ft2, notes, field_test_priority_lookup_uid)
                                          VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", 
                                          iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
@@ -304,7 +304,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
           
           odbc::dbGetQuery(poolConn, add_future_srt_query)
         }else{
-          edit_future_srt_query <- paste0("UPDATE fieldwork.future_srt SET con_phase_lookup_uid = ", rv$phase_null(), ", 
+          edit_future_srt_query <- paste0("UPDATE fieldwork.tbl_future_srt SET con_phase_lookup_uid = ", rv$phase_null(), ", 
                                           srt_type_lookup_uid = ", rv$type_null(), ", 
                                           dcia_ft2 = ", rv$dcia_write(), ", 
                                           notes = ", iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), ",
@@ -337,7 +337,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #use the MAX(srt_uid) from srt table to get the SRT UID of the most recent addition to the table (calculated by SERIAL), which is the current addition
       observeEvent(input$add_srt, {
         if(length(input$srt_table_rows_selected) == 0){
-          add_srt_query <- paste0("INSERT INTO fieldwork.srt (system_id, test_date, con_phase_lookup_uid, srt_type_lookup_uid, 
+          add_srt_query <- paste0("INSERT INTO fieldwork.tbl_srt (system_id, test_date, con_phase_lookup_uid, srt_type_lookup_uid, 
                           srt_volume_ft3, dcia_ft2, srt_stormsize_in, srt_summary, flow_data_recorded, water_level_recorded, photos_uploaded, 
                                   sensor_collection_date, qaqc_complete, srt_summary_date, sensor_deployed) 
       	                  VALUES ('", input$system_id, "','", input$srt_date, "','", rv$phase(), "', ",  rv$type(), ",", rv$test_volume(), ",", 
@@ -352,7 +352,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
           #else update srt table
         }else{
           edit_srt_query <- paste0(
-            "UPDATE fieldwork.srt SET system_id = '", input$system_id, "', test_date = '", input$srt_date, 
+            "UPDATE fieldwork.tbl_srt SET system_id = '", input$system_id, "', test_date = '", input$srt_date, 
             "', con_phase_lookup_uid = '", rv$phase(),
             "', srt_type_lookup_uid = '",  rv$type(),
             "', srt_volume_ft3 = ", rv$test_volume(),
@@ -374,13 +374,13 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         
         #if editing a future test to become a completed test, delete the future test
         if(length(input$future_srt_table_rows_selected) > 0){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_srt 
+          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_srt 
                                             WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
         }
         
         #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialogue box asking the user
         #if they would like to create a deployment. If yes, that takes them to the deployment page
-        srt_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'SRT' and smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
+        srt_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'SRT' and admin.fun_smp_to_system(smp_id) = '", input$system_id, "' and deployment_dtime_est < '", input$srt_date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$srt_date, "'::timestamp - interval '3 days'")
         
         srt_deployment_exists_table <- dbGetQuery(poolConn, srt_deployment_exists_query)
         
@@ -431,7 +431,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       observeEvent(input$confirm_delete_future, {
         odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.future_srt WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
+                         paste0("DELETE FROM fieldwork.tbl_future_srt WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
         
         #update future srt table
         rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
