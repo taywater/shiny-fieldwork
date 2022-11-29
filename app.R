@@ -226,7 +226,7 @@
     sensor_issue_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_issue_lookup order by sensor_issue_lookup_uid")
     
     #Deployment purpose lookup table
-    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_model_lookup")
+    deployment_lookup <- dbGetQuery(poolConn, "select * from fieldwork.tbl_sensor_purpose_lookup")
     
     #srt_types & con phase
     srt_types <- dbGetQuery(poolConn, "select * from fieldwork.tbl_srt_type_lookup")
