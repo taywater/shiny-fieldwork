@@ -372,7 +372,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         
         #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialoge box asking the user
         #if they would like to create a deployment. If yes, that takes them to the deployment page
-        si_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'Special' and (smp_to_system(smp_id) = ", rv$system_id(), " OR site_name = ", rv$system_id(), ") and deployment_dtime_est < '", input$date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$date, "'::timestamp - interval '3 days'")
+        si_deployment_exists_query <- paste0("select * from fieldwork.viw_deployment_full where term = 'Special' and (admin.fun_smp_to_system(smp_id) = ", rv$system_id(), " OR site_name = ", rv$system_id(), ") and deployment_dtime_est < '", input$date, "'::timestamp + interval '3 days' and deployment_dtime_est > '", input$date, "'::timestamp - interval '3 days'")
         
         si_deployment_exists_table <- dbGetQuery(poolConn, si_deployment_exists_query)
         
