@@ -1120,7 +1120,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         
         #delete from future table when a future deployment is converted to current
         if(!rv$add_new_future()){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
+          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
         }
         
         #query active table
@@ -1183,7 +1183,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       observeEvent(input$future_deploy, {
         if(rv$add_new_future()){
           odbc::dbGetQuery(poolConn,
-                           paste0("INSERT INTO fieldwork.future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
+                           paste0("INSERT INTO fieldwork.tbl_future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
     			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid, premonitoring_inspection, ready)
     			VALUES (fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ", rv$inventory_sensors_uid_null(),
                                   ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
@@ -1194,7 +1194,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   ", ", rv$premonitoring_date(), ", ", rv$ready(), ")"))
         }else{
           odbc::dbGetQuery(poolConn, 
-                           paste0("UPDATE fieldwork.future_deployment SET 
+                           paste0("UPDATE fieldwork.tbl_future_deployment SET 
                            	ow_uid = fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
                                   inventory_sensors_uid = ",  rv$inventory_sensors_uid_null(), ", 
                                   sensor_purpose = ", rv$purpose_null(), ",
@@ -1224,7 +1224,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       observeEvent(input$confirm_delete_future, {
         odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
+                         paste0("DELETE FROM fieldwork.tbl_future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
         
         rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
         rv$refresh_collect <- rv$refresh_collect + 1
