@@ -267,6 +267,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #current table
       observeEvent(input$srt_table_rows_selected,{ 
+        # browser()
         dataTableProxy('future_srt_table') %>% selectRows(NULL)
         #rv_ow$fac <- (rv$srt_table()[input$srt_table_rows_selected, 4])
         #print(rv$srt_table()[input$srt_table_rows_selected, 2])
@@ -280,9 +281,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateTextAreaInput(session, "srt_summary", value = rv$srt_table_db()$srt_summary[input$srt_table_rows_selected])
         
         #update metadata values
-        updateSelectInput(session, "flow_data_rec", selected = rv$srt_table_db()$flow_data_recorded[input$srt_table_rows_selected])
-        updateSelectInput(session, "water_level_rec", selected = rv$srt_table_db()$water_level_recorded[input$srt_table_rows_selected])
-        updateSelectInput(session, "photos_uploaded", selected = rv$srt_table_db()$photos_uploaded[input$srt_table_rows_selected])
+        updateSelectInput(session, "flow_data_rec", selected = as.numeric(rv$srt_table_db()$flow_data_recorded[input$srt_table_rows_selected]))
+        updateSelectInput(session, "water_level_rec", selected = as.numeric(rv$srt_table_db()$water_level_recorded[input$srt_table_rows_selected]))
+        updateSelectInput(session, "photos_uploaded", selected = as.numeric(rv$srt_table_db()$photos_uploaded[input$srt_table_rows_selected]))
         updateTextInput(session, "sensor_collect_date", value = rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected])
         updateSelectInput(session, "qaqc_complete", selected = rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected])
         updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected])
