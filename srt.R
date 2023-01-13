@@ -285,7 +285,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateSelectInput(session, "water_level_rec", selected = as.numeric(rv$srt_table_db()$water_level_recorded[input$srt_table_rows_selected]))
         updateSelectInput(session, "photos_uploaded", selected = as.numeric(rv$srt_table_db()$photos_uploaded[input$srt_table_rows_selected]))
         updateTextInput(session, "sensor_collect_date", value = rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected])
-        updateSelectInput(session, "qaqc_complete", selected = rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected])
+        updateSelectInput(session, "qaqc_complete", selected = as.numeric(rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected]))
         updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected])
         updateDateInput(session, "sensor_deployed", value = rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected])
         

@@ -281,7 +281,7 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         updateSelectInput(session, "con_phase", selected = rv$si_table_db()$phase[input$si_table_rows_selected])
         updateNumericInput(session, "type", value = rv$si_table_db()$special_investigation_type[input$si_table_rows_selected])
         updateNumericInput(session, "requested_by", value = rv$si_table_db()$requested_by[input$si_table_rows_selected])
-        updateSelectInput(session, "qaqc_complete", selected = rv$si_table_db()$qaqc_complete[input$si_table_rows_selected])
+        updateSelectInput(session, "qaqc_complete", selected = as.numeric(rv$si_table_db()$qaqc_complete[input$si_table_rows_selected]))
         updateNumericInput(session, "sensor_collect_date", value = rv$si_table_db()$sensor_collection_date[input$si_table_rows_selected])
         updateSelectInput(session, "summary_needed", selected = rv$si_table_db()$summary_needed[input$si_table_rows_selected])
         updateNumericInput(session, "summary_date", value = rv$si_table_db()$summary_date[input$si_table_rows_selected])
