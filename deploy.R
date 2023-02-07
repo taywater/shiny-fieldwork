@@ -871,9 +871,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #download error is NA if it's a future deployment
       rv$download_error_step <- reactive(if(length(rv$active()) > 0){
-        rv$active_table_db()$download_error[rv$active()] 
+        rv$active_table_db()$download_error[rv$active()] %>% as.integer()
       }else if(length(rv$prev()) > 0){
-        rv$old_table_db()$download_error[rv$prev()]
+        rv$old_table_db()$download_error[rv$prev()] %>% as.integer()
       }else if(length(rv$future()) > 0){
         NA
       }) 
