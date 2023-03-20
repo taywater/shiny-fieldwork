@@ -581,7 +581,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         # updateSelectInput(session, "sensor_one_in", selected = rv$sensor_one_inch_edit)
         
         #update weir 
-        rv$weir_edit <- rv$ow_view_db()$weir[input$ow_table_rows_selected]
+        rv$weir_edit <- rv$ow_view_db()$weir[input$ow_table_rows_selected] %>% as.integer()
         updateSelectInput(session, "weir", selected = rv$weir_edit)
         
         #get notes from db table, update input in app
