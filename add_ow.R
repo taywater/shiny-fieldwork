@@ -785,10 +785,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
 
             VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            '", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, ", '", 
+            ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", 
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                     #This is dumb.
-            "')"
+            ")"
             
             ))
           }
