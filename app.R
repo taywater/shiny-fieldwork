@@ -74,7 +74,6 @@
   #set db connection
   #using a pool connection so separate connnections are unified
   #gets environmental variables saved in local or pwdrstudio environment
-  #poolConn <- dbPool(odbc(), dsn = "mars_data_pg14")
   poolConn <- dbPool(odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"))
   
   
@@ -170,7 +169,7 @@
         tags$head(tags$script(jscode)),
         #must call useShinyjs() for shinyjs() functionality to work in app
         useShinyjs(),
-        navbarPage("Fieldwork",  id = "inTabset",#theme = shinytheme("cerulean"),
+        navbarPage("Fieldwork",  id = "inTabset", #theme = shinytheme("cerulean"),
                    #do.call is needed to use a list with appended UI functions with navbarMenu
                    #this is so a navbarMenu (dropdown) can consist of tabs from different modules
                    #this navbarMenu has both tabs from collection calendar (cc & future deployments) and "Deploy Sensor"
