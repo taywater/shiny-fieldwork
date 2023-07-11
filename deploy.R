@@ -7,7 +7,7 @@
 
 
 #1.0 UI -----
-deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, 
+deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, html_warn,
                      deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
   #namespace initializaiton
   ns <- NS(id)
@@ -126,8 +126,11 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                                   ns = ns, 
                                                   actionButton(ns("future_deploy"), "Add Future Deployment"), 
                                                   actionButton(ns("delete_future"), "Delete Future Deployment")),
+                                 textOutput(ns("deploy_warning")),
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
+                                 #Debug button
+                                 # actionButton(ns("BrowserButton"), "Click to Browse"),
                                  #note about requirements
                                  fluidRow(
                                    HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.", "Check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")))
@@ -310,6 +313,11 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       )
       
       #2.2 back to this tab ----------\
+      
+      #Debugging Button
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
+
       #2.2.1 toggle state depending on inputs
       #toggle to make sure that only of SMP ID or Site Name is selected
       observe(toggleState("smp_id", condition = nchar(input$site_name) == 0))
@@ -403,6 +411,110 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         rv$previous_text()
       )
       
+      # toggle deploy warning
+      rv$deploy_logic <- reactive( 
+        if(
+          ### Condition 1: Check if all the required values are populated
+          #smp id or site name populated
+          !((nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
+                     #well name and sensor id populated OR sensor purpose is "DATALOGGER" for special weather station (i.e. Phila Zoo)
+                     nchar(input$well_name) > 0 & (nchar(input$sensor_id) > 0 | input$sensor_purpose == "DATALOGGER") & 
+                     # sensor input chosen
+                     nchar(input$sensor_purpose) > 0 &
+                     # interval input chosen
+                     nchar(input$interval) > 0 & 
+                     # deploy date is chosen
+                     length(input$deploy_date) > 0 & 
+                     # term input chosen
+                     nchar(input$term) > 0)) 
+        # error code
+        # "e1"
+        paste0("Populate all required inputs to add new deployment.")
+        
+        else if(
+            # Condition 2: no download error
+            nchar(input$download_error) > 0
+            ){if(input$download_error == 1)
+        # error code
+        # "e2"
+        paste0("Sensor is broken.")
+          }
+          
+          
+        else if(
+            # Condition 3: sensor is broken, or if it is broken a value is populated
+            !rv$sensor_break())
+        
+        # error code
+        # "e3"
+        paste0("Sensor has a download error.")
+
+        else if(
+            ## Condition 4: sensor is not currently deployed
+            input$sensor_id %in% collect$sensor_serial()){
+              if(input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)])
+                # error code
+                # "e4"
+                paste0("The sensor chosen is deployed at another location.")
+            }
+            
+
+        else if(
+             ## Condition 5 - collection date is populated, redeploy is true, and sensor is not currently deployed
+               (rv$redeploy() == TRUE & !(input$sensor_id %in% collect$sensor_serial()))
+               )
+        # error code
+        # "e5"
+        paste0("The senor chosen is not currenlty deployed at this well.")
+        
+        else if(
+            ## Condition 6 - a current deployment is selected (this allows redeployment)
+            (length(input$current_deployment_rows_selected) > 0 & length(input$collect_date) > 0)
+               )
+        # error code
+        # "e6"
+        paste0("Must select redeploy to deploy sensor again.")
+      
+        else if(
+            ## Condition 7 - a previous deployment is selected (this allows redeployment)
+            length(input$prev_deployment_rows_selected) > 0 & length(input$collect_date) > 0
+        ){
+          # error code
+          # "e7"
+          paste0("Must select redeploy to deploy sensor again.")
+        }
+
+        
+        else if(
+          # Conditon 8 - a sensor is deployed 
+          input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &  
+          input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]       
+        )
+        # "e8"
+        paste0("the sensor chosen is deployed at another well at this location.")
+        else
+        # "e0"  
+        paste0("huh")
+      )
+        
+        
+        
+        output$deploy_warning <- renderText(rv$deploy_logic()
+                                  # switch(rv$deploy_logic(),
+                                  #        e1 =  "Populate all required inputs to add new deployment.",
+                                  #        e2 = "Sensor is broken.",
+                                  #        e3 = "Sensor has a download error.",
+                                  #        e4 = "The sensor chosen is deployed at another location.",
+                                  #        e5 = "The senor chosen is not currenlty deployed at this well.",
+                                  #        e6 = "Must select redeploy to deploy sensor again.",
+                                  #        e7 = "Must select redeploy to deploy sensor again.",
+                                  #        e8 = "the sensor chosen is deployed at another well at this location.",
+                                  #        e0 = ""
+                                  # )
+            )
+      
+      
+      
       #2.2.2 Toggle states based on inputs -----
       #enable/disable deploy sensor button based on whether all inputs (except collect date) are not empty
       #logical to add to the toggleState below
@@ -480,21 +592,47 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       
       #also check to make sure the sensor is not already deployed, or the sensor has a collection date, or a row selected
       #allow editing to a sensor already deployed if date, well, and smp match active deployment
-      observe({toggleState(id = "deploy_sensor", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
-                             nchar(input$well_name) > 0 & (nchar(input$sensor_id) > 0 | input$sensor_purpose == "DATALOGGER") & 
-                             nchar(input$sensor_purpose) > 0 &
-                             nchar(input$interval) > 0 & length(input$deploy_date) > 0 & nchar(input$term) > 0 &
-                             rv$req_dl_error() & rv$sensor_break() &
+      observe({toggleState(id = "deploy_sensor", condition = 
                              
-                             (!(input$sensor_id %in% collect$sensor_serial() &
-                                (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] |
-                                (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &  
-                                input$well_name != rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]))) |
-                                
-                                (length(input$collect_date) > 0 & rv$redeploy() == TRUE & !(input$sensor_id %in% collect$sensor_serial())) |
-                                (length(input$collect_date) >0 & rv$redeploy() == FALSE) |
-                                length(input$current_deployment_rows_selected) > 0 |
-                                length(input$prev_deployment_rows_selected) > 0))})
+                             if(
+                             ### Condition 1: Check if all the required values are populated
+                             # smp id or site name populated
+                             (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
+                             # well name and sensor id populated OR sensor purpose is "DATALOGGER" for special weather station (i.e. Phila Zoo)
+                             nchar(input$well_name) > 0 & (nchar(input$sensor_id) > 0 | input$sensor_purpose == "DATALOGGER") &
+                             # sensor input chosen
+                             nchar(input$sensor_purpose) > 0 &
+                             # interval input chosen
+                             nchar(input$interval) > 0 & 
+                             # deploy date is chosen
+                             length(input$deploy_date) > 0 &
+                             # data frequency term is chosen
+                             nchar(input$term) > 0 &
+                             # no download error
+                             rv$req_dl_error() & 
+                             # sensor is not broken, or if it is broken a value is populated
+                             rv$sensor_break()
+                             ){
+                               (!(input$sensor_id %in% collect$sensor_serial() &
+                                    # if it is deployed, it's not at the chosen smp
+                                    (input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] |
+                                       # if it is deployed at the chosen smp, it's not at the same location
+                                       (input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &
+                                          input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]))) |
+                                  
+                                  
+                                  ## B - collection date is populated, redeploy is true, and sensor is not currently deployed 
+                                  (length(input$collect_date) > 0 & rv$redeploy() == TRUE & !(input$sensor_id %in% collect$sensor_serial())) |
+                                  ## C - this case doesn't happen; will remove today
+                                  # (length(input$collect_date) >0 & rv$redeploy() == FALSE) |
+                                  ## D - a current deployment is selected (this allows redeployment)
+                                  length(input$current_deployment_rows_selected) > 0 |
+                                  ## E - a previous deployment is selected (this allows redeployment)
+                                  length(input$prev_deployment_rows_selected) > 0)
+                             
+                             }else{
+                                 FALSE
+                               })})
       
       observe({toggleState(id = "future_deploy", condition = (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
                              nchar(input$well_name) > 0 & nchar(input$ready) > 0) })
@@ -1055,8 +1193,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                               rv$modal_text(), 
                               modalButton("No"), 
                               actionButton(ns("confirm_deploy"), "Yes")))
-        # 08/18/2022
-        # browser()
+
       })
       
       #2.2.8 Add/Edit/Clear --------

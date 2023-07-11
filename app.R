@@ -152,6 +152,7 @@
         HTML(paste(label, tags$span(style="color:blue", tags$sup("†"))))
       }
       
+      
       #project work numbers
       work_number <- dbGetQuery(poolConn, "select distinct worknumber from external.tbl_projectbdv") %>% pull()
       
@@ -176,7 +177,7 @@
                     do.call(navbarMenu, list(title = "Deployments") %>%
                          append(collection_calendarUI("collection_calendar")) %>%
                          append(deployUI("deploy", sensor_serial = sensor_serial, site_names = site_names,
-                                         html_req = html_req, long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup,
+                                         html_req = html_req, html_warn = html_warn,long_term_lookup = long_term_lookup, deployment_lookup = deployment_lookup,
                                          research_lookup = research_lookup, priority = priority, future_req = future_req, 
                                          sensor_issue_lookup = sensor_issue_lookup))),
                    #Add/Edit Location
