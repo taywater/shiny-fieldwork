@@ -136,17 +136,18 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
           rownames = FALSE) %>%
           formatStyle(
             '80% Full Date',
-            backgroundColor = styleInterval(lubridate::today(), c('yellow', 'transparent')), 
-            color = 'black'
+            backgroundColor = styleInterval(lubridate::today(), c('#CCC916', 'transparent')), 
+            color = styleInterval(lubridate::today(), c('black', '#c8c8c8'))
           ) %>%
           formatStyle(
             '100% Full Date',
             backgroundColor = styleInterval(lubridate::today(), c('red', 'transparent')),
-            color = styleInterval(lubridate::today(), c('white', 'black'))
+            color = styleInterval(lubridate::today(), c('white', '#c8c8c8'))
           ) %>% 
           formatStyle(
             'Prev. DL Error',
-            backgroundColor = styleEqual('Yes', 'yellow')
+            backgroundColor = styleEqual('Yes', '#CCC916'),
+            color = styleEqual("Yes", "#000000")
           )
       )
       
@@ -175,11 +176,13 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
                     'Priority' = colDef(), 
                     'Pre-Monitoring Inspection Date' = colDef(style = function(value){
                       if(is.na(value)){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }), 
                     'Notes' = colDef()
                   ),
@@ -192,7 +195,9 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
                   showPageSizeOptions = TRUE,
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
-                  height = 750
+                  height = 750,
+                  style = reactableTheme(color = "#c8c8c8",
+                                         backgroundColor = "#272B30")
       )
       )
       

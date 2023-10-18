@@ -511,54 +511,66 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                     srt_stormsize_in = colDef(name = "Simulated Depth (in)"),
                     flow_data_recorded = colDef(name = "Flow Data Recorded", style = function(value){
                       if(is.na(value)){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     water_level_recorded = colDef(name = "Water Level Recorded", style = function(value){
                       if(is.na(value)){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     photos_uploaded = colDef(name = "Photos Uploaded", style = function(value){
                       if(is.na(value) | value == "No"){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     sensor_collection_date  = colDef(name = "Sensor Collection Date", style = function(value, index){
                       if(is.na(value) & 
                          rv$all_srt_table()$sensor_deployed[index] == "1"){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     qaqc_complete = colDef(name = "QA/QC Complete", style = function(value, index){
                       if((is.na(value) | value == "No") & 
                          (is.na(rv$all_srt_table()$flow_data_recorded[index]) |
                           rv$all_srt_table()$flow_data_record[index] == "Yes")){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     srt_summary_date = colDef(name = "Summary Date", style = function(value){
                       if(is.na(value)){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     turnaround_days = colDef(name = "Turnaround (days)")
                   ),
@@ -572,6 +584,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
                   height = 750,
+                  style = reactableTheme(color = "#c8c8c8",
+                                         backgroundColor = "#272B30"),
                  details = function(index){
                    nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
                    htmltools::div(style = "padding:16px",
@@ -635,6 +649,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
                   height = 750,
+                  style = reactableTheme(color = "#c8c8c8",
+                                         backgroundColor = "#272B30"),
                   details = function(index){
                     nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
                     htmltools::div(style = "padding:16px",

@@ -535,52 +535,64 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                     phase = colDef(name = "Phase"),
                     sensor_deployed = colDef(name = "Sensor Deployed", style = function(value){
                       if(is.na(value)){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     sensor_collection_date = colDef(name = "Sensor Collection Date", style = function(value, index){
                       if(is.na(value) & rv$all_si_table()$sensor_deployed[index] == "Yes"){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     photos_uploaded = colDef(name = "Photos Uploaded", style = function(value){
                       if(is.na(value) | value == "No"){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     qaqc_complete = colDef(name = "QA/QC Complete", style = function(value,index){
                       if((is.na(value) & rv$all_si_table()$sensor_deployed[index] == "Yes")){
-                        color = "#FFFC1C"
+                        color = "#CCC916"
+                        textColor = "#000000"
                         #need to do a nested if so that it odesn't try to evaluate a value where there is no value (is.na())
                       }else if(!is.na(value)){
                         if(value == "No"){
-                        color = "#FFFC1C"
+                          color = "#CCC916"
+                          textColor = "#000000"
                         }else{
-                          color = "#FFFFFF"
+                          color = "#272B30"
+                          textColor = "#c8c8c8"
                         }
                       }else{
-                        color = "#FFFFFF"
+                        color = "#272B30"
+                        textColor = "#c8c8c8"
                       }
-                      list(backgroundColor = color, fontweight = "bold")
+                      list(backgroundColor = color, color = textColor, fontweight = "bold")
                     }),
                     summary_date = colDef(name = "Summary Date", 
                                           style = function(value, index){
                                             if(is.na(value) & (is.na(rv$all_si_table()$summary_needed[index]) |
                                                                rv$all_si_table()$summary_needed[index] == "Yes")){
-                                              color = "#FFFC1C"
+                                              color = "#CCC916"
+                                              textColor = "#000000"
                                             }else{
-                                              color = "#FFFFFF"
+                                              color = "#272B30"
+                                              textColor = "#c8c8c8"
                                             }
-                                            list(backgroundColor = color, fontweight = "bold")
+                                            list(backgroundColor = color, color = textColor, fontweight = "bold")
                                           }),
                     turnaround_days = colDef(name = "Turnaround (Days)")
                   ),
@@ -593,6 +605,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
                   height = 750,
+                  style = reactableTheme(color = "#c8c8c8",
+                                         backgroundColor = "#272B30"),
                   details = function(index){
                     nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
                     htmltools::div(style = "padding:16px",
@@ -661,6 +675,8 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                   pageSizeOptions = c(10, 25, 50),
                   defaultPageSize = 10,
                   height = 750,
+                  style = reactableTheme(color = "#c8c8c8",
+                                         backgroundColor = "#272B30"),
                   details = function(index){
                     nest <- rv$all_future_si_table()[rv$all_future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[index], ][7]
                     htmltools::div(style = "padding:16px", 
