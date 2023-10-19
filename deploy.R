@@ -887,7 +887,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         class = 'table-responsive, table-condensed', 
         options = list(dom = 'tp')) %>% 
           formatStyle('Pre-Monitoring Inspection Date', 
-                      backgroundColor = newstyleEqual(NA, 'yellow'))
+                      backgroundColor = newstyleEqual(NA, '#CCC916'))
       )
       
       #2.2.5 Editing ---------
