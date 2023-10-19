@@ -590,7 +590,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                    nest_table <- rv$all_srt_table()[rv$all_srt_table_db()$srt_uid == rv$all_srt_table_db()$srt_uid[index], ][16]
                    htmltools::div(style = "padding:16px",
                                   reactable(nest_table,
-                                            columns = list(srt_summary = colDef(name = "Results Summary")))
+                                            columns = list(srt_summary = colDef(name = "Results Summary")),
+                                                           style = reactableTheme(color = "#c8c8c8",
+                                                                                  backgroundColor = "#272B30"))
                    )
                  }
         )
@@ -655,7 +657,9 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                     nest <- rv$all_future_srt_table()[rv$all_future_srt_table_db$future_srt_uid == rv$all_future_srt_table_db$future_srt_uid[index], ][10]
                     htmltools::div(style = "padding:16px",
                                    reactable(nest,
-                                             columns = list(notes = colDef(name = "Notes")))
+                                             columns = list(notes = colDef(name = "Notes")),
+                                             style = reactableTheme(color = "#c8c8c8",
+                                                                    backgroundColor = "#272B30"))
                     )
                   }
         ))

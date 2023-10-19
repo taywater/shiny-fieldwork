@@ -611,7 +611,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                     nest <- rv$all_si_table()[rv$all_si_table_db()$special_investigation_uid == rv$all_si_table_db()$special_investigation_uid[index], ][13]
                     htmltools::div(style = "padding:16px",
                                    reactable(nest,
-                                             columns = list(results_summary = colDef(name = "Results Summary")))
+                                             columns = list(results_summary = colDef(name = "Results Summary")),
+                                             style = reactableTheme(color = "#c8c8c8",
+                                                                    backgroundColor = "#272B30"))
                     )
                   }
          )
@@ -681,7 +683,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                     nest <- rv$all_future_si_table()[rv$all_future_si_table_db()$future_special_investigation_uid == rv$all_future_si_table_db()$future_special_investigation_uid[index], ][7]
                     htmltools::div(style = "padding:16px", 
                                    reactable(nest, 
-                                             columns = list(notes = colDef(name = "Notes")))
+                                             columns = list(notes = colDef(name = "Notes")),
+                                             style = reactableTheme(color = "#c8c8c8",
+                                                                    backgroundColor = "#272B30"))
                     )
                   }
         )
