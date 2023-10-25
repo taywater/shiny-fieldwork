@@ -303,7 +303,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateSelectInput(session, "qaqc_complete", selected = as.numeric(rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected]))
         updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected],
                                                      min = rv$srt_table()$test_date[input$srt_table_rows_selected])
-        updateSelectInput(session, "sensor_deployed", selected = rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected])
+        updateSelectInput(session, "sensor_deployed", selected = as.numeric(rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected]))
         
       })
       
