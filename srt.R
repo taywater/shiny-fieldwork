@@ -52,6 +52,7 @@ SRTUI <- function(id, label = "srt", srt_types, con_phase, priority, html_req, f
                                                              ns = ns, 
                                                              selectInput(ns("priority"), "Future SRT Priority", 
                                                                          choices = c("", priority$field_test_priority), selected = NULL)),
+                                            # actionButton(ns("browserButton"),"Browser click"),
                                             textAreaInput(ns("srt_summary"), "Notes", height = '85px'), 
                                             conditionalPanel(condition = "input.srt_date === null", 
                                                              ns = ns, 
@@ -192,8 +193,16 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0 | input$sensor_deployed == "N/A") "NULL" else paste0("'", input$sensor_deployed, "'"))
       
       #assure that the summary date does not precede the srt date
-      observe(updateDateInput(session, "srt_summary_date", min = input$srt_date))
-      observe(updateDateInput(session, "sensor_collect_date", min = input$srt_date))
+      #this is causing summary date and collection date to not populate when changing the table selection from a newer to an older SRT 
+      observeEvent(input$srt_date,{
+        updateDateInput(session, "srt_summary_date", min = input$srt_date)
+      }
+                  )
+
+      observeEvent(input$srt_date,{
+        updateDateInput(session, "sensor_collect_date", min = input$srt_date)
+      }
+                   )
       
       #2.1.4 Toggle states depending on inputs -----
       #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
@@ -255,7 +264,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateTextAreaInput(session, "srt_summary", value = rv$future_srt_table()$notes[input$future_srt_table_rows_selected])
     
         reset("test_volume")
-        reset("srt_date")    
+        reset("srt_date")
         reset("flow_data_rec")
         reset("water_level_rec")
         reset("photos_uploaded")
@@ -265,12 +274,16 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         reset("sensor_deployed")
       })
       
+      #browserButton
+      # observeEvent(input$browserButton,{
+      #   browser()
+      # })
+      
       #current table
-      observeEvent(input$srt_table_rows_selected,{ 
-        # browser()
+      observeEvent(input$srt_table_rows_selected,{
+        # print(paste0("The following row is selected: ",input$srt_table_rows_selected,". Sensor Collection Date - ",rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected],". SRT Summary Report Sent - ",rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected]))
         dataTableProxy('future_srt_table') %>% selectRows(NULL)
         #rv_ow$fac <- (rv$srt_table()[input$srt_table_rows_selected, 4])
-        #print(rv$srt_table()[input$srt_table_rows_selected, 2])
         updateDateInput(session, "srt_date", value = rv$srt_table()$test_date[input$srt_table_rows_selected])
         
         #update to values from selected row
@@ -284,10 +297,12 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         updateSelectInput(session, "flow_data_rec", selected = as.numeric(rv$srt_table_db()$flow_data_recorded[input$srt_table_rows_selected]))
         updateSelectInput(session, "water_level_rec", selected = as.numeric(rv$srt_table_db()$water_level_recorded[input$srt_table_rows_selected]))
         updateSelectInput(session, "photos_uploaded", selected = as.numeric(rv$srt_table_db()$photos_uploaded[input$srt_table_rows_selected]))
-        updateTextInput(session, "sensor_collect_date", value = rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected])
+        updateDateInput(session, "sensor_collect_date", value = rv$srt_table_db()$sensor_collection_date[input$srt_table_rows_selected],
+                                                        min = rv$srt_table()$test_date[input$srt_table_rows_selected])
         updateSelectInput(session, "qaqc_complete", selected = as.numeric(rv$srt_table_db()$qaqc_complete[input$srt_table_rows_selected]))
-        updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected])
-        updateDateInput(session, "sensor_deployed", value = rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected])
+        updateDateInput(session, "srt_summary_date", value = rv$srt_table_db()$srt_summary_date[input$srt_table_rows_selected],
+                                                     min = rv$srt_table()$test_date[input$srt_table_rows_selected])
+        updateSelectInput(session, "sensor_deployed", selected = rv$srt_table_db()$sensor_deployed[input$srt_table_rows_selected])
         
       })
       
