@@ -141,8 +141,8 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
           ) %>%
           formatStyle(
             '100% Full Date',
-            backgroundColor = styleInterval(lubridate::today(), c('red', 'transparent')),
-            color = styleInterval(lubridate::today(), c('white', '#c8c8c8'))
+            backgroundColor = styleInterval(lubridate::today(), c('#990000', 'transparent')),
+            color = styleInterval(lubridate::today(), c('#C8C8C8', '#c8c8c8'))
           ) %>% 
           formatStyle(
             'Prev. DL Error',
