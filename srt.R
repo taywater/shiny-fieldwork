@@ -193,7 +193,8 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       rv$sensor_deployed <- reactive(if(nchar(input$sensor_deployed) == 0 | input$sensor_deployed == "N/A") "NULL" else paste0("'", input$sensor_deployed, "'"))
       
       #assure that the summary date does not precede the srt date
-      #this is causing summary date and collection date to not populate when changing the table selection from a newer to an older SRT 
+      #this ws causing summary date and collection date to not populate when changing the table selection from a newer to an older SRT
+      #solved by adding a second min = argument when populating these values from the srt table in the observeEvent for SRT row selected 
       observeEvent(input$srt_date,{
         updateDateInput(session, "srt_summary_date", min = input$srt_date)
       }
