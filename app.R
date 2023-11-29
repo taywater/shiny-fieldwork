@@ -1,4 +1,3 @@
-#6/24/2020 - Nick Manna, AKRF, Inc.
 #This file, app.R, works with all sourced files to run the PWD GSI MARS Fieldwork App
 #The app is run through app.R
 #when naming input variables, ns("name") is needed
