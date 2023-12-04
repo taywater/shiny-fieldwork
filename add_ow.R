@@ -19,7 +19,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
                #Debug button
-               actionButton(ns("BrowserButton"), "Click to Browse"),
+               # actionButton(ns("BrowserButton"), "Click to Browse"),
                #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
@@ -162,8 +162,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
   
       
       # Debugging Button
-      observeEvent(input$BrowserButton,
-                   {browser()})
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
       
       
       
@@ -662,10 +662,16 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "sump_depth", value = rv$sump_depth_edit)  
         
         #set sump value as custom if in custom table
-        if(rv$ow_view_db()$ow_uid[input$ow_table_rows_selected] %in% rv$sump_custom_db()$ow_uid){
+        # this logic checks that the ow is within the custom sump column in the database and the value is not NA
+        if(rv$ow_view_db()$ow_uid[input$ow_table_rows_selected] %in% rv$sump_custom_db()$ow_uid &
+           !is.na(rv$sump_custom_db()$sumpdepth_ft[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])){
           updateCheckboxInput(session, "custom_sump", value = TRUE)
-          rv$sump_depth_custom_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
-          updateNumericInput(session, "custom_sump_depth", value = rv$sump_depth_custom_edit)
+          rv$custom_sumpdepth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
+          updateNumericInput(session, "custom_sump_depth", value = rv$custom_sumpdepth_edit)
+        } else {
+          updateCheckboxInput(session, "custom_sump", value = FALSE)
+          rv$custom_sumpdepth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
+          updateNumericInput(session, "custom_sump_depth", value = NULL)
         }
         
         #get dates from table
@@ -901,27 +907,31 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
 
         }
         
-        # check conditions to update a custom sump depth value?
+        # check conditions to remove a custom sump depth value?
         if(is.numeric(rv$sump_custom_db()$sumpdepth_ft[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]]) &
            (!is.numeric(input$custom_sump_depth) | input$custom_sump == FALSE)){
             showModal(modalDialog(title = "Remove Custom Sump Depth?",
                                 "This monitoring location has a custom sump depth. Are you sure you want to delete it?",
                                 modalButton("No"),
                                 actionButton(ns("custom_sump_clear"), "Yes")))
-        }
+        
         observeEvent(input$custom_sump_clear,{
+          # browser()
           odbc::dbGetQuery(poolConn, paste0(
             "UPDATE fieldwork.tbl_well_measurements SET
               custom_sumpdepth_ft = NULL
               WHERE ow_uid = ",rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]))
           removeModal()
-        })
+          
+          #reset values
+          rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
+          rv$sump_custom_db <- reactive(odbc::dbGetQuery(poolConn, sump_custom_query()))
+          
+        })}
         
         rv$refresh_deploy_meas <- rv$refresh_deploy_meas + 1
         
         #update table with edit
-        rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
-        rv$sump_custom_db <- reactive(odbc::dbGetQuery(poolConn, sump_custom_query()))
         reset("well_depth")
         reset("weir")
         reset("cth")
@@ -934,6 +944,16 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         reset("start_date")
         reset("end_date")
         reset("well_meas_notes")
+        
+        # hold these until custom sump modal is complete
+        if(!is.numeric(rv$sump_custom_db()$sumpdepth_ft[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]]) |
+           (is.numeric(input$custom_sump_depth) & input$custom_sump == TRUE)){
+          
+          #reset values
+        rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
+        rv$sump_custom_db <- reactive(odbc::dbGetQuery(poolConn, sump_custom_query()))
+           }
+        
       })
       
       
