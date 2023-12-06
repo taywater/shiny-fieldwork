@@ -7,7 +7,7 @@
 
 
 #1.0 UI -----
-deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, long_term_lookup, html_warn,
+deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names, html_req, long_term_lookup, html_warn,
                      deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
   #namespace initializaiton
   ns <- NS(id)
@@ -130,7 +130,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_names, html_req, 
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
                                  #Debug button
-                                 # actionButton(ns("BrowserButton"), "Click to Browse"),
+                                 actionButton(ns("BrowserButton"), "Click to Browse"),
                                  #note about requirements
                                  fluidRow(
                                    HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.", "Check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")))
@@ -315,8 +315,8 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #2.2 back to this tab ----------\
       
       # Debugging Button
-      # observeEvent(input$BrowserButton,
-      #              {browser()})
+      observeEvent(input$BrowserButton,
+                   {browser()})
 
       #2.2.1 toggle state depending on inputs
       #toggle to make sure that only of SMP ID or Site Name is selected
@@ -450,14 +450,21 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         paste0("Sensor has a download error.")
 
         else if(
-            ## Condition 4: sensor is not currently deployed
-            input$sensor_id %in% collect$sensor_serial()){
+            ## Condition 4a: sensor is not currently deployed
+            input$sensor_id %in% collect$sensor_serial() & nchar(input$smp_id) > 0){
               if(input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)])
                 # error code
                 # "e4"
                 paste0("The sensor chosen is deployed at another location.")
             }
-            
+        else if(
+            ## Condition 4b: sensor is not currently deployed
+            input$sensor_id %in% collect$sensor_serial() & nchar(input$site_name) > 0){
+              if(input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])
+                # error code
+                # "e4"
+                paste0("The sensor chosen is deployed at another location.")
+            }
 
         else if(
              ## Condition 5 - collection date is populated, redeploy is true, and sensor is not currently deployed
@@ -486,15 +493,29 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
 
         
         else if(
-          # Conditon 8 - a sensor is deployed 
-          input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &  
-          input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]       
-        )
-        # "e8"
-        paste0("the sensor chosen is deployed at another well at this location.")
+          # Conditon 8 - a sensor is deployed at a different well at this SMP
+            nchar(input$smp_id) > 0){
+            if(input$smp_id == collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)] &  
+               input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)])
+              {
+              # "e8"
+              paste0("The sensor chosen is deployed at another well at this SMP.")
+              }
+            }
+        else if(
+          # Condition 9 - a sensor is deployed at a different well at this site.
+          nchar(input$site_name) > 0){
+          if(input$site_name == collect$site_names()[which(collect$sensor_serial() == input$sensor_id)] &
+             input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)]){
+            # "e9"
+            paste0("The sensor chosen is deployed at another well at this site.")
+          }
+        }
+
+
         else
         # "e0"  
-        paste0("huh")
+        paste0("Sensor not deployable - Contact Analysis Team")
       )
         
         
@@ -508,7 +529,8 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   #        e5 = "The senor chosen is not currenlty deployed at this well.",
                                   #        e6 = "Must select redeploy to deploy sensor again.",
                                   #        e7 = "Must select redeploy to deploy sensor again.",
-                                  #        e8 = "the sensor chosen is deployed at another well at this location.",
+                                  #        e8 = "the sensor chosen is deployed at another well at this SMP.",
+                                  #        e9 = "The sensor chosen is deployed at another well at this site.",
                                   #        e0 = ""
                                   # )
             )

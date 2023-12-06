@@ -190,8 +190,8 @@
                           con_phase = con_phase, priority = priority, future_req = future_req),
                    #Special Investigations (Add/Edit Special Investigations, View Special Investigations, View Future Special Investigations)
                     special_investigationsUI("special_investigations", work_number = work_number, html_req = html_req,
-                                             con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup,
-                                             requested_by_lookup = requested_by_lookup, future_req = future_req),
+                                             con_phase = con_phase, priority = priority, site_names = site_names,
+                                             si_lookup = si_lookup, requested_by_lookup = requested_by_lookup, future_req = future_req),
                    #Monitoring History 
                   historyUI("history"),
                    #Documentation

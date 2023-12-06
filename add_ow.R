@@ -19,7 +19,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
                #Debug button
-               # actionButton(ns("BrowserButton"), "Click to Browse"),
+               actionButton(ns("BrowserButton"), "Click to Browse"),
                #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
@@ -162,8 +162,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
   
       
       # Debugging Button
-      # observeEvent(input$BrowserButton,
-      #              {browser()})
+      observeEvent(input$BrowserButton,
+                   {browser()})
       
       
       
@@ -576,13 +576,15 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #need to reverse engineer the asset/ow/component combo
       observeEvent(input$ow_table_rows_selected,{ 
         
+        #update ow suffix/location regardless of wheter it's at a site or an smp
+        updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
+        
         #if at SMP
-      
         if(input$at_smp == 1){
           # browser() #browser for debugging facility id's not populating in input ui after clicking row
           #get facility id from table
           rv$fac <- rv$ow_view_db()$facility_id[input$ow_table_rows_selected]
-          updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
+          
 
           #get component id
           comp_id_query <- paste0("select distinct component_id from external.mat_assets where facility_id = '", rv$fac, "' 

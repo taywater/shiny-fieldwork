@@ -23,7 +23,9 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
                selectInput(ns("capacity_used"), "Capacity Used", choices = c("All", "Less than 80%", "80% or more")), 
                selectInput(ns("purpose_filter"), "Sensor Purpose", choices = c("All" = 1.5, "BARO" = 1, "LEVEL" = 2, "DATALOGGER" = 3)),
                selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3, "Special" = 4)),
-               selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1))
+               selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1)),
+               #Debug button
+               actionButton(ns("BrowserButton"), "Click to Browse"),
              ), 
              #1.1.3 Tables ---
              mainPanel(
@@ -47,6 +49,12 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
   moduleServer(
     id, 
     function(input, output, session){
+      
+      
+      #2.0.0
+      # Debugging Button
+      observeEvent(input$BrowserButton,
+                   {browser()})
       
       #2.0.1 set up ----
       #define ns to use in modals
@@ -232,6 +240,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
         list(
           sensor_serial = reactive(rv$collect_table_db$sensor_serial),
           smp_id = reactive(rv$collect_table_db$smp_id),
+          site_names = reactive(rv$collect_table_db$site_name),
           deploy_dates = reactive(rv$collect_table_db$deployment_dtime_est),
           ow_suffix = reactive(rv$collect_table_db$ow_suffix),
           cal_smp_id = reactive(rv$collect_table_filter()$smp_id[input$collection_rows_selected]),
