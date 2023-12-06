@@ -11,7 +11,7 @@
 #11/13/2020 - Nick Manna, AKRF, Inc. 
 #I am going to try to create a uniform approach to each module so things are in a good order and have standard comments/headers
 
-#1/26/21 notes from talking to taylor  
+#1/26/21 notes from talking to Taylor  
 #look out for deprecated functions
 
 #number sections and treat as level of indentation

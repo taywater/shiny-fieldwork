@@ -25,7 +25,7 @@ collection_calendarUI <- function(id, label = "collection_calendar"){
                selectInput(ns("term_filter"), "Term", choices = c("All" = 1.5, "Short" = 1, "Long"  = 2, "SRT" = 3, "Special" = 4)),
                selectInput(ns("research_filter"), "Research", choices = c("All" = 1.5, "USEPA STAR" = 1)),
                #Debug button
-               actionButton(ns("BrowserButton"), "Click to Browse"),
+               # actionButton(ns("BrowserButton"), "Click to Browse"),
              ), 
              #1.1.3 Tables ---
              mainPanel(
@@ -53,8 +53,8 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
       
       #2.0.0
       # Debugging Button
-      observeEvent(input$BrowserButton,
-                   {browser()})
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
       
       #2.0.1 set up ----
       #define ns to use in modals

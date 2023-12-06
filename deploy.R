@@ -130,7 +130,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names,
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
                                  #Debug button
-                                 actionButton(ns("BrowserButton"), "Click to Browse"),
+                                 # actionButton(ns("BrowserButton"), "Click to Browse"),
                                  #note about requirements
                                  fluidRow(
                                    HTML(paste(html_req(""), " indicates required field for complete tests. ", future_req(""), " indicates required field for future tests.", "Check the \"Add Sensor\" tab to see if the Sensor ID you are trying to deploy is actively deployed elsewhere.")))
@@ -315,8 +315,8 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #2.2 back to this tab ----------\
       
       # Debugging Button
-      observeEvent(input$BrowserButton,
-                   {browser()})
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
 
       #2.2.1 toggle state depending on inputs
       #toggle to make sure that only of SMP ID or Site Name is selected

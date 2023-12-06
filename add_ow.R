@@ -19,7 +19,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
                #Debug button
-               actionButton(ns("BrowserButton"), "Click to Browse"),
+               # actionButton(ns("BrowserButton"), "Click to Browse"),
                #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
@@ -162,8 +162,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
   
       
       # Debugging Button
-      observeEvent(input$BrowserButton,
-                   {browser()})
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
       
       
       
@@ -576,7 +576,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #need to reverse engineer the asset/ow/component combo
       observeEvent(input$ow_table_rows_selected,{ 
         
+        # browser()
         #update ow suffix/location regardless of wheter it's at a site or an smp
+        
         updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
         
         #if at SMP
@@ -630,9 +632,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #   updateNumericInput(session, "custom_sump_depth", value = NA)
         # }
         
-        #update sensor one inch, removed 05/09/2022
-        # rv$sensor_one_inch_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 11]
-        # updateSelectInput(session, "sensor_one_in", selected = rv$sensor_one_inch_edit)
+        
         
         #update weir 
         rv$weir_edit <- rv$ow_view_db()$weir[input$ow_table_rows_selected] %>% as.integer()
@@ -663,14 +663,17 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "bos_elev", value = rv$bos_elev_edit)
         updateNumericInput(session, "sump_depth", value = rv$sump_depth_edit)  
         
-        #set sump value as custom if in custom table
+        # set sump value as custom if in custom table
         # this logic checks that the ow is within the custom sump column in the database and the value is not NA
-        if(rv$ow_view_db()$ow_uid[input$ow_table_rows_selected] %in% rv$sump_custom_db()$ow_uid &
-           !is.na(rv$sump_custom_db()$sumpdepth_ft[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])){
-          updateCheckboxInput(session, "custom_sump", value = TRUE)
-          rv$custom_sumpdepth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
-          updateNumericInput(session, "custom_sump_depth", value = rv$custom_sumpdepth_edit)
-        } else {
+        if(rv$ow_view_db()$ow_uid[input$ow_table_rows_selected] %in% rv$sump_custom_db()$ow_uid){
+          if(!is.na(rv$sump_custom_db()$sumpdepth_ft[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])){
+            
+            updateCheckboxInput(session, "custom_sump", value = TRUE)
+            rv$custom_sumpdepth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
+            updateNumericInput(session, "custom_sump_depth", value = rv$custom_sumpdepth_edit)
+          } 
+        }
+         else {
           updateCheckboxInput(session, "custom_sump", value = FALSE)
           rv$custom_sumpdepth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
           updateNumericInput(session, "custom_sump_depth", value = NULL)
