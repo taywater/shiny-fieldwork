@@ -9,7 +9,7 @@
 #1.0 UI -----
 deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names, html_req, long_term_lookup, html_warn,
                      deployment_lookup, research_lookup, priority, future_req, sensor_issue_lookup){
-  #namespace initializaiton
+  #namespace initialization
   ns <- NS(id)
   #set this up as a list so it can be read into the app.R UI correctly
   list(

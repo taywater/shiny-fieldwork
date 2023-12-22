@@ -11,8 +11,8 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
   tabPanel(title = "Add/Edit Location", value = "add_ow",  
            titlePanel("Add or Edit Monitoring Location"),
            #set up a fluid row so sidebar panel and main panel (just a conditional panel here)
-           fluidRow(
-             column(width = 4, 
+           fluidRow( 
+             column(width = 5,
              #1.1 Location input sidebarPanel  -------
              #sidebar panel for basic location inputs 
              sidebarPanel(width = 12,
@@ -141,13 +141,13 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                  fluidRow(HTML(paste(future_req(""),"Hardware refers to equipment used to install sensors i.e. cable for observation wells (OW) and control structures (CS) or the rebar and PVC pipe for shallow wells (SW)")))
              )),
              #1.4 main panel - tables --------
-             column(width = 8, 
+             column(width = 7,absolutePanel(fixed = TRUE,
                     #show the table if an smp_id is selected
                conditionalPanel(condition = "input.smp_id || input.site_name",
                  ns = ns, 
                 h4(textOutput((ns("header")))),
                DTOutput(ns("ow_table"))), 
-           ))
+           )))
   )
   
 }
@@ -164,9 +164,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       # Debugging Button
       # observeEvent(input$BrowserButton,
       #              {browser()})
-      
-      
-      
       
       #2.0.1 set up ------
       #define namespace to use while initializing inputs in modals
@@ -276,7 +273,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.3.2 query, get prefixes, show table -------
       #get locations at this smp_id or site
       ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.viw_ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
-      sump_custom_query <- reactive(paste0('SELECT ow_uid, custom_sumpdepth_ft AS sumpdepth_ft FROM fieldwork.tbl_well_measurements'))
+      sump_custom_query <- reactive(paste0('SELECT DISTINCT(ow_uid), custom_sumpdepth_ft AS sumpdepth_ft FROM fieldwork.tbl_well_measurements'))
       
       
       rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -381,7 +378,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observeEvent(input$component_id, {
         
         #select row if location is already added and/or has measurements; only works when facility id is unique
-        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+        if(facility_id() %in% rv$ow_view_db()$facility_id &
+           ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
+           length(input$ow_table_rows_selected) == 0){
 
           # browser()
           selectRows(
