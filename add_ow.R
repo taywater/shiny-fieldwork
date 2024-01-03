@@ -10,6 +10,8 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
   ns <- NS(id)
   tabPanel(title = "Add/Edit Location", value = "add_ow",  
            titlePanel("Add or Edit Monitoring Location"),
+           #Debug button
+           # actionButton(ns("BrowserButton"), "Click to Browse"),
            #set up a fluid row so sidebar panel and main panel (just a conditional panel here)
            fluidRow(
              column(width = 4, 
@@ -207,6 +209,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       output$header <- renderText(
         rv$header()
       )
+      
+      # Debugging Button
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
+      
       
       #2.3 add location at SMP ----
       #2.3.1  determine ow prefixes, component IDs, asset types ----
