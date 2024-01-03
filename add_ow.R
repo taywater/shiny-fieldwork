@@ -273,7 +273,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.3.2 query, get prefixes, show table -------
       #get locations at this smp_id or site
       ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.viw_ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
-      sump_custom_query <- reactive(paste0('SELECT DISTINCT(ow_uid), custom_sumpdepth_ft AS sumpdepth_ft FROM fieldwork.tbl_well_measurements'))
+      sump_custom_query <- reactive(paste0('SELECT distinct(sd.ow_uid), sd.sumpdepth_ft from fieldwork.viw_ow_sumpdepth sd
+                                            left join fieldwork.tbl_well_measurements wm
+                                            on wm.custom_sumpdepth_ft = sd.sumpdepth_ft
+                                            order by ow_uid desc'))
       
       
       rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -398,8 +401,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #perform same check upon ow_suffix input change            
       observeEvent(input$ow_suffix, {
-        #select row if location is already added and/or has measurements; only works when facility id is unique
-        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+        #select row if location is already added and/or has measurements; only fires when facility id is unique
+        if(facility_id() %in% rv$ow_view_db()$facility_id &
+           ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
+           length(rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]) == 1
+           ){
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
