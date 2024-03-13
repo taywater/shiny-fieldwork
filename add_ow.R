@@ -36,7 +36,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
                #Debug button
-               actionButton(ns("BrowserButton"), "Click to Browse"),
+               # actionButton(ns("BrowserButton"), "Click to Browse"),
                #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
@@ -206,8 +206,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
   
       
       # Debugging Button
-      observeEvent(input$BrowserButton,
-                   {browser()})
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
 
       #2.0.1 set up ------
       #define namespace to use while initializing inputs in modals
@@ -787,8 +787,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #update sump values
         updateNumericInput(session, "sump_depth", value = rv$sump_values_db())
-        updateNumericInput(session, "assumed_sump_depth", value = rv$sump_values_db()$assumed_sumpdepth[rv$sump_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
-        updateNumericInput(session, "interpreted_sump_depth", value = rv$sump_values_db()$custom_sumpdepth[rv$sump_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "assumed_sump_depth", value = rv$sump_values_db()$assumed_sumpdepth[rv$sump_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "interpreted_sump_depth", value = rv$sump_values_db()$custom_sumpdepth[rv$sump_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         #always perform sump calculation despite stored value from view
         updateNumericInput(session, "calcd_sump_depth", value = input$well_depth - (input$cap_elev - input$bos_elev))
         # updateNumericInput(session, "calcd_sump_depth", value = rv$sump_values_db()$calculated_sumpdepth[rv$sump_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
@@ -796,8 +796,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                 
         #update orifice values
         updateNumericInput(session,"orifice_elev", rv$orifice_values_db()$orifice_elev[input$ow_table_rows_selected])
-        updateNumericInput(session, "custom_orifice", value = rv$orifice_values_db()$custom_orificedepth[rv$orifice_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
-        updateNumericInput(session, "greenIT_orifice", value = rv$orifice_values_db()$greenit_orificedepth[rv$orifice_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "custom_orifice", value = rv$orifice_values_db()$custom_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "greenIT_orifice", value = rv$orifice_values_db()$greenit_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         #always perform orifice calculation despite stored value from view
         updateNumericInput(session, "calcd_orifice", value = (input$cap_elev - input$orifice_elev))
         # updateNumericInput(session, "calcd_orifice", value = rv$orifice_values_db()$calc_orificedepth[rv$orifice_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
