@@ -791,7 +791,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "interpreted_sump_depth", value = rv$sump_values_db()$custom_sumpdepth[rv$sump_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         #always perform sump calculation despite stored value from view
         updateNumericInput(session, "calcd_sump_depth", value = input$well_depth - (input$cap_elev - input$bos_elev))
-        # updateNumericInput(session, "calcd_sump_depth", value = rv$sump_values_db()$calculated_sumpdepth[rv$sump_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
+
         
                 
         #update orifice values
@@ -800,8 +800,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "greenIT_orifice", value = rv$orifice_values_db()$greenit_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         #always perform orifice calculation despite stored value from view
         updateNumericInput(session, "calcd_orifice", value = (input$cap_elev - input$orifice_elev))
-        # updateNumericInput(session, "calcd_orifice", value = rv$orifice_values_db()$calc_orificedepth[rv$orifice_values_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]])
-        
+
         #get dates from table
         rv$start_date_edit <- rv$ow_view_db()$start_dtime_est[input$ow_table_rows_selected]
         rv$end_date_edit <- rv$ow_view_db()$end_dtime_est[input$ow_table_rows_selected]
@@ -982,11 +981,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       rv$refresh_deploy_meas <- 0 
       
-      #2.7.4 handling selected sump depth  -----      
-      # observe(updateSelectInput(session, "sumpdepth_choice", selected = rv$sump_custom_db()$sumpdepth_lookup_uid[rv$sump_custom_db()$ow_uid == rv$ow_view_db()$ow_uid[input$ow_table_rows_selected]]))
+    
+
       
       
-      #2.7.5 write/edit measurements to table  -----
+      #2.7.4 write/edit measurements to table  -----
       observeEvent(input$add_well_meas, {
         # browser()
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
