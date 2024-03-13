@@ -154,6 +154,17 @@
       }
       
       
+      #js color code
+      jsColCode <- 'shinyjs.backgroundCol = function(params) {
+                  var defaultParams = {
+                  id : null,
+                  col : "#88A88A"
+                  };
+                  params = shinyjs.getParams(params, defaultParams);
+                  var el = $("#" + params.id);
+                  el.css("background-color", params.col);
+                  }'
+      
       #project work numbers
       work_number <- dbGetQuery(poolConn, "select distinct worknumber from external.tbl_projectbdv") %>% pull()
       
@@ -169,8 +180,10 @@
       tagList(
         #call jscode to warn when leaving page
         tags$head(tags$script(jscode)),
+        tags$head(tags$script(jsColCode)),
         #must call useShinyjs() for shinyjs() functionality to work in app
         useShinyjs(),
+        extendShinyjs(text = jsColCode, functions = "backgroundCol"),
         navbarPage("Fieldwork",  id = "inTabset", theme = shinytheme("slate"),
                    #do.call is needed to use a list with appended UI functions with navbarMenu
                    #this is so a navbarMenu (dropdown) can consist of tabs from different modules

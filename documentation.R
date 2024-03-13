@@ -5,7 +5,7 @@
 
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v1.4.1"), 
+           titlePanel("MARS Fieldwork Database v1.5"), 
            column(width = 5,
                   h2("User Guide"),
                   
@@ -19,7 +19,7 @@ documentationUI <- function(id, label = "documentation"){
                   
                   h3("Add Location"), 
                   h5("Choose whether to add a location at an SMP or non-SMP site (\"Site\")."),
-                  h5("If SMP: Select an SMP ID to give options for Component ID. A suggested Location (ie, OW1) is autofilled, which can be overwritten if needed. Facility ID is autofilled based on the selected Component ID. If the selected feature does not have a component ID, the facility ID of the SMP will be used. Once all field are in the top sidebar are complete, and the new location does not already exist, add the location. Click a row on the table to enable editing of location. Use the lower sidebar to add or edit well measurements for the location noted in the top sidebar."), 
+                  h5("If SMP: Select an SMP ID to give options for Component ID. A suggested Location (ie, OW1) is autofilled, which can be overwritten if needed. Facility ID is autofilled based on the selected Component ID. If the selected feature does not have a component ID, the facility ID of the SMP will be used. Once all field in the top sidebar are complete, and the new location does not already exist, add the location using the button in the top left panel. Click a row on the table to enable editing of location. Use the lower sidebars to add or edit well measurements for the location from fieldnotes. \nFor observation wells and inlets, you can also use the sidebars to populate elevations from the plan set, and select the preferred sump and orifice depths  between default assumptions, QAQC interpreted depths, and values calculated from reviewing plan sets."), 
                   h5("If Site: Select a Site in the dropdown. If the Site you need isn't there, you can add it by checking off \"Add New Site?\" and typing a new name. Once you click, it will appear in the dropdown. Select a component ID and location. If \"At SMP\" is blank, you can check a box if you want to move monitoring locations from a site to an SMP. This is useful if a monitored pre-construction site was given an SMP ID. The locations will be assigned to that SMP ID, and the site name will removed."), 
                   
                   h3("Add Sensor"), 
@@ -43,15 +43,17 @@ documentationUI <- function(id, label = "documentation"){
                   ),
            column(width = 5, offset = 1,
                   h2("Current Status"),
-                  h3("v.1.4.2"),
+                  h3("v1.5"),
+                  h5("Major revisions to the \"Add/Edit Location\" tab centered around improving well measurment accuracy, including the ability to write custom sump and orifice elevations to the database"),
+                  h3("v1.4.2"),
                   h5("Patched bugs related to 1.4.1 UI improvements, edited SRT collection times, and reworded well measurement sections to remove ambiguity. \"Collection calendar\" now passes more data to \"deploy\" to improve logic."),
-                  h3("v.1.4.1"),
+                  h3("v1.4.1"),
                   h5("UI improvements within 'Add Location' and warning messaging."),
-                  h3("v.1.4"), 
+                  h3("v1.4"), 
                   h5("Removed Stats, Inlet Conveyance, Porous Pavement, and Capture Efficiency and moved to their own apps."),
-                  h3("v.1.3"), 
+                  h3("v1.3"), 
                   h5("Updated big selectInputs to be server-side selectizeInputs to improve initialization speed. Replaced deprecated or superseded function and improved backend readability. Fixed local reactable nest issue and table-selection issue."),
-                  h3("v.1.2"), 
+                  h3("v1.2"), 
                   h5("Added Pre-Monitoring Inspection notes for future deployments, details for sensor issues, and more UI improvements."),
                   h3("v1.1"), 
                   h5("v1.1 has the same core features as v1.0 but improved user experience and functionality."),
