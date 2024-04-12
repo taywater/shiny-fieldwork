@@ -60,8 +60,6 @@
   library(shinyjs)
   #DT for datatables
   library(DT)
-  #Collapsable Panels
-  library(shinyBS)
   #reactable for reactable tables
   library(reactable)
   #Not in logical
