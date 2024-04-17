@@ -391,6 +391,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                ON git.ow_uid = wm.ow_uid
                                                ORDER BY well_measurements_uid DESC'))
       
+      
+      
       rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
       rv$sump_values_db <- reactive(odbc::dbGetQuery(poolConn, sump_values_query()))
       rv$orifice_values_db <- reactive(odbc::dbGetQuery(poolConn, orifice_values_query())) 
@@ -795,7 +797,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
                 
         #update orifice values
-        updateNumericInput(session,"orifice_elev", rv$orifice_values_db()$orifice_elev[input$ow_table_rows_selected])
+        updateNumericInput(session,"orifice_elev", value = rv$ow_view_db()$orifice_elev[input$ow_table_rows_selected])
         updateNumericInput(session, "custom_orifice", value = rv$orifice_values_db()$custom_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         updateNumericInput(session, "greenIT_orifice", value = rv$orifice_values_db()$greenit_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
         #always perform orifice calculation despite stored value from view
