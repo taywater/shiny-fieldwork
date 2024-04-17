@@ -909,6 +909,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$sump_depth <- reactive(if(is.na(input$sump_depth)) "NULL" else paste0("'",input$sump_depth,"'"))
       rv$well_meas_notes <- reactive(if(is.na(input$well_meas_notes)) "NULL" else paste0("'",input$well_meas_notes,"'"))
       rv$weir <- reactive(if(input$weir == "") "NULL" else input$weir %>% as.numeric() %>% as.logical())
+      rv$sumpdepth_choice <- reactive(if(input$sumpdepth_choice == "") "NULL" else input$sumpdepth_choice)
+      rv$orifice_choice <- reactive(if(input$orifice_choice == "") "NULL" else input$orifice_choice)
       
       #rv$weir <- reactive(if(is.na(input$weir)) "NULL" else paste0("'", input$weir, "'"))
       #query well measurements at each oW from db
@@ -1044,8 +1046,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             orifice_elev = ", rv$orifice_elev(),",
             custom_sumpdepth_ft = ", rv$custom_sump_depth(),",
             custom_orificedepth_ft = ", rv$custom_orifice_depth(),",
-            sumpdepth_lookup_uid = ", input$sumpdepth_choice,",
-            orifice_lookup_uid = ", input$orifice_choice,
+            sumpdepth_lookup_uid = ", rv$sumpdepth_choice(),",
+            orifice_lookup_uid = ", rv$orifice_choice(),
             " WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected],"'" ))
         }
         
