@@ -79,7 +79,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
              
              #1.2 Stable Measurements sump/orifice ----
              # Conditional panel to appear once location is selected and suffix is OW, GI, CO, or CS
-             conditionalPanel(condition = "input.at_smp > 0 && (input.ow_suffix.match('OW.*') || input.ow_suffix.match('GI.*') || input.ow_suffix.match('CS.*') || input.ow_suffix.match('CO.*'))",
+             conditionalPanel(condition = "input.at_smp > 0 && (input.ow_suffix.match('OW.*') || input.ow_suffix.match('GI.*') || input.ow_suffix.match('CS.*') || input.ow_suffix.match('CO.*')) || input.ow_suffix.match('GW.*')",
                               ns = ns,
                         #sidebar panel for 'permanent' location values 
                         sidebarPanel(width = 12,  
