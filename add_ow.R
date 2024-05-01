@@ -1007,7 +1007,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", ", #Strip unicode characters that WIN1252 encoding will choke on locally
                                                                           #This is dumb.
             rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
-            input$sumpdepth_choice,", ", rv$orifice_elev(),", ", input$orifice_choice,", ", 
+            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ", 
             rv$custom_orifice_depth(), ")"
 
           ))
@@ -1024,7 +1024,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ", 
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
             ", ", rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
-            input$sumpdepth_choice,", ", rv$orifice_elev(),", ", input$orifice_choice,", ",
+            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ",
             rv$custom_orifice_depth(), ")"
             
             ))

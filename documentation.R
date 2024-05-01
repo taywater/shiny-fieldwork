@@ -5,7 +5,7 @@
 
 documentationUI <- function(id, label = "documentation"){
   tabPanel("Documentation", value = "readme_tab", 
-           titlePanel("MARS Fieldwork Database v1.5"), 
+           titlePanel("MARS Fieldwork Database v3.1"), 
            column(width = 5,
                   h2("User Guide"),
                   
@@ -43,7 +43,7 @@ documentationUI <- function(id, label = "documentation"){
                   ),
            column(width = 5, offset = 1,
                   h2("Current Status"),
-                  h3("v1.5"),
+                  h3("v3.1"),
                   h5("Major revisions to the \"Add/Edit Location\" tab centered around improving well measurment accuracy, including the ability to write custom sump and orifice elevations to the database"),
                   h3("v1.4.2"),
                   h5("Patched bugs related to 1.4.1 UI improvements, edited SRT collection times, and reworded well measurement sections to remove ambiguity. \"Collection calendar\" now passes more data to \"deploy\" to improve logic."),
