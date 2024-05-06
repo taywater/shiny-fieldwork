@@ -23,7 +23,6 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
   ns <- NS(id)
   tabPanel(title = "Add/Edit Location", value = "add_ow",  
            titlePanel("Add or Edit Monitoring Location"),
-           
            #allow js use
            useShinyjs(),
            extendShinyjs(text = jscolcode, functions = "backgroundCol"),
@@ -332,6 +331,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       output$header <- renderText(
         rv$header()
       )
+      
+      # Debugging Button
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
+      
       
       #2.3 add location at SMP ----
       #2.3.1  determine ow prefixes, component IDs, asset types ----
