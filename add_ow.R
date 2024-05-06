@@ -978,7 +978,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$ow_validity <- reactive(!is.na(odbc::dbGetQuery(poolConn, paste0("select fieldwork.fun_get_ow_uid_no_error(", rv$smp_id(), ", ", rv$ow_suffix_null(), ", ", rv$site_name_lookup_uid_null(), ")")) %>% pull()))
       
       #check if weir presence should be a required input, and if it is required is it populated
-      rv$weir_validity <- reactive(if(grepl("GI|CS",input$ow_suffix, fixed = FALSE) & nchar(input$weir) > 0){FALSE} else {TRUE})
+      rv$weir_validity <- reactive(if(grepl("GI|CS",input$ow_suffix, fixed = FALSE) & nchar(input$weir) > 0){TRUE} else 
+                                   if(grepl("GI|CS",input$ow_suffix, fixed = FALSE) & nchar(input$weir) == 0){FALSE} else 
+                                    {TRUE})
 
       
       #add well measurement
