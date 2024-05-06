@@ -4,22 +4,38 @@
 #This page is the foundation of all CWL deployments
 #User can also add well measurements
 
+
+#js color switching function
+jscolcode <- 'shinyjs.backgroundCol = function(params) {
+            var defaultParams = {
+            id : null,
+            col : "#88A88A"
+            };
+            params = shinyjs.getParams(params, defaultParams);
+            var el = $("#" + params.id);
+            el.css("background-color", params.col);
+            }'
+
+
 #1.0 UI ------
 add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
   #namespace
   ns <- NS(id)
   tabPanel(title = "Add/Edit Location", value = "add_ow",  
            titlePanel("Add or Edit Monitoring Location"),
-           #Debug button
-           # actionButton(ns("BrowserButton"), "Click to Browse"),
+           #allow js use
+           useShinyjs(),
+           extendShinyjs(text = jscolcode, functions = "backgroundCol"),
            #set up a fluid row so sidebar panel and main panel (just a conditional panel here)
-           fluidRow(
-             column(width = 4, 
+           fluidRow( 
+             column(width = 5,
              #1.1 Location input sidebarPanel  -------
              #sidebar panel for basic location inputs 
              sidebarPanel(width = 12,
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
+               #Debug button
+               # actionButton(ns("BrowserButton"), "Click to Browse"),
                #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
@@ -59,7 +75,61 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                               ns = ns, 
                               actionButton(ns("add_non_smp_ow"), "Add New"))
              ),
-             #1.2 Conditional below location sidebar ------
+             
+             #1.2 Stable Measurements sump/orifice ----
+             # Conditional panel to appear once location is selected and suffix is OW, GI, CO, or CS
+             conditionalPanel(condition = "input.at_smp > 0 && (input.ow_suffix.match('OW.*') || input.ow_suffix.match('GI.*') || input.ow_suffix.match('CS.*') || input.ow_suffix.match('CO.*')) || input.ow_suffix.match('GW.*')",
+                              ns = ns,
+                        #sidebar panel for 'permanent' location values 
+                        sidebarPanel(width = 12,  
+                        numericInput(ns("well_depth"), "Well Depth (ft)", value = NULL, step = 0.0001),
+                        #fluid row to split inputs into two columns within the sidebar
+                        fluidRow(
+                          column(6, numericInput(ns("cap_elev"), "Cap Elev.",value = NULL, step = 0.0001)),
+                          column(6, numericInput(ns("bos_elev"),"Bottom of Stone Elev.",value = NULL, step = 0.0001))),
+                        fluidRow(
+                          column(12,
+                          selectInput(ns("sumpdepth_choice"), "Choose Sump Depth", 
+                                      choices = c("", "Assumed Value" = 1, "Calculated Value" = 2, "Interpreted Value" = 3), selected = ""))),
+                        fluidRow(column(12,
+                          disabled(numericInput(ns("assumed_sump_depth"), "Assumed Sump Depth (ft)", value = NULL, step = 0.0001)))),
+                        fluidRow(column(12,
+                          numericInput(ns("interpreted_sump_depth"),"Interpreted Sump Depth (ft)", value = NULL, step = 0.0001))),
+                        fluidRow(column(12,
+                          disabled(numericInput(ns("calcd_sump_depth"),"Calculated Sump Depth (ft)", value = NULL, step = 0.0001)))),
+                        )),
+             # Conditional panel to appear once location is selected and suffix is GI or CS
+             conditionalPanel(condition = "input.at_smp > 0 && (input.ow_suffix.match('CS.*') || input.ow_suffix.match('GI.*'))",
+                        ns = ns,
+                        #make sidebar
+                        sidebarPanel(width = 12,
+                        #weir inputs
+                        selectInput(ns("weir"), html_req("Is there a Weir?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL),
+                        conditionalPanel("input.weir == \"1\"",
+                                         ns = ns,
+                                         fluidRow(
+                                           column(6, numericInput(ns("ctw"), "Cap-to-Weir (ft)", value = NULL, step = 0.0001)), 
+                                           column(6, numericInput(ns("cto"), "Cap-to-Orifice (ft)", value = NULL, step = .0001))))
+                        )),
+             # Conditional panel to appear once location is selected and suffix is OW or GI
+             conditionalPanel(condition = "input.at_smp > 0 && (input.ow_suffix.match('OW.*') || input.ow_suffix.match('GI.*') || input.ow_suffix.match('CS.*') || input.ow_suffix.match('CO.*'))",
+                             ns = ns,
+                             sidebarPanel(width = 12,
+                            fluidRow(
+                              column(12,
+                                     selectInput(ns("orifice_choice"), "Choose Orifice Value", 
+                                                 choices = c("", "GreenIT Value" = 1, "Calculated Value" = 2, "Interpreted Value" = 3), selected = ""))),
+                             fluidRow(column(12,
+                             numericInput(ns("orifice_elev"), "Orifice Elev.", value = NULL, step = 0.0001))),
+                             fluidRow(column(12,
+                             numericInput(ns("custom_orifice"),"Interpreted Orifice Depth", value = NULL, step = 0.0001))),
+                             fluidRow(column(12,
+                             disabled(numericInput(ns("calcd_orifice"),"Calculated Orifice Depth", value = NULL, step = 0.0001)))),
+                             fluidRow(column(12,
+                             disabled(numericInput(ns("greenIT_orifice"),"GreenIT Orifice Depth", value = NULL, step = 0.0001))))
+                                          )),
+             
+             #1.3 Conditional below location sidebar ------
              #conditional for neither smp or site, but for moving locations from a site to an smp
              #just in case a site becomes an smp
              conditionalPanel(condition = "input.at_smp != 1 && input.at_smp != 2", 
@@ -78,15 +148,10 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                                                  actionButton(ns("convert_wells"), "Move Locations from Site to SMP")
                                 )
                                             )),
-              #1.3 measurements sidebarPanel-------            
+              #1.4 cable installation measurements sidebarPanel-------            
              #break well measurements into a lower sidebar
-             sidebarPanel(width = 12, 
-                 numericInput(ns("well_depth"), "Well Depth (ft)", value = NULL, step = 0.0001),
-                  #fluid row to split inputs into two columns within the sidebar
-                 fluidRow(
-                   # column(6, selectInput(ns("sensor_one_in"), html_req("Sensor Installed 1\" off Bottom?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL)),
-                   column(6, selectInput(ns("weir"), html_req("Is there a Weir?"), choices = c("", "Yes" = "1", "No" = "0"), selected = NULL))),
-                  #fluid row to split inputs into two columns within the sidebar, no longer hidden if sensor installed 1" is true
+             sidebarPanel(width = 12,
+                 #fluid row to split inputs into two columns within the sidebar, no longer hidden if sensor installed 1" is true
                  fluidRow(
                    column(6, numericInput(ns("cth"), html_req("Cap-to-Hook (ft)"), value = NULL, step = 0.0001)), 
                    column(6, numericInput(ns("hts"), html_req("Hook-to-Sensor (ft)"), value = NULL, step = 0.0001))),
@@ -97,9 +162,6 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                  #show panel if there is a weir
                  conditionalPanel("input.weir == \"1\"",
                                   ns = ns,
-                                  fluidRow(
-                                    column(6, numericInput(ns("ctw"), "Cap-to-Weir (ft)", value = NULL, step = 0.0001)), 
-                                    column(6, numericInput(ns("cto"), "Cap-to-Orifice (ft)", value = NULL, step = .0001))),
                                   fluidRow(
                                     #disable these fields, auto calculate later
                                     column(4, disabled(numericInput(ns("wts"), "Weir-to-Sensor (ft)", value = NULL, step = 0.0001))), 
@@ -120,16 +182,17 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                  fluidRow(HTML(paste(html_req(""), " indicates a required field."))),
                  fluidRow(HTML(paste(future_req(""),"Hardware refers to equipment used to install sensors i.e. cable for observation wells (OW) and control structures (CS) or the rebar and PVC pipe for shallow wells (SW)")))
              )),
-             #1.4 main panel - tables --------
-             column(width = 8, 
+             #1.5 main panel - tables --------
+             column(width = 7,absolutePanel(fixed = TRUE,
                     #show the table if an smp_id is selected
                conditionalPanel(condition = "input.smp_id || input.site_name",
                  ns = ns, 
                 h4(textOutput((ns("header")))),
                DTOutput(ns("ow_table"))), 
-           ))
-  )
-  
+           ))),
+           uiOutput('background_change')
+           
+      )
 }
 
 #2.0 server ----
@@ -140,6 +203,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
     id, 
     function(input, output, session){
   
+      
+      # Debugging Button
+      # observeEvent(input$BrowserButton,
+      #              {browser()})
+
       #2.0.1 set up ------
       #define namespace to use while initializing inputs in modals
       ns <- session$ns
@@ -152,6 +220,52 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       updateSelectizeInput(session, "smp_id", choices = smp_id, selected = character(0), server = TRUE)
       updateSelectizeInput(session, "new_smp_id", choices = smp_id, selected = character(0), server = TRUE)
       
+      
+      #2.0.3 color changes based on input ----
+      
+      # this is a working version for one of the inputs. It should NOT BE COPIED OVER for each input
+      # instead it should be abstracted as a fx for use with other inputs
+      # sump calculated
+      
+      observeEvent(input$sumpdepth_choice, {
+        x <- input$sumpdepth_choice
+        if(x == 1){
+          js$backgroundCol(ns("assumed_sump_depth"),"#88A88A")
+          js$backgroundCol(ns("interpreted_sump_depth"),"white")
+          js$backgroundCol(ns("calcd_sump_depth"),"#999999")
+        } else if(x == 2){
+          js$backgroundCol(ns("assumed_sump_depth"),"#999999")
+          js$backgroundCol(ns("interpreted_sump_depth"),"white")
+          js$backgroundCol(ns("calcd_sump_depth"),"#88A88A")
+        } else if(x == 3){
+          js$backgroundCol(ns("assumed_sump_depth"),"#999999")
+          js$backgroundCol(ns("interpreted_sump_depth"),"#B9E4BB")
+          js$backgroundCol(ns("calcd_sump_depth"),"#999999")
+        }
+      })
+      
+      observeEvent(input$orifice_choice, {
+        x <- input$orifice_choice
+        if(x == 1){
+          js$backgroundCol(ns("custom_orifice"),"white")
+          js$backgroundCol(ns("calcd_orifice"),"#999999")
+          js$backgroundCol(ns("greenIT_orifice"),"#88A88A")
+        }
+        if(x == 2){
+          js$backgroundCol(ns("custom_orifice"),"white")
+          js$backgroundCol(ns("calcd_orifice"),"#88A88A")
+          js$backgroundCol(ns("greenIT_orifice"),"#999999")
+        }
+        if(x == 3){
+          js$backgroundCol(ns("custom_orifice"),"#B9E4BB")
+          js$backgroundCol(ns("calcd_orifice"),"#999999")
+          js$backgroundCol(ns("greenIT_orifice"),"#999999")
+        }
+      }
+                   )
+      
+      
+      
       #2.1 Lead-in from other tabs---------
       #update UI when user comes directly from deploy tab 
       #reset() is slower than updateXInput, so if you reset and than update, the reset will actually happen after
@@ -163,6 +277,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           updateSelectInput(session, "component_id",  selected = NULL)
           updateSelectizeInput(session, "smp_id",  selected = character(0))
           updateSelectInput(session, "site_name", selected = NULL)
+          updateSelectInput(session, "sumpdepth_choice", selected = NULL)
+          updateSelectInput(session, "orifice_chioce", selected = NULL)
           reset("add_site_name")
           reset("need_new_site")
           reset("new_site_name")
@@ -176,6 +292,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           reset("wts")
           reset("wto")
           reset("ots")
+          reset("cap_elev")
+          reset("bos_elev")
+          reset("sump_depth")
+          reset("sump_custom")
+          reset("sump_custom_ft")
           reset("start_date")
           reset("end_date")
           reset("well_meas_notes")
@@ -193,6 +314,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       })
       
       
+
       #2.2 Headers ----
       
       #Get the Project name, combine it with SMP ID, and create a reactive header
@@ -248,9 +370,37 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #2.3.2 query, get prefixes, show table -------
       #get locations at this smp_id or site
       ow_view_query <- reactive(paste0("SELECT * FROM fieldwork.viw_ow_plus_measurements WHERE smp_id = '", input$smp_id, "' OR site_name = '", input$site_name, "'"))
+      sump_values_query <- reactive(paste0('SELECT  wm.well_measurements_uid, wm.ow_uid, sc.sumpdepth_ft AS calculated_sumpdepth,
+                                            COALESCE(sl.sumpdepth_ft, su.sumpdepth_ft) AS assumed_sumpdepth,
+                                            wm.custom_sumpdepth_ft AS custom_sumpdepth
+                                            FROM fieldwork.tbl_well_measurements wm
+                                            LEFT JOIN fieldwork.tbl_ow ow
+                                            ON wm.ow_uid = ow.ow_uid
+                                            LEFT JOIN fieldwork.viw_ow_sumpdepth_calculated sc
+                                            ON wm.ow_uid = sc.ow_uid
+                                            LEFT JOIN fieldwork.viw_ow_sumpdepth_lined sl
+                                            ON wm.ow_uid = sl.ow_uid
+                                            LEFT JOIN fieldwork.tbl_ow_sumpdepth_default su
+                                            ON ow.ow_suffix ~~ concat(su.ow_prefix,\'%\'::text)
+                                            ORDER BY wm.well_measurements_uid'))
+      
+      orifice_values_query <- reactive(paste0('with git AS (Select distinct(ow.ow_uid), git.assumption_orificeheight_ft from fieldwork.tbl_ow ow 
+                                        			 LEFT JOIN external.viw_greenit_unified git ON ow.smp_id = git.smp_id)
+                                        
+                                               SELECT wm.well_measurements_uid, wm.ow_uid, git.assumption_orificeheight_ft AS greenit_orificedepth,
+                                                	   wm.orifice_elev - wm.bottom_stone_elev AS calc_orificedepth,
+                                                	   wm.custom_orificedepth_ft AS custom_orificedepth
+                                               FROM fieldwork.tbl_well_measurements wm
+                                               LEFT JOIN git
+                                               ON git.ow_uid = wm.ow_uid
+                                               ORDER BY well_measurements_uid DESC'))
+      
+      
       
       rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
-      
+      rv$sump_values_db <- reactive(odbc::dbGetQuery(poolConn, sump_values_query()))
+      rv$orifice_values_db <- reactive(odbc::dbGetQuery(poolConn, orifice_values_query())) 
+        
       #get the existing ow_prefixes. these will be counted and used to suggest an OW Suffix
       rv$existing_ow_prefixes <- reactive(gsub('\\d+', '', rv$ow_view_db()$ow_suffix))
       
@@ -259,17 +409,19 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #Select desired columns, updated datetime format, rename columns, conditional based on smp id or site name selection
       rv$ow_table <- reactive(if(nchar(input$smp_id) > 0){
+        
         rv$ow_view_db() %>% 
-              dplyr::select("smp_id", "ow_suffix", "installation_height_ft", "deployment_depth_ft", "start_dtime_est", "end_dtime_est") %>% 
+              dplyr::select("smp_id", "ow_suffix", "installation_height_ft", "deployment_depth_ft", "sumpdepth_ft", "orificedepth_ft","start_dtime_est", "end_dtime_est") %>% 
               mutate_at(c("start_dtime_est", "end_dtime_est"), as.character) %>% 
               dplyr::rename("SMP ID" = "smp_id", "Location" = "ow_suffix", "Installation Height (ft)" = "installation_height_ft", 
-                            "Deployment Depth (ft)" = "deployment_depth_ft", "Start Date" = "start_dtime_est", "End Date" = "end_dtime_est")
+                            "Deployment Depth (ft)" = "deployment_depth_ft", "Sump Depth (ft)" = "sumpdepth_ft", "Orifice Depth (ft)" = "orificedepth_ft","Start Date" = "start_dtime_est", "End Date" = "end_dtime_est")
       }else{
+
         rv$ow_view_db() %>% 
-          dplyr::select("site_name", "ow_suffix", "installation_height_ft", "deployment_depth_ft", "start_dtime_est", "end_dtime_est") %>% 
+          dplyr::select("site_name", "ow_suffix", "installation_height_ft", "deployment_depth_ft", "sumpdepth_ft", "orificedepth_ft", "start_dtime_est", "end_dtime_est") %>% 
           mutate_at(c("start_dtime_est", "end_dtime_est"), as.character) %>% 
           dplyr::rename("Site Name" = "site_name", "Location" = "ow_suffix", "Installation Height (ft)" = "installation_height_ft", 
-                        "Deployment Depth (ft)" = "deployment_depth_ft", "Start Date" = "start_dtime_est", "End Date" = "end_dtime_est")}
+                        "Deployment Depth (ft)" = "deployment_depth_ft", "Sump Depth (ft)" = "sumpdepth_ft", "Orifice Depth (ft)" = "orificedepth_ft", "Start Date" = "start_dtime_est", "End Date" = "end_dtime_est")}
       )
       
       #render ow table
@@ -350,7 +502,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observeEvent(input$component_id, {
         
         #select row if location is already added and/or has measurements; only works when facility id is unique
-        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+        if(facility_id() %in% rv$ow_view_db()$facility_id &
+           ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
+           length(input$ow_table_rows_selected) == 0){
 
           # browser()
           selectRows(
@@ -368,8 +522,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #perform same check upon ow_suffix input change            
       observeEvent(input$ow_suffix, {
-        #select row if location is already added and/or has measurements; only works when facility id is unique
-        if(facility_id() %in% rv$ow_view_db()$facility_id & ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]){
+        #select row if location is already added and/or has measurements; only fires when facility id is unique
+        if(facility_id() %in% rv$ow_view_db()$facility_id &
+           ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
+           length(rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]) == 1
+           ){
           # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
@@ -393,6 +550,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #Purging measurement values associated with previous measurement
         updateSelectInput(session, "weir", selected = NA)
+        updateSelectInput(session, "sumpdepth_choice", selected = NA)
+        updateSelectInput(session, "orifice_choice", selected = NA)
         updateNumericInput(session, "well_depth", value = NA)
         updateNumericInput(session, "cth", value = NA)
         updateNumericInput(session, "hts", value = NA)
@@ -401,6 +560,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "wts", value = NA)
         updateNumericInput(session, "wto", value = NA)
         updateNumericInput(session, "ots", value = NA)
+        updateNumericInput(session, "cap_elev", value = NA)
+        updateNumericInput(session, "bos_elev", value = NA)
+        updateNumericInput(session, "custom_sump_depth", value = NA)
+        updateNumericInput(session, "custom_orifice", value = NA)
+        updateNumericInput(session, "sump_depth", value = NA)
         updateNumericInput(session, "install_height", value = NA)
         updateDateInput(session, "start_date", value = as.Date(NA))
         updateDateInput(session, "end_date", value = as.Date(NA))
@@ -448,6 +612,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         }
         #update ow_table with new well
         rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
+        rv$sump_values_db <- reactive(odbc::dbGetQuery(poolConn, sump_values_query()))
+        rv$orifice_values_db <- reactive(odbc::dbGetQuery(poolConn, orifice_values_query())) 
         #upon click update the smp_id options in the Deploy Sensor tab
         #it needs to switch to NULL and then back to the input$smp_id to make sure the change is registered
         #this counter updates to tell other tabs to update 
@@ -529,6 +695,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         }
         #update ow_table with new well
         rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
+        rv$sump_values_db <- reactive(odbc::dbGetQuery(poolConn, sump_values_query()))
+        rv$orifice_values_db <- reactive(odbc::dbGetQuery(poolConn, orifice_values_query())) 
         reset("need_new_site")
         reset("location")
       })
@@ -538,13 +706,17 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #need to reverse engineer the asset/ow/component combo
       observeEvent(input$ow_table_rows_selected,{ 
         
-        #if at SMP
+        # browser()
+        #update ow suffix/location regardless of wheter it's at a site or an smp
         
+        updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
+        
+        #if at SMP
         if(input$at_smp == 1){
           # browser() #browser for debugging facility id's not populating in input ui after clicking row
           #get facility id from table
           rv$fac <- rv$ow_view_db()$facility_id[input$ow_table_rows_selected]
-          updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
+          
 
           #get component id
           comp_id_query <- paste0("select distinct component_id from external.mat_assets where facility_id = '", rv$fac, "' 
@@ -583,9 +755,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "well_depth", value= rv$well_depth_edit)
         
         
-        #update sensor one inch, removed 05/09/2022
-        # rv$sensor_one_inch_edit <- rv$ow_view_db()[input$ow_table_rows_selected, 11]
-        # updateSelectInput(session, "sensor_one_in", selected = rv$sensor_one_inch_edit)
+        
         
         #update weir 
         rv$weir_edit <- rv$ow_view_db()$weir[input$ow_table_rows_selected] %>% as.integer()
@@ -601,6 +771,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$ctw_edit <- rv$ow_view_db()$cap_to_weir_ft[input$ow_table_rows_selected]
         rv$cto_edit <- rv$ow_view_db()$cap_to_orifice_ft[input$ow_table_rows_selected]
         rv$wto_edit <- rv$ow_view_db()$weir_to_orifice_ft[input$ow_table_rows_selected]
+        rv$cap_elev_edit <- rv$ow_view_db()$cap_elev[input$ow_table_rows_selected]
+        rv$bos_elev_edit <- rv$ow_view_db()$bottom_stone_elev[input$ow_table_rows_selected]
+        rv$sump_depth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
+        
+        
 
         #update inputs in app with values from table
         updateNumericInput(session, "cth", value = rv$cth_edit)
@@ -608,7 +783,30 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateNumericInput(session, "ctw", value = rv$ctw_edit)
         updateNumericInput(session, "cto", value = rv$cto_edit)
         updateNumericInput(session, "wto", value = rv$wto_edit)
+        updateNumericInput(session, "cap_elev", value = rv$cap_elev_edit)
+        updateNumericInput(session, "bos_elev", value = rv$bos_elev_edit)
+
         
+        #update sumpdepth_choice and orifice_choice
+        updateSelectInput(session,"sumpdepth_choice", selected = rv$ow_view_db()$sumpdepth_lookup_uid[input$ow_table_rows_selected])
+        updateSelectInput(session,"orifice_choice", selected = rv$ow_view_db()$orifice_lookup_uid[input$ow_table_rows_selected])
+        
+        #update sump values
+        updateNumericInput(session, "sump_depth", value = rv$sump_values_db())
+        updateNumericInput(session, "assumed_sump_depth", value = rv$sump_values_db()$assumed_sumpdepth[rv$sump_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "interpreted_sump_depth", value = rv$sump_values_db()$custom_sumpdepth[rv$sump_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        #always perform sump calculation despite stored value from view
+        updateNumericInput(session, "calcd_sump_depth", value = input$well_depth - (input$cap_elev - input$bos_elev))
+
+        
+                
+        #update orifice values
+        updateNumericInput(session,"orifice_elev", value = rv$ow_view_db()$orifice_elev[input$ow_table_rows_selected])
+        updateNumericInput(session, "custom_orifice", value = rv$orifice_values_db()$custom_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        updateNumericInput(session, "greenIT_orifice", value = rv$orifice_values_db()$greenit_orificedepth[rv$orifice_values_db()$well_measurements_uid == rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected]])
+        #always perform orifice calculation despite stored value from view
+        updateNumericInput(session, "calcd_orifice", value = (input$cap_elev - input$orifice_elev))
+
         #get dates from table
         rv$start_date_edit <- rv$ow_view_db()$start_dtime_est[input$ow_table_rows_selected]
         rv$end_date_edit <- rv$ow_view_db()$end_dtime_est[input$ow_table_rows_selected]
@@ -650,9 +848,19 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$install_height <- reactive((input$well_depth - (input$cth+input$hts)) %>% round(4))
       observe(updateNumericInput(session, "install_height", value = rv$install_height()))
       
+      #update calculated sump depth
+      rv$calcd_sump <- reactive((input$well_depth - (input$cap_elev - input$bos_elev)) %>% round(4))
+      observe(updateNumericInput(session, "calcd_sump_depth", value = rv$calcd_sump()))
+      
+      #update calculated orifice depth
+      rv$calcd_orifice <- reactive((input$well_depth - (input$cap_elev - input$orifice_elev)) %>% round(4))
+      observe(updateNumericInput(session, "calcd_orifice", value = rv$calcd_orifice()))
+      
       #render warning message for installation height
       
-      rv$install_height_warn <- reactive(if(length(input$install_height) == 0 | input$install_height >= 0){
+      rv$install_height_warn <- reactive(if(length(input$install_height) == 0 | is.na(input$install_height)){
+        paste("")
+      }else if(input$install_height >= 0){
         paste("")
       }else{
         paste("Warning: Installation height has a negative value.")
@@ -681,7 +889,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       
       #toggle state for "add/edit well measurement"
-      observe(toggleState("add_well_meas", condition = rv$ow_validity() & nchar(input$weir) > 0 & 
+      observe(toggleState("add_well_meas", condition = rv$ow_validity() & rv$weir_validity() & 
                             (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
                             (nchar(input$component_id) > 0 | input$at_smp == 2) & 
                             (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
@@ -699,7 +907,16 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$hts <- reactive(if(is.na(input$hts)) "NULL" else paste0("'", input$hts, "'"))
       rv$ctw <- reactive(if(is.na(input$ctw)) "NULL" else paste0("'", input$ctw, "'"))
       rv$cto <- reactive(if(is.na(input$cto)) "NULL" else paste0("'", input$cto, "'"))
+      rv$cap_elev <- reactive(if(is.na(input$cap_elev)) "NULL" else paste0("'", input$cap_elev, "'"))
+      rv$bos_elev <- reactive(if(is.na(input$bos_elev)) "NULL" else paste0("'", input$bos_elev, "'"))
+      rv$orifice_elev <- reactive(if(is.na(input$orifice_elev)) "NULL" else paste0("'", input$orifice_elev, "'"))
+      rv$custom_sump_depth <- reactive(if(is.na(input$interpreted_sump_depth)) "NULL" else paste0("'",input$interpreted_sump_depth,"'"))
+      rv$custom_orifice_depth <- reactive(if(is.na(input$custom_orifice)) "NULL" else paste0("'",input$custom_orifice,"'"))
+      rv$sump_depth <- reactive(if(is.na(input$sump_depth)) "NULL" else paste0("'",input$sump_depth,"'"))
       rv$well_meas_notes <- reactive(if(is.na(input$well_meas_notes)) "NULL" else paste0("'",input$well_meas_notes,"'"))
+      rv$weir <- reactive(if(input$weir == "") "NULL" else input$weir %>% as.numeric() %>% as.logical())
+      rv$sumpdepth_choice <- reactive(if(input$sumpdepth_choice == "") "NULL" else input$sumpdepth_choice)
+      rv$orifice_choice <- reactive(if(input$orifice_choice == "") "NULL" else input$orifice_choice)
       
       #rv$weir <- reactive(if(is.na(input$weir)) "NULL" else paste0("'", input$weir, "'"))
       #query well measurements at each oW from db
@@ -760,6 +977,10 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #check if ow exists
       rv$ow_validity <- reactive(!is.na(odbc::dbGetQuery(poolConn, paste0("select fieldwork.fun_get_ow_uid_no_error(", rv$smp_id(), ", ", rv$ow_suffix_null(), ", ", rv$site_name_lookup_uid_null(), ")")) %>% pull()))
       
+      #check if weir presence should be a required input, and if it is required is it populated
+      rv$weir_validity <- reactive(if(grepl("GI|CS",input$ow_suffix, fixed = FALSE) & nchar(input$weir) > 0){FALSE} else {TRUE})
+
+      
       #add well measurement
       rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE) "Add Well Measurements" else "Edit Selected Well Measurements")
       observe(updateActionButton(session, "add_well_meas", label = rv$add_meas_label()))
@@ -768,7 +989,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       rv$refresh_deploy_meas <- 0 
       
-      #2.7.4 write/edit measurements to table
+    
+
+      
+      
+      #2.7.4 write/edit measurements to table  -----
       observeEvent(input$add_well_meas, {
         # browser()
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
@@ -776,29 +1001,41 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
           odbc::dbGetQuery(poolConn, paste0(
             "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
-                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
+                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes,
+                                                      cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
+                                                      sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
+                                                      custom_orificedepth_ft)
             VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
             input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ",
-            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                    #This is dumb.
-            ")"
+            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ",
+            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", ", #Strip unicode characters that WIN1252 encoding will choke on locally
+                                                                          #This is dumb.
+            rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
+            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ", 
+            rv$custom_orifice_depth(), ")"
 
           ))
           }else{
             odbc::dbGetQuery(poolConn, paste0(
               "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
-                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes)
+                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes,
+                                                      cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
+                                                      sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
+                                                      custom_orificedepth_ft)
 
             VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", '", input$weir, "', ", 
+            ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ", 
             iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                    #This is dumb.
-            ")"
+            ", ", rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
+            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ",
+            rv$custom_orifice_depth(), ")"
             
             ))
           }
+          
+          
+          
         }else{
           odbc::dbGetQuery(poolConn, paste0(
             "UPDATE fieldwork.tbl_well_measurements SET well_depth_ft = '", input$well_depth, "', 
@@ -809,14 +1046,21 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             cap_to_weir_ft = ", rv$ctw(), ", 
             cap_to_orifice_ft = ", rv$cto(), ",
             notes = ", iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", 
-            weir = '", input$weir, "'
-            WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected], "'"))
+            weir = ", rv$weir(), ",
+            cap_elev = ", rv$cap_elev(),",
+            bottom_stone_elev = ", rv$bos_elev(),",
+            orifice_elev = ", rv$orifice_elev(),",
+            custom_sumpdepth_ft = ", rv$custom_sump_depth(),",
+            custom_orificedepth_ft = ", rv$custom_orifice_depth(),",
+            sumpdepth_lookup_uid = ", rv$sumpdepth_choice(),",
+            orifice_lookup_uid = ", rv$orifice_choice(),
+            " WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected],"'" ))
         }
         
+        # browser()
         rv$refresh_deploy_meas <- rv$refresh_deploy_meas + 1
         
         #update table with edit
-        rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
         reset("well_depth")
         reset("weir")
         reset("cth")
@@ -829,6 +1073,13 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         reset("start_date")
         reset("end_date")
         reset("well_meas_notes")
+        
+        #reset values
+        rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
+        rv$sump_values_db <- reactive(odbc::dbGetQuery(poolConn, sump_values_query()))
+        rv$orifice_values_db <- reactive(odbc::dbGetQuery(poolConn, orifice_values_query())) 
+
+        
       })
       
       
@@ -868,6 +1119,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         reset("start_date")
         reset("end_date")
         reset("well_meas_notes")
+        reset("sumpdepth_choice")
+        reset("orifice_choice")
       })
       
       #clear all fields
@@ -901,6 +1154,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         reset("start_date")
         reset("end_date")
         reset("well_meas_notes")
+        reset("sumpdepth_choice")
+        reset("orifice_choice")
         removeModal()
       })
       
@@ -915,9 +1170,14 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         reset("wts")
         reset("wto")
         reset("ots")
+        reset("bos_elev")
+        reset("cap_elev")
         reset("start_date")
         reset("end_date")
         reset("well_meas_notes")
+        reset("sumpdepth_choice")
+        reset("orifice_choice")
+        
       })
       
       #2.8.3 return values --------

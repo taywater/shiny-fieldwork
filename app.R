@@ -1,4 +1,3 @@
-#6/24/2020 - Nick Manna, AKRF, Inc.
 #This file, app.R, works with all sourced files to run the PWD GSI MARS Fieldwork App
 #The app is run through app.R
 #when naming input variables, ns("name") is needed
@@ -12,7 +11,7 @@
 #11/13/2020 - Nick Manna, AKRF, Inc. 
 #I am going to try to create a uniform approach to each module so things are in a good order and have standard comments/headers
 
-#1/26/21 notes from talking to taylor  
+#1/26/21 notes from talking to Taylor  
 #look out for deprecated functions
 
 #number sections and treat as level of indentation
@@ -153,6 +152,17 @@
       }
       
       
+      #js color code
+      jsColCode <- 'shinyjs.backgroundCol = function(params) {
+                  var defaultParams = {
+                  id : null,
+                  col : "#88A88A"
+                  };
+                  params = shinyjs.getParams(params, defaultParams);
+                  var el = $("#" + params.id);
+                  el.css("background-color", params.col);
+                  }'
+      
       #project work numbers
       work_number <- dbGetQuery(poolConn, "select distinct worknumber from external.tbl_projectbdv") %>% pull()
       
@@ -168,8 +178,10 @@
       tagList(
         #call jscode to warn when leaving page
         tags$head(tags$script(jscode)),
+        tags$head(tags$script(jsColCode)),
         #must call useShinyjs() for shinyjs() functionality to work in app
         useShinyjs(),
+        extendShinyjs(text = jsColCode, functions = "backgroundCol"),
         navbarPage("Fieldwork",  id = "inTabset", theme = shinytheme("slate"),
                    #do.call is needed to use a list with appended UI functions with navbarMenu
                    #this is so a navbarMenu (dropdown) can consist of tabs from different modules
@@ -191,8 +203,8 @@
                           con_phase = con_phase, priority = priority, future_req = future_req),
                    #Special Investigations (Add/Edit Special Investigations, View Special Investigations, View Future Special Investigations)
                     special_investigationsUI("special_investigations", work_number = work_number, html_req = html_req,
-                                             con_phase = con_phase, priority = priority, site_names = site_names, si_lookup = si_lookup,
-                                             requested_by_lookup = requested_by_lookup, future_req = future_req),
+                                             con_phase = con_phase, priority = priority, site_names = site_names,
+                                             si_lookup = si_lookup, requested_by_lookup = requested_by_lookup, future_req = future_req),
                    #Monitoring History 
                   historyUI("history"),
                    #Documentation
