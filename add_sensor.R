@@ -53,10 +53,13 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv <- reactiveValues()
       
       #2.1 Query sensor table ----
-      #2.1.1 intial query -----
+      #2.1.1 initial query -----
       #Sensor Serial Number List
       sensor_table_query <-  "select * from fieldwork.viw_inventory_sensors_full"
       rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
+      
+      #2.1.1.5 Query for viewing summary table
+      sensor_inv_table_query <- 'select * from fiedlwork.viw_inventory_sensors_status'
       
       #2.1.2 query on update ----
       #upon breaking a sensor in deploy
