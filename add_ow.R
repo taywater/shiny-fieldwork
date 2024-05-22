@@ -305,7 +305,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             updateSelectInput(session, "at_smp", selected = 1)
             updateSelectizeInput(session, "smp_id",  selected = character(0))
             updateSelectizeInput(session, "smp_id",  selected = deploy$smp_id())
-            #updateSelectInput(session, "smp_id",  selected = deploy$smp_id())
           }else{
             updateSelectInput(session, "at_smp", selected = 2)
             updateSelectInput(session, "site_name", selected = deploy$site_name())
@@ -332,11 +331,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$header()
       )
       
-      # Debugging Button
-      # observeEvent(input$BrowserButton,
-      #              {browser()})
-      
-      
+   
       #2.3 add location at SMP ----
       #2.3.1  determine ow prefixes, component IDs, asset types ----
       #read in ow prefixes and names
@@ -506,7 +501,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
            ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
            length(input$ow_table_rows_selected) == 0){
 
-          # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
             selected = max(which(rv$ow_view_db()$ow_suffix == ow_suffix_input()))
@@ -527,7 +521,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
            ow_suffix_input() %in% rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())] &
            length(rv$ow_view_db()$ow_suffix[which(rv$ow_view_db()$facility_id == facility_id())]) == 1
            ){
-          # browser()
           selectRows(
             proxy = dataTableProxy(outputId = "ow_table", deferUntilFlush = FALSE),
             selected = max(which(rv$ow_view_db()$ow_suffix == ow_suffix_input()))
@@ -569,7 +562,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         updateDateInput(session, "start_date", value = as.Date(NA))
         updateDateInput(session, "end_date", value = as.Date(NA))
         updateTextInput(session, "well_meas_notes", value = NA)
-        # browser()
       })
       
       rv$toggle_suffix <- reactive(!(input$ow_suffix %in% rv$ow_view_db()$ow_suffix) | length(input$ow_table_rows_selected) > 0)
@@ -585,8 +577,16 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       observe({toggleState(id = "add_ow_deploy", nchar(input$smp_id) > 0)})
       
+      #cap, sump, bottom of stone elevation
+      rv$ow_label_toggle <- reactive(if(nchar(input$ow_suffix) > 0 && grepl("GI|CS",input$ow_suffix, fixed = FALSE)) TRUE else FALSE)
+      
+      rv$cap_label <- reactive(if(rv$ow_label_toggle()) "Grate Elevation" else "Cap Elevation")
+      rv$bos_label <- reactive(if(rv$ow_label_toggle()) "Bottom of Structure Elevation" else "Bottom of Storage Elevation")
+      
+      observe(updateNumericInput(session, "cap_elev", label = rv$cap_label()))
+      observe(updateNumericInput(session, "bos_elev", label = rv$bos_label()))
+      
       #2.3.6 prepare inputs
-      # browser()
       rv$ow_suffix <- reactive(gsub('\'', '\'\'', input$ow_suffix))
       
       #use to check for ow validity
@@ -706,14 +706,12 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #need to reverse engineer the asset/ow/component combo
       observeEvent(input$ow_table_rows_selected,{ 
         
-        # browser()
         #update ow suffix/location regardless of wheter it's at a site or an smp
         
         updateTextInput(session, "ow_suffix", value = rv$ow_view_db()$ow_suffix[input$ow_table_rows_selected])
         
         #if at SMP
         if(input$at_smp == 1){
-          # browser() #browser for debugging facility id's not populating in input ui after clicking row
           #get facility id from table
           rv$fac <- rv$ow_view_db()$facility_id[input$ow_table_rows_selected]
           
@@ -814,7 +812,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         #update inputs in app with values from table
         updateDateInput(session, "start_date", value = rv$start_date_edit)
         updateDateInput(session, "end_date", value = rv$end_date_edit)
-        # browser()
         }
       })
       
@@ -997,7 +994,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #2.7.4 write/edit measurements to table  -----
       observeEvent(input$add_well_meas, {
-        # browser()
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
           if(input$at_smp == 1){
           odbc::dbGetQuery(poolConn, paste0(
@@ -1059,7 +1055,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             " WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected],"'" ))
         }
         
-        # browser()
         rv$refresh_deploy_meas <- rv$refresh_deploy_meas + 1
         
         #update table with edit

@@ -438,38 +438,34 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           # "e1"
           paste0("Populate all required inputs to add new deployment.")
         }
-
         
-        else
-          # print("not e1"))
-        if(
-            # Condition 2: no download error
-            nchar(input$download_error) > 0
-        ){if(input$download_error == 1){
+        else if(
+          # Condition 2: no download error
+          nchar(input$download_error) > 0 && 
+          input$download_error == 1){
           # error code
           # "e2"
           paste0("Can not redploy: Sensor Encountered an issue.")
           }
-        }
 
-
-        else
-          # print("not e2"))
-        if(
-            # Condition 3: sensor is broken, or if it is broken a value is populated
-            nchar(input$download_error) > 0){
-          # error code
-          # "e3"
-          paste0("Sensor has a download error.")
-        }
+        # else if(
+        #     # Condition 3: sensor is broken, or if it is broken a value is populated
+        #     nchar(input$download_error) > 0){
+        #   # error code
+        #   # "e3"
+        #   paste0("Sensor has a download error.")
+        # }
 
         else if(
           ## Condition 4a: sensor is not currently deployed; or if it is, the deployment does not overlap the current sensor use
               # sensor is deployed AND 
               (input$sensor_id %in% collect$sensor_serial() & nchar(input$smp_id) > 0) &&
               # It is not deployed at our current site AND
-              ((input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]) ||
-               (input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+              ((!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+                input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]) ||
+               
+               (!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+                input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
               # We are not trying to backfill deployment records for a currently deployed sensor
                 # check deploy
               ((length(input$deploy_date) > 0 &&
@@ -487,8 +483,11 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
               # sensor is deployed AND  
               (input$sensor_id %in% collect$sensor_serial() & nchar(input$site_name) > 0) &&
               # It is not deployed at our current site AND
-              ((input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]) ||
-               (input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+              ((!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+                input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]) ||
+               
+               (!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+                input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
               # We are not trying to backfill deployment records for a currently deployed sensor
                 # check deploy
               ((length(input$deploy_date) > 0 &&
@@ -986,13 +985,11 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         #deselect from other tables
         dataTableProxy('prev_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
-        # browser()
       })
       
       #when a row in the previous deployments table is clicked
       observeEvent(input$prev_deployment_rows_selected, {
         #deselect from other table
-        # browser()
         dataTableProxy('current_deployment') %>% selectRows(NULL)
         dataTableProxy('future_deployment') %>% selectRows(NULL)
       })

@@ -58,6 +58,10 @@
   library(lubridate)
   #shinyjs() to use easy java script functions
   library(shinyjs)
+  #dropdownButton() for summary table in sensors tab
+  library(shinyWidgets)
+  #accordions to improve sidebars
+  library(bslib)
   #DT for datatables
   library(DT)
   #reactable for reactable tables

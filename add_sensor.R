@@ -5,37 +5,49 @@
 add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req, sensor_status_lookup, sensor_issue_lookup){
   #initialize namespace
   ns <- NS(id)
-  
   tabPanel(title = "Add/Edit Sensor", value = "add_sensor",
-           titlePanel("Add Sensor to Inventory or Edit Existing Sensor"), 
-           #1.1 sidebarPanel-----
-           sidebarPanel(
-             numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA), 
-             selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = c("", sensor_model_lookup$sensor_model), 
-                         selected = NULL), 
-             dateInput(ns("date_purchased"), "Purchase Date", value = as.Date(NA)), 
-             selectInput(ns("sensor_status"), html_req("Sensor Status"), choices = sensor_status_lookup$sensor_status, selected = "Good Order"),
-             conditionalPanel(width = 12, 
-               condition = 'input.sensor_status != "Good Order"', 
-                              ns = ns,
-                              selectInput(ns("issue_one"), html_req("Issue #1"), 
-                                          choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL), 
-                              selectInput(ns("issue_two"), "Issue #2", 
-                                          choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL), 
-                              checkboxInput(ns("request_data"), "Request Data Be Retrieved and Sent to PWD")
-                              ), 
-             actionButton(ns("add_sensor"), "Add Sensor"), 
-             actionButton(ns("add_sensor_deploy"), "Deploy this Sensor"), 
-             actionButton(ns("clear"), "Clear Fields"), 
-             selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
-             downloadButton(ns("download"), "Download Sensor Inventory")
-           ),
+          titlePanel("Add Sensor to Inventory or Edit Existing Sensor"),
+          #1.1 sidebarPanel-----
+          sidebarPanel(
+                h4("Add/Edit Sensor"),
+                numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA),
+                   selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = c("", sensor_model_lookup$sensor_model),
+                               selected = NULL),
+                   dateInput(ns("date_purchased"), "Purchase Date", value = as.Date(NA)),
+                   selectInput(ns("sensor_status"), html_req("Sensor Status"), choices = sensor_status_lookup$sensor_status, selected = "Good Order"),
+                   conditionalPanel(width = 12,
+                     condition = 'input.sensor_status != "Good Order"',
+                                    ns = ns,
+                                    selectInput(ns("issue_one"), html_req("Issue #1"),
+                                                choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL),
+                                    selectInput(ns("issue_two"), "Issue #2",
+                                                choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL),
+                                    checkboxInput(ns("request_data"), "Request Data Be Retrieved and Sent to PWD")
+                                    ),
+                   actionButton(ns("add_sensor"), "Add Sensor"),
+                   actionButton(ns("add_sensor_deploy"), "Deploy this Sensor"),
+                   actionButton(ns("clear"), "Clear Fields"),
+                h4("Summary Table Options"),
+                dropdownButton(circle = FALSE, label = "Summary Variables",
+                               tags$style(HTML("#{background-color: #272B30; color: #FFFFFF}")),
+                               checkboxGroupInput(inputId = ns("sensor_summary_list"), label = "Selection",
+                                                  choices = c("Model", "Sensor Type", "Sensor Status", "Deployed"),
+                                                  tags$style(HTML("background-color: #272B30; color: #FFFFFF")))),
+                h4("Download Options"),
+                 selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
+                 downloadButton(ns("download"), "Download Sensor Inventory"),
+                 # actionButton(ns("browserButton"),"Click to Browse")
+
+
+              ),
            #1.2 table -------
            mainPanel(
+             h3("Sensor Status Table"),
              DTOutput(ns("sensor_table")),
-             textOutput(ns("testing"))
-           )
-  )
+             h3("Summary Table"),
+             DTOutput(ns("sensor_summary_table")))
+
+      )
 }
 
 #2.0 Server ---------
@@ -44,13 +56,17 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
   moduleServer(
     id, 
     function(input, output, session){
-  
+      
       #2.0.1 set up ------
       #define ns to use in modals
       ns <- session$ns
       
       #start reactiveValues for this section
       rv <- reactiveValues()
+      
+      #2.0.1.1 Debug Browser ----
+      # observeEvent(input$browserButton,
+      #              {browser()})
       
       #2.1 Query sensor table ----
       #2.1.1 initial query -----
@@ -59,7 +75,27 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       
       #2.1.1.5 Query for viewing summary table
-      sensor_inv_table_query <- 'select * from fiedlwork.viw_inventory_sensors_status'
+      sensor_query <- "SELECT * FROM fieldwork.viw_inventory_sensors_status"
+      rv$sensor_dt <- reactive(odbc::dbGetQuery(poolConn, sensor_query) %>%
+                              mutate(Deployed = !is.na(active_ow_deployment)))
+      
+      observeEvent(deploy$refresh_sensor(),{
+        rv$sensor_dt <- odbc::dbGetQuery(poolConn, sensor_query)
+      })
+      
+      rv$summary_cols <- reactive(input$sensor_summary_list %>%
+                                    str_replace("Model","sensor_model") %>%
+                                    str_replace("Sensor Type","model_type") %>%
+                                    str_replace("Sensor Status","sensor_status"))
+      
+      rv$sensor_summary_display <- reactive(rv$sensor_dt %>%
+                                              mutate(Deployed = !is.na(active_ow_deployment)) %>%
+                                              select("sensor_model", "sensor_status","model_type","Deployed") %>%
+                                              rename("Model" = "sensor_model", "Sensor Status" = "sensor_status", "Sensor Type" = "model_type") %>%
+                                              group_by(across(input$sensor_summary_list)) %>%
+                                              summarise(Count = n()))
+      
+                                              # colnames(rv$sensor_summary_display())[colnames(rv$sensor_summary_display()) %in% input$sensor_summary_list]
       
       #2.1.2 query on update ----
       #upon breaking a sensor in deploy
@@ -89,6 +125,13 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
                        scrollX = TRUE, 
                        scrollY = 550), 
         callback = JS('table.page("next").draw(false);')
+      )
+      
+      output$sensor_summary_table <- renderDT(
+        rv$sensor_summary_display(),
+        style = 'bootstrap',
+        selection = "none",
+        options = list(pageLength = 15, lengthChange = FALSE)
       )
       
       
@@ -177,6 +220,8 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       #rv$label <- reactive(if(!(as.numeric(input$serial_no) %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
       rv$label <- reactive(if(!(input$serial_no %in% rv$sensor_table$sensor_serial)) "Add Sensor" else "Edit Sensor")
       observe(updateActionButton(session, "add_sensor", label = rv$label()))
+      
+      #change measurement label
       
       observeEvent(input$sensor_status, {
         #if Good Order, clear issues fields 
