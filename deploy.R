@@ -510,17 +510,18 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                 paste0("The senor chosen is not currently deployed at this well.")
                 # print("The senor chosen is not currently deployed at this well.")
               }
-
-          else if(
-            ## Condition 6 - a current deployment is selected (this allows redeployment)
-            (length(input$current_deployment_rows_selected) > 0 & length(input$collect_date) > 0)
-            ){
-                # error code
-                # "e6"
-                paste0("Must select redeploy to deploy sensor again.")
-                # print("Must select redeploy to deploy sensor again.")
-      
-             }
+          # This is handled within the button toggle logic
+          # else if(
+            # ## Condition 6 - a current deployment is selected (this allows redeployment)
+            # (length(input$current_deployment_rows_selected) > 0 & length(input$collect_date) > 0 &&
+            #  input$redeploy != TRUE)
+            # ){
+            #     # error code
+            #     # "e6"
+            #     paste0("Must select redeploy to deploy sensor again.")
+            #     # print("Must select redeploy to deploy sensor again.")
+            # 
+            #  }
 
         else if(
             ## Condition 7 - a previous deployment is selected (this allows redeployment)
@@ -540,9 +541,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                !(input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)])) &&
               # We are not trying to backfill deployment records for a currently deployed sensor
               # check deploy
-              ((length(input$deploy_date) > 0) && (input$deploy_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])) ||
+              (((length(input$deploy_date) > 0) && (input$deploy_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])) ||
               # check collect
-              ((length(input$collect_date) > 0) && (input$collect_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])))
+              ((length(input$collect_date) > 0) && (input$collect_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)]))))
                 {
                   #error code
                   # "e8"
@@ -559,9 +560,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                    !(input$well_name %in% rv$active_table_db()$ow_suffix[which(rv$active_table_db()$sensor_serial == input$sensor_id)])) &&
                 # We are not trying to backfill deployment records for a currently deployed sensor
                 # check deploy
-                ((length(input$deploy_date) > 0) && (input$deploy_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])) ||
+                (((length(input$deploy_date) > 0) && (input$deploy_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])) ||
                 # check collect
-                ((length(input$collect_date) > 0) && (input$collect_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)])))
+                ((length(input$collect_date) > 0) && (input$collect_date >= collect$deploy_dates()[which(collect$sensor_serial() == input$sensor_id)]))))
                   {
                     #error code
                     # "e9"
@@ -668,9 +669,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                              # no download error
                              rv$req_dl_error() & 
                              # sensor is not broken, or if it is broken a value is populated
-                             rv$sensor_break() &
-                             # no sensor warning
-                             (nchar(rv$deploy_logic()) == 0)
+                             rv$sensor_break()
                              ) {
                                # sensor is currently deployed
                                (!(input$sensor_id %in% collect$sensor_serial() &

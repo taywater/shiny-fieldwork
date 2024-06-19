@@ -208,7 +208,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       #2.1.4 Toggle states depending on inputs -----
       #toggle state (enable/disable) buttons based on whether system id, test date, and srt type are selected (this is shinyjs)
       observe(toggleState(id = "add_srt", condition = nchar(input$system_id) > 0 & length(input$srt_date) > 0 &
-                            nchar(input$srt_type) >0 & nchar(input$con_phase) > 0))
+                            nchar(input$srt_type) >0 & nchar(input$con_phase) > 0 & nchar(input$sensor_deployed) > 0))
       
       #toggle state for future srt
       observe(toggleState(id = "future_srt", condition = nchar(input$system_id) > 0))
@@ -275,7 +275,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
         reset("sensor_deployed")
       })
       
-      #browserButton
+      # # browserButton
       # observeEvent(input$browserButton,{
       #   browser()
       # })
