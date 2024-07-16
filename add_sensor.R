@@ -35,17 +35,26 @@ add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req
                                                   tags$style(HTML("background-color: #272B30; color: #FFFFFF")))),
                 h4("Download Options"),
                  selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
-                 downloadButton(ns("download"), "Download Sensor Inventory"),
+                 downloadButton(ns("download"), "Download Sensor Inventory")
                  # actionButton(ns("browserButton"),"Click to Browse")
 
 
               ),
            #1.2 table -------
-           mainPanel(
-             h3("Sensor Status Table"),
-             DTOutput(ns("sensor_table")),
-             h3("Summary Table"),
-             DTOutput(ns("sensor_summary_table")))
+           # mainPanel(
+           #   h3("Sensor Status Table"),
+           #   DTOutput(ns("sensor_table")),
+           #   h3("Summary Table"),
+           #   DTOutput(ns("sensor_summary_table")))
+          
+          mainPanel(tabsetPanel(
+          tabPanel("Sensor Status Table",
+                   DTOutput(ns("sensor_table"))),
+          tabPanel("Sensor Summary Table",
+            DTOutput(ns("sensor_summary_table"))),
+          tabPanel("Sensor History Table",
+                   DTOutput(ns("sensor_history_table")))
+          ))
 
       )
 }
@@ -74,10 +83,12 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       sensor_table_query <-  "select * from fieldwork.viw_inventory_sensors_full"
       rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       
-      #2.1.1.5 Query for viewing summary table
+      #2.1.1.1 Query for viewing summary table ----
       sensor_query <- "SELECT * FROM fieldwork.viw_inventory_sensors_status"
       rv$sensor_dt <- reactive(odbc::dbGetQuery(poolConn, sensor_query) %>%
                               mutate(Deployed = !is.na(active_ow_deployment)))
+      
+      
       
       observeEvent(deploy$refresh_sensor(),{
         rv$sensor_dt <- odbc::dbGetQuery(poolConn, sensor_query)
@@ -97,13 +108,30 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       
                                               # colnames(rv$sensor_summary_display())[colnames(rv$sensor_summary_display()) %in% input$sensor_summary_list]
       
+      #2.1.1.2 Query for viewing history table ----
+      history_query <- paste0("SELECT * FROM fieldwork.viw_deployment_full")
+      
+      rv$history_dt <- reactive(odbc::dbGetQuery(poolConn, history_query) %>%
+                                 select(sensor_serial, smp_id, ow_suffix, type, term,
+                                        deployment_dtime_est, collection_dtime_est,
+                                        project_name, notes) %>% dplyr::filter(sensor_serial == input$serial_no))
+      
+      rv$sensor_history_display <- reactive(rv$history_dt() %>%
+                                              dplyr::select(-project_name,notes) %>%
+                                              rename("Serial Number" = "sensor_serial",
+                                                     "SMP ID" = "smp_id",
+                                                     "Location" = "ow_suffix",
+                                                     "Deployment Time" = "deployment_dtime_est",
+                                                     "Collection Time" = "collection_dtime_est",
+                                                     "Type" = "type", "Term" = "term", "Notes" = "notes"))
+      
       #2.1.2 query on update ----
       #upon breaking a sensor in deploy
       observeEvent(deploy$refresh_sensor(),{
         rv$sensor_table <- odbc::dbGetQuery(poolConn, sensor_table_query)
       })
       
-      #2.1.3 show sensor table
+      #2.1.3 show sensor table ----
       rv$sensor_table_display <- reactive(rv$sensor_table %>% 
                                             mutate("date_purchased" = as.character(date_purchased)) %>% 
                                             select("sensor_serial", "sensor_model", "date_purchased", "smp_id", 
@@ -134,6 +162,12 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
         options = list(pageLength = 15, lengthChange = FALSE)
       )
       
+      output$sensor_history_table <- renderDT(
+        rv$sensor_history_display(),
+        style = 'bootstrap',
+        selection = "none",
+        options = list(pageLength = 15, lengthChange = FALSE)
+      )
       
       #2.3 prefilling inputs based on model serial number -----
       
@@ -288,7 +322,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
         updateTabsetPanel(session = parent_session, "inTabset", selected = "deploy_tab")
       })
       
-      #2.6 clear fields
+      #2.6 clear fields ----
       #clear all fields
       #bring up dialogue box to confirm
       observeEvent(input$clear, {
