@@ -5,10 +5,12 @@
 add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req, sensor_status_lookup, sensor_issue_lookup){
   #initialize namespace
   ns <- NS(id)
-  tabPanel(title = "Add/Edit Sensor", value = "add_sensor",
+  tabPanel(title = "Add/Edit Sensor",value = "add_sensor",
           titlePanel("Add Sensor to Inventory or Edit Existing Sensor"),
           #1.1 sidebarPanel-----
           sidebarPanel(
+            tabsetPanel(
+              tabPanel(title = "Add/Edit Sensor",
                 h4("Add/Edit Sensor"),
                 numericInput(ns("serial_no"), html_req("Sensor Serial Number"), value = NA),
                    selectInput(ns("model_no"), html_req("Sensor Model Number"), choices = c("", sensor_model_lookup$sensor_model),
@@ -26,20 +28,22 @@ add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req
                                     ),
                    actionButton(ns("add_sensor"), "Add Sensor"),
                    actionButton(ns("add_sensor_deploy"), "Deploy this Sensor"),
-                   actionButton(ns("clear"), "Clear Fields"),
+                   actionButton(ns("clear"), "Clear Fields")),
+              tabPanel(title = "Download Options",
+                h4("Download Options"),
+                 selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
+                 downloadButton(ns("download"), "Download Sensor Inventory")),
+                 
+              tabPanel(title = "Summary Table",
                 h4("Summary Table Options"),
                 dropdownButton(circle = FALSE, label = "Summary Variables",
                                tags$style(HTML("#{background-color: #272B30; color: #FFFFFF}")),
                                checkboxGroupInput(inputId = ns("sensor_summary_list"), label = "Selection",
                                                   choices = c("Model", "Sensor Type", "Sensor Status", "Deployed"),
                                                   tags$style(HTML("background-color: #272B30; color: #FFFFFF")))),
-                h4("Download Options"),
-                 selectInput(ns("sensor_status_dl"), "Sensor Statuses to Download", choices = c("All", sensor_status_lookup$sensor_status)),
-                 downloadButton(ns("download"), "Download Sensor Inventory")
-                 # actionButton(ns("browserButton"),"Click to Browse")
-
-
-              ),
+                actionButton(ns("browserButton"),"Click to Browse")
+              )
+              )),
            #1.2 table -------
            # mainPanel(
            #   h3("Sensor Status Table"),
@@ -74,8 +78,8 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv <- reactiveValues()
       
       #2.0.1.1 Debug Browser ----
-      # observeEvent(input$browserButton,
-      #              {browser()})
+      observeEvent(input$browserButton,
+                   {browser()})
       
       #2.1 Query sensor table ----
       #2.1.1 initial query -----
@@ -114,16 +118,19 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv$history_dt <- reactive(odbc::dbGetQuery(poolConn, history_query) %>%
                                  select(sensor_serial, smp_id, ow_suffix, type, term,
                                         deployment_dtime_est, collection_dtime_est,
-                                        project_name, notes) %>% dplyr::filter(sensor_serial == input$serial_no))
+                                        project_name, notes) %>%
+                                  dplyr::mutate("Deployment Time" = lubridate::as_date(deployment_dtime_est),
+                                                "Collection Time" = lubridate::as_date(collection_dtime_est)) %>%
+                                  dplyr::filter(sensor_serial == input$serial_no))
       
       rv$sensor_history_display <- reactive(rv$history_dt() %>%
-                                              dplyr::select(-project_name,notes) %>%
+                                              dplyr::select(-project_name,-deployment_dtime_est,-collection_dtime_est) %>%
                                               rename("Serial Number" = "sensor_serial",
                                                      "SMP ID" = "smp_id",
                                                      "Location" = "ow_suffix",
-                                                     "Deployment Time" = "deployment_dtime_est",
-                                                     "Collection Time" = "collection_dtime_est",
-                                                     "Type" = "type", "Term" = "term", "Notes" = "notes"))
+                                                     "Type" = "type",
+                                                     "Term" = "term",
+                                                     "Notes" = "notes"))
       
       #2.1.2 query on update ----
       #upon breaking a sensor in deploy
