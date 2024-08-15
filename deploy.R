@@ -461,9 +461,12 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
               # sensor is deployed AND 
               (input$sensor_id %in% collect$sensor_serial() & nchar(input$smp_id) > 0) &&
               # It is not deployed at our current site AND
-              ((!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
+              
+              # smp is within the collection list 
+              ((!(is.na(collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)])) &&
                 input$smp_id != collect$smp_id()[which(collect$sensor_serial() == input$sensor_id)]) ||
                
+               # site name is within the collection list
                (!(is.na(collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
                 input$site_name != collect$site_names()[which(collect$sensor_serial() == input$sensor_id)])) &&
               # We are not trying to backfill deployment records for a currently deployed sensor
