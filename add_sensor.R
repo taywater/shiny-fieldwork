@@ -113,10 +113,10 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
                                               # colnames(rv$sensor_summary_display())[colnames(rv$sensor_summary_display()) %in% input$sensor_summary_list]
       
       #2.1.1.2 Query for viewing history table ----
-      history_query <- paste0("SELECT * FROM fieldwork.viw_deployment_full")
+      history_query <- paste0("SELECT coalesce(smp_id, site_name) as smp_site_name, * FROM fieldwork.viw_deployment_full")
       
       rv$history_dt <- reactive(odbc::dbGetQuery(poolConn, history_query) %>%
-                                 select(sensor_serial, smp_id, ow_suffix, type, term,
+                                 select(sensor_serial, smp_site_name, ow_suffix, type, term,
                                         deployment_dtime_est, collection_dtime_est,
                                         project_name, notes) %>%
                                   dplyr::mutate("Deployment Time" = lubridate::as_date(deployment_dtime_est),
@@ -126,7 +126,7 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv$sensor_history_display <- reactive(rv$history_dt() %>%
                                               dplyr::select(-project_name,-deployment_dtime_est,-collection_dtime_est) %>%
                                               rename("Serial Number" = "sensor_serial",
-                                                     "SMP ID" = "smp_id",
+                                                     "SMP ID/Site Name" = "smp_site_name",
                                                      "Location" = "ow_suffix",
                                                      "Type" = "type",
                                                      "Term" = "term",
