@@ -52,11 +52,11 @@ newstyleEqual <- function (levels, values, default = NULL)
 
 
 # function to send log of the INSERT/UPDATE queries run within the app
-insert.query.log <- function(input_query){
+insert.query.log <- function(poolConn, input_query, tab_name, session){
   log_query <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
                        VALUES ('", session$user,
-                      "', '",gsub(input_query,pattern="'",replacement="\\'"),
-                      "', 'Add/Edit Sensor Tab', '",
+                      "', '",gsub(input_query,pattern="'",replacement="''"),
+                      "', '", tab_name, "', '",
                       Sys.time(),"')")
   
   odbc::dbGetQuery(poolConn, log_query)
