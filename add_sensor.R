@@ -41,7 +41,7 @@ add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req
                                checkboxGroupInput(inputId = ns("sensor_summary_list"), label = "Selection",
                                                   choices = c("Model", "Sensor Type", "Sensor Status", "Deployed"),
                                                   tags$style(HTML("background-color: #272B30; color: #FFFFFF")))),
-                # actionButton(ns("browserButton"),"Click to Browse")
+                actionButton(ns("browserButton"),"Click to Browse")
               )
               )),
            #1.2 table -------
@@ -78,8 +78,11 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv <- reactiveValues()
       
       #2.0.1.1 Debug Browser ----
-      # observeEvent(input$browserButton,
-      #              {browser()})
+      observeEvent(input$browserButton,
+                   {browser()})
+      
+      #2.0.1.2 Tab Name ----
+      tab_name <- "Add/Edit Sensor"
       
       #2.1 Query sensor table ----
       #2.1.1 initial query -----
@@ -290,18 +293,34 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
           
           odbc::dbGetQuery(poolConn, add_sensor_query)
           
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           add_sensor_query,
+                           tab_name,
+                           session)
+          
           output$testing <- renderText({
             isolate(paste("Sensor", input$serial_no, "added."))
           })
         }else{ #edit sensor info
-          odbc::dbGetQuery(poolConn, paste0("UPDATE fieldwork.tbl_inventory_sensors SET 
+          
+          update_sensor_query <- paste0("UPDATE fieldwork.tbl_inventory_sensors SET 
                                             sensor_model_lookup_uid = ", rv$sensor_model_lookup_uid(), ",
                                             date_purchased = ", rv$date_purchased(), ", 
                                             sensor_status_lookup_uid = '", rv$status_lookup_uid(), "', 
                                             sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
                                             sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
                                             request_data = ", rv$request_data(), "
-                                            WHERE sensor_serial = '", input$serial_no, "'"))
+                                            WHERE sensor_serial = '", input$serial_no, "'")
+          
+          odbc::dbGetQuery(poolConn, update_sensor_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           update_sensor_query,
+                           tab_name,
+                           session)
+          
           output$testing <- renderText({
             isolate(paste("Sensor", input$serial_no, "edited."))
           })

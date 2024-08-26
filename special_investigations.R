@@ -104,6 +104,9 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       
       rv <- reactiveValues()
       
+      #2.0.2 Tab Name ----
+      tab_name <- "Special Investigations Tab"
+      
       #2.1 Add/Edit -----
       #2.1.0 Root ------
       #toggle work number/system id/site names so when one is selected, the others are disabled
@@ -336,8 +339,14 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                                                                                 #This is dumb.
         	                                   rv$sensor_deployed(), rv$summary_needed(), sep = ", "), ")")
 
-          
           odbc::dbGetQuery(poolConn, add_test_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           add_test_query,
+                           tab_name,
+                           session)
+          
         }else{
           #edit special investigation
           edit_test_query <- paste0("UPDATE fieldwork.tbl_special_investigation SET system_id = ", rv$system_id(), ",
@@ -357,11 +366,28 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                    WHERE special_investigation_uid = '", rv$si_table_db()[input$si_table_rows_selected, 1], "'")
           
           dbGetQuery(poolConn, edit_test_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           edit_test_query,
+                           tab_name,
+                           session)
+          
         }
         
         if(length(input$future_si_table_rows_selected) > 0){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_special_investigation 
-                                            WHERE future_special_investigation_uid = '", rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
+          
+          delete_future_query <- paste0("DELETE FROM fieldwork.tbl_future_special_investigation 
+                                        WHERE future_special_investigation_uid = '",
+                                        rv$future_si_table_db()[input$future_si_table_rows_selected, 1],"'")
+                                
+          odbc::dbGetQuery(poolConn, delete_future_query)
+          
+          # log the DELETE query, see utils.R
+          insert.query.log(poolConn,
+                           delete_future_query,
+                           tab_name,
+                           session)
         }
         
         rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
@@ -417,8 +443,14 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
         	                                                                                 #This is dumb. 
         	                                   sep = ", "), ")")
 
-          
           odbc::dbGetQuery(poolConn, add_future_test_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           add_future_test_query,
+                           tab_name,
+                           session)
+          
         }else{
           #edit future special investigation
           
@@ -433,6 +465,13 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
                                    WHERE future_special_investigation_uid = '", rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'")
           
           dbGetQuery(poolConn, edit_future_test_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           edit_future_test_query,
+                           tab_name,
+                           session)
+          
         }
         
         rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))
@@ -498,9 +537,19 @@ special_investigationsServer <- function(id, parent_session, poolConn, con_phase
       })
       
       observeEvent(input$confirm_delete_future, {
-        odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.tbl_future_special_investigation WHERE future_special_investigation_uid = '",
-                                rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'"))
+        
+        delete_future_query <- paste0("DELETE FROM fieldwork.tbl_future_special_investigation
+                                      WHERE future_special_investigation_uid = '",
+                                      rv$future_si_table_db()[input$future_si_table_rows_selected, 1], "'")
+        
+        odbc::dbGetQuery(poolConn, delete_future_query)
+        
+        
+        # log the UPDATE query, see utils.R
+        insert.query.log(poolConn,
+                         delete_future_query,
+                         tab_name,
+                         session)
         
         #update future cet table
         rv$future_si_table_db <- reactive(odbc::dbGetQuery(poolConn, rv$future_si_table_query()))

@@ -110,8 +110,10 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       
       #use reactive values to read in table, and see which tests already exist at the system
       rv <- reactiveValues()
-
-    
+      
+      #2.0.2 Tab Name ----
+      tab_name <- "SRT Tab"
+      
       #2.1 Add/Edit ---------
       #2.1.1 Headers ---------
       
@@ -315,11 +317,16 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                          dcia_ft2, notes, field_test_priority_lookup_uid)
                                          VALUES ('", input$system_id, "', ", rv$phase_null(), ", ", rv$type_null(), ", ", rv$dcia_write(), ", ", 
                                          iconv(rv$srt_summary(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                                             #This is dumb.
-
                                          ", ", rv$priority_lookup_uid(), ")")
           
           odbc::dbGetQuery(poolConn, add_future_srt_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           add_future_srt_query,
+                           tab_name,
+                           session)
+          
         }else{
           edit_future_srt_query <- paste0("UPDATE fieldwork.tbl_future_srt SET con_phase_lookup_uid = ", rv$phase_null(), ", 
                                           srt_type_lookup_uid = ", rv$type_null(), ", 
@@ -329,6 +336,13 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                           WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'")
           
           odbc::dbGetQuery(poolConn, edit_future_srt_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           edit_future_srt_query,
+                           tab_name,
+                           session)
+          
         }
         
         rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))
@@ -366,6 +380,13 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                                   rv$srt_summary_date(), ", ", rv$sensor_deployed(), ")")
           
           odbc::dbGetQuery(poolConn, add_srt_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           add_srt_query,
+                           tab_name,
+                           session)
+          
           #else update srt table
         }else{
           edit_srt_query <- paste0(
@@ -385,14 +406,28 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
             ", sensor_deployed = ", rv$sensor_deployed(), "
             WHERE srt_uid = '", rv$srt_table_db()[input$srt_table_rows_selected, 1], "'")
           
-          
            dbGetQuery(poolConn, edit_srt_query)
+           
+           # log the UPDATE query, see utils.R
+           insert.query.log(poolConn,
+                            edit_srt_query,
+                            tab_name,
+                            session)
         }
         
         #if editing a future test to become a completed test, delete the future test
         if(length(input$future_srt_table_rows_selected) > 0){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_srt 
-                                            WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
+          del_future_srt_query <-  paste0("DELETE FROM fieldwork.tbl_future_srt 
+                                          WHERE future_srt_uid = '",
+                                          rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'")
+          
+          odbc::dbGetQuery(poolConn,del_future_srt_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           del_future_srt_query,
+                           tab_name,
+                           session)
         }
         
         #check if a deployment exists for this test (if a sensor was used). If it does not, bring up a dialogue box asking the user
@@ -447,8 +482,17 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
       })
       
       observeEvent(input$confirm_delete_future, {
-        odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.tbl_future_srt WHERE future_srt_uid = '", rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'"))
+        
+        del_future_srt_query <- paste0("DELETE FROM fieldwork.tbl_future_srt WHERE future_srt_uid = '",
+                                        rv$future_srt_table_db()[input$future_srt_table_rows_selected, 1], "'")
+        
+        odbc::dbGetQuery(poolConn, del_future_srt_query)
+        
+        # log the UPDATE query, see utils.R
+        insert.query.log(poolConn,
+                         del_future_srt_query,
+                         tab_name,
+                         session)
         
         #update future srt table
         rv$future_srt_table_db <- reactive(odbc::dbGetQuery(poolConn, future_srt_table_query()))

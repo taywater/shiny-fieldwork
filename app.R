@@ -66,8 +66,6 @@
   library(DT)
   #reactable for reactable tables
   library(reactable)
-  #Not in logical
-  `%!in%` <- Negate(`%in%`)
 
 #0.1: database connection and global options --------
 
@@ -98,6 +96,7 @@
   source("special_investigations.R")
   source("history.R")
   source("documentation.R")
+  source("utils.R")
   
 #1: UI FUNCTION -----
   #initialize variables for UI and call all UI functions
@@ -107,7 +106,7 @@
     
     #1.1: load required variables -----
       #define global variables that will be required each time the UI runs
-      
+    
       #query site names (non SMP)
       site_name_query <- "select * from fieldwork.tbl_site_name_lookup"
       site_names <- odbc::dbGetQuery(poolConn, site_name_query) %>% 
@@ -166,7 +165,7 @@
                   var el = $("#" + params.id);
                   el.css("background-color", params.col);
                   }'
-      
+
       #project work numbers
       work_number <- dbGetQuery(poolConn, "select distinct worknumber from external.tbl_projectbdv") %>% pull()
       
@@ -256,50 +255,6 @@
     
     #refresh starter 
     refresh_location <- 0
-    
-    #replace special characters with friendlier characters
-    special_char_replace <- function(note){
-      
-      note_fix <- note %>% 
-        str_replace_all(c("•" = "-", "ï‚§" = "-", "“" = '"', '”' = '"'))
-      
-      return(note_fix)
-      
-    }
-    
-    #function to highlight datatables based on NAs/blanks
-    
-    newstyleEqual <- function (levels, values, default = NULL) 
-    {
-      n = length(levels)
-      if (n != length(values)) 
-        stop("length(levels) must be equal to length(values)")
-      if (!is.null(default) && (!is.character(default) || length(default) != 
-                                1)) 
-        stop("default must be null or a string")
-      if (n == 0) 
-        return("''")
-      levels = DT:::jsValues(levels)
-      values = DT:::jsValues(values)
-      js = ""
-      for (i in seq_len(n)) {
-        if(levels[i]=="\"NA\""){ # needed because jsValues converts NA to a string
-          js = paste0(js, sprintf("isNaN(parseFloat(value)) ? %s : ",
-                                  values[i]))
-          
-        }else{
-          js = paste0(js, sprintf("value == %s ? %s : ", levels[i], 
-                                  values[i]))
-        }
-        
-      }
-      default = if (is.null(default)) 
-        "value"
-      else jsValues(default)
-      DT::JS(paste0(js, default))
-    }
-    
-    
     
     # 2.2: Server Module functions ---------------------------
     # Collection Calendar

@@ -188,6 +188,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                conditionalPanel(condition = "input.smp_id || input.site_name",
                  ns = ns, 
                 h4(textOutput((ns("header")))),
+                h3(textOutput(ns('user_name'))),
                DTOutput(ns("ow_table"))), 
            ))),
            uiOutput('background_change')
@@ -208,6 +209,11 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       # observeEvent(input$BrowserButton,
       #              {browser()})
 
+      #show the user
+      # output$user_name <- reactive({
+      #   paste0("Hello, ",session$user)
+      # })
+      
       #2.0.1 set up ------
       #define namespace to use while initializing inputs in modals
       ns <- session$ns
@@ -264,7 +270,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       }
                    )
       
-      
+      #2.0.4 Tab Name ----
+      tab_name <- "Add/Edit Sensor Tab"
       
       #2.1 Lead-in from other tabs---------
       #update UI when user comes directly from deploy tab 
@@ -372,7 +379,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                             LEFT JOIN fieldwork.tbl_ow ow
                                             ON wm.ow_uid = ow.ow_uid
                                             LEFT JOIN fieldwork.viw_ow_sumpdepth_calculated sc
-                                            ON wm.ow_uid = sc.ow_uid
+                                            ON wm.well_measurements_uid = sc.well_measurements_uid
                                             LEFT JOIN fieldwork.viw_ow_sumpdepth_lined sl
                                             ON wm.ow_uid = sl.ow_uid
                                             LEFT JOIN fieldwork.tbl_ow_sumpdepth_default su
@@ -600,15 +607,29 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #update if editing
       observeEvent(input$add_ow, {
         if(length(input$ow_table_rows_selected) == 0){
-          odbc::dbGetQuery(poolConn, paste0(
+          add_ow_query <- paste0(
             "INSERT INTO fieldwork.tbl_ow (smp_id, ow_suffix, facility_id) 
-      	      VALUES ('", input$smp_id, "','", rv$ow_suffix(), "','",  facility_id(), "')"
-          ))
+      	      VALUES ('", input$smp_id, "','", rv$ow_suffix(), "','",  facility_id(), "')")
+          odbc::dbGetQuery(poolConn, add_ow_query)
+          
+          # log the INSERT query
+          insert.query.log(poolConn, add_ow_query, tab_name, session)
+          # add_ow_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+          #                        VALUES ('", session$user,"', '",gsub(add_ow_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+          # odbc::dbGetQuery(poolConn,add_ow_query_log)
+
         }else{
           edit_ow_query <- paste0(
             "UPDATE fieldwork.tbl_ow SET ow_suffix = '", rv$ow_suffix(), "', facility_id = '", facility_id(), "' 
             WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'")
           dbGetQuery(poolConn, edit_ow_query)
+          
+          # log the UPDATE query
+          insert.query.log(poolConn, edit_ow_query, tab_name, session)
+          # edit_ow_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+          #                        VALUES ('", session$user,"', '",gsub(edit_ow_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+          # odbc::dbGetQuery(poolConn,edit_ow_query_log)
+          
         }
         #update ow_table with new well
         rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -674,6 +695,13 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observeEvent(input$add_site_name, {
         add_site_name_query <- paste0("INSERT INTO fieldwork.tbl_site_name_lookup (site_name) VALUES ('", rv$new_site_name(), "')")
         odbc::dbGetQuery(poolConn, add_site_name_query)
+        
+        # log the INSERT query
+        insert.query.log(poolConn, add_site_name_query, tab_name, session)
+        # add_site_name_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+        #                          VALUES ('", session$user,"', '",gsub(add_site_name_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+        # odbc::dbGetQuery(poolConn,add_site_name_query_log)
+        
         rv$site_name_db <- reactive(odbc::dbGetQuery(poolConn, site_name_query))
         
         updateTextInput(session, "new_site_name", value = "")
@@ -684,14 +712,29 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       #Query to add new ow at non smp
       observeEvent(input$add_non_smp_ow, {
         if(length(input$ow_table_rows_selected) == 0){
-          odbc::dbGetQuery(poolConn, paste0(
-            "INSERT INTO fieldwork.tbl_ow (site_name_lookup_uid, ow_suffix)
-            VALUES ('", rv$site_name_lookup_uid(), "','", rv$ow_suffix(), "')"
-          ))
+          
+          add_non_smp_query <- paste0( "INSERT INTO fieldwork.tbl_ow (site_name_lookup_uid, ow_suffix)
+                                        VALUES ('", rv$site_name_lookup_uid(), "','", rv$ow_suffix(), "')")
+          odbc::dbGetQuery(poolConn, add_non_smp_query)
+          
+          # log the INSERT query
+          insert.query.log(poolConn, add_non_smp_query, tab_name, session)
+          # add_non_smp_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+          #                        VALUES ('", session$user,"', '",gsub(add_non_smp_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+          # odbc::dbGetQuery(poolConn, add_non_smp_query_log)
+          
+          
         }else{
-          odbc::dbGetQuery(poolConn, paste0(
-            "UPDATE fieldwork.tbl_ow SET ow_suffix = '", rv$ow_suffix(), "' WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'"
-          ))
+          edit_non_smp_query <- paste0("UPDATE fieldwork.tbl_ow SET ow_suffix = '", rv$ow_suffix(),
+                 "' WHERE ow_uid = '", rv$ow_view_db()$ow_uid[input$ow_table_rows_selected], "'")
+          odbc::dbGetQuery(poolConn, edit_non_smp_query)
+          
+          # log the UPDATE query
+          insert.query.log(poolConn, edit_non_smp_query, tab_name, session)
+          # edit_non_smp_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+          #                        VALUES ('", session$user,"', '",gsub(edit_non_smp_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+          # odbc::dbGetQuery(poolConn, edit_non_smp_query_log)
+          
         }
         #update ow_table with new well
         rv$ow_view_db <- reactive(odbc::dbGetQuery(poolConn, ow_view_query()))
@@ -832,8 +875,15 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$new_fac_id <- odbc::dbGetQuery(poolConn, paste0("SELECT facility_id FROM external.mat_assets WHERE component_id IS NULL AND smp_id = '", input$new_smp_id, "'"))[1,1]
         
         convert_query <- paste0("UPDATE fieldwork.tbl_ow SET smp_id = '", input$new_smp_id, "', facility_id = '", rv$new_fac_id, "', site_name_lookup_uid = NULL WHERE site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'; delete from fieldwork.tbl_site_name_lookup where site_name_lookup_uid = '", rv$old_site_name_lookup_uid(), "'")
-        
         odbc::dbGetQuery(poolConn, convert_query)
+        
+        # log the UPDATE query
+        insert.query.log(poolConn, convert_query, tab_name, session)
+        # convert_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+        #                          VALUES ('", session$user,"', '",gsub(convert_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+        # odbc::dbGetQuery(poolConn, convert_query_log)
+        
+        
         
         rv$site_name_db <- reactive(odbc::dbGetQuery(poolConn, site_name_query))
         
@@ -996,46 +1046,58 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       observeEvent(input$add_well_meas, {
         if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE){
           if(input$at_smp == 1){
-          odbc::dbGetQuery(poolConn, paste0(
-            "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
+            add_smp_meas_query <- paste0( "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
                                                       cap_to_hook_ft, hook_to_sensor_ft, 
                                                       cap_to_weir_ft, cap_to_orifice_ft, weir, notes,
                                                       cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
                                                       sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
                                                       custom_orificedepth_ft)
-            VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
-            input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
-            rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ",
-            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", ", #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                          #This is dumb.
-            rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
-            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ", 
-            rv$custom_orifice_depth(), ")"
-
-          ))
-          }else{
-            odbc::dbGetQuery(poolConn, paste0(
-              "INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
-                                                      cap_to_hook_ft, hook_to_sensor_ft, 
-                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes,
-                                                      cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
-                                                      sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
-                                                      custom_orificedepth_ft)
-
-            VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
-            ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ", 
-            iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-            ", ", rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
-            rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ",
-            rv$custom_orifice_depth(), ")"
+              VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
+              input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
+              rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ",
+              iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", ", #Strip unicode characters that WIN1252 encoding will choke on locally
+              #This is dumb.
+              rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
+              rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ", 
+              rv$custom_orifice_depth(), ")")
             
-            ))
+            odbc::dbGetQuery(poolConn, add_smp_meas_query)
+            
+            # log the INSERT query
+            insert.query.log(poolConn, add_smp_meas_query, tab_name, session)
+            # add_smp_meas_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+            #                      VALUES ('", session$user,"', '",gsub(add_smp_meas_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+            # odbc::dbGetQuery(poolConn, add_smp_meas_query_log)
+            
+          
+            }else{
+            
+              add_site_meas_query <- paste0("INSERT INTO fieldwork.tbl_well_measurements (ow_uid, well_depth_ft, start_dtime_est, end_dtime_est, 
+                                                      cap_to_hook_ft, hook_to_sensor_ft, 
+                                                      cap_to_weir_ft, cap_to_orifice_ft, weir, notes,
+                                                      cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
+                                                      sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
+                                                      custom_orificedepth_ft)
+                      VALUES(fieldwork.fun_get_ow_uid(NULL, '", rv$ow_suffix(), "','", rv$site_name_lookup_uid(), "'), '", input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", 
+                      ", rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ", 
+                          iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
+                          ", ", rv$cap_elev(),", ", rv$bos_elev(),", ", rv$custom_sump_depth(),", ",
+                          rv$sumpdepth_choice(),", ", rv$orifice_elev(),", ", rv$orifice_choice(),", ",
+                          rv$custom_orifice_depth(), ")")
+              
+              odbc::dbGetQuery(poolConn, add_site_meas_query)
+              
+              # log the INSERT query
+              insert.query.log(poolConn, add_site_meas_query, tab_name, session)
+              # add_site_meas_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+              #                    VALUES ('", session$user,"', '",gsub(add_site_meas_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+              # odbc::dbGetQuery(poolConn, add_site_meas_query_log)
           }
           
           
           
         }else{
-          odbc::dbGetQuery(poolConn, paste0(
+          update_meas_query <- paste0(
             "UPDATE fieldwork.tbl_well_measurements SET well_depth_ft = '", input$well_depth, "', 
             start_dtime_est = ", rv$start_date(), ", 
             end_dtime_est = ", rv$end_date(), ", 
@@ -1052,7 +1114,15 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
             custom_orificedepth_ft = ", rv$custom_orifice_depth(),",
             sumpdepth_lookup_uid = ", rv$sumpdepth_choice(),",
             orifice_lookup_uid = ", rv$orifice_choice(),
-            " WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected],"'" ))
+            " WHERE well_measurements_uid = '", rv$ow_view_db()$well_measurements_uid[input$ow_table_rows_selected],"'" )
+          
+          odbc::dbGetQuery(poolConn, update_meas_query)
+          
+          # log the INSERT query
+          insert.query.log(poolConn, update_meas_query, tab_name, session)
+          # update_meas_query_log <- paste0("INSERT INTO log.tbl_fieldwork_app_queries (username, query_text, tab, date_time_sent)
+          #                        VALUES ('", session$user,"', '",gsub(update_meas_query,pattern="'",replacement="''"),"', 'Add/Edit Sensor Tab', '",Sys.time(),"')")
+          # odbc::dbGetQuery(poolConn, update_meas_query_log)
         }
         
         rv$refresh_deploy_meas <- rv$refresh_deploy_meas + 1

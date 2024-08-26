@@ -14,7 +14,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names,
   #set this up as a list so it can be read into the app.R UI correctly
   list(
   tabPanel("Deploy Sensor", value = "deploy_tab",
-           titlePanel("Deploy Sensor"), 
+           titlePanel("Deploy Sensor Tab"), 
            fluidRow(
              #1.1 Sidebar ----
              #set width of column where sidebar is, relative to full screen
@@ -195,6 +195,9 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         
         #set minimum collection date to be same day as deployment date
         observe(updateDateInput(session, "collect_date", min = input$deploy_date))
+      
+      #2.0.3 Tab Name ----
+      tab_name <- "Deploy Sensor"
       
       #2.1 Coming from other Modules -----------
       #upon clicking "deploy at this smp" in add_ow
@@ -1289,21 +1292,36 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       observeEvent(input$confirm_deploy, {
         if(rv$add_new()){
           #write new deployment
-          odbc::dbGetQuery(poolConn,
-                           paste0("INSERT INTO fieldwork.tbl_deployment (deployment_dtime_est, ow_uid,
-         inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, collection_dtime_est, notes, download_error, deployment_dtw_or_depth_ft, collection_dtw_or_depth_ft)
-
-            VALUES ('", input$deploy_date, "', fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ",
-
-                                  rv$inventory_sensors_uid_null(), ",'", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), ",'",input$interval, "',", rv$collect_date(),",", 
-                                  iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                                #This is dumb.
-                                  ",", rv$download_error(), ", ", rv$deploy_depth_to_water(), ", ", rv$collect_depth_to_water(), ")"))
+          new_dep_query <- paste0("INSERT INTO fieldwork.tbl_deployment (deployment_dtime_est, ow_uid,
+                                   inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid,
+                                   interval_min, collection_dtime_est, notes, download_error, deployment_dtw_or_depth_ft,
+                                   collection_dtw_or_depth_ft) VALUES ('", 
+                                  input$deploy_date,
+                                  "', fieldwork.fun_get_ow_uid(",rv$smp_id(),", '",input$well_name, "', ",rv$site_name_lookup_uid(), "), ",
+                                  rv$inventory_sensors_uid_null(), ",'",
+                                  rv$purpose(), "','",
+                                  rv$term(), "',", 
+                                  rv$research_lookup_uid(), ",'",
+                                  input$interval, "',", 
+                                  rv$collect_date(),",",
+                                  iconv(rv$notes(), "latin1", "ASCII", sub=""),",",
+                                  #The above Strips unicode characters that WIN1252 encoding will choke on locally
+                                  rv$download_error(), ", ",
+                                  rv$deploy_depth_to_water(),", ",
+                                  rv$collect_depth_to_water(), ")") 
+          
+          odbc::dbGetQuery(poolConn, new_dep_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           new_dep_query,
+                           tab_name,
+                           session)
+          
         }else{
           #update existing deployment
-          odbc::dbGetQuery(poolConn, 
-                           paste0("UPDATE fieldwork.tbl_deployment SET deployment_dtime_est = '", input$deploy_date, "', 
-                           ow_uid = fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
+          update_dep_query <- paste0("UPDATE fieldwork.tbl_deployment SET deployment_dtime_est = '", input$deploy_date, "', 
+                                  ow_uid = fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
                                   inventory_sensors_uid = ",  rv$inventory_sensors_uid_null(), ", 
                                   sensor_purpose = '", rv$purpose(), "',
                                   long_term_lookup_uid = '", rv$term(), "',
@@ -1314,34 +1332,79 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   download_error = ", rv$download_error(), ", 
                                   deployment_dtw_or_depth_ft = ", rv$deploy_depth_to_water(), ", 
                                   collection_dtw_or_depth_ft = ", rv$collect_depth_to_water(), " WHERE 
-                                  deployment_uid = '", rv$update_deployment_uid(), "'"
-                           ))
+                                  deployment_uid = '", rv$update_deployment_uid(), "'")
+          
+          odbc::dbGetQuery(poolConn, update_dep_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           update_dep_query,
+                           tab_name,
+                           session)
+          
         }
         
         #write sensor status
         if(input$sensor_broken == TRUE){
-          dbGetQuery(poolConn, paste0("UPDATE fieldwork.tbl_inventory_sensors SET sensor_status_lookup_uid = '2', 
-                                            sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
-                                            sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
-                                            request_data = ", rv$request_data(), "
-                                      WHERE sensor_serial = '", input$sensor_id, "'"))
+          
+          update_sensor_query <- paste0("UPDATE fieldwork.tbl_inventory_sensors SET sensor_status_lookup_uid = '2', 
+                                         sensor_issue_lookup_uid_one = ", rv$sensor_issue_lookup_uid_one(), ",
+                                         sensor_issue_lookup_uid_two = ", rv$sensor_issue_lookup_uid_two(), ", 
+                                         request_data = ", rv$request_data(), "
+                                         WHERE sensor_serial = '", input$sensor_id, "'")
+          
+          dbGetQuery(poolConn, update_sensor_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           update_sensor_query,
+                           tab_name,
+                           session)
+          
           rv$refresh_sensor <- rv$refresh_sensor + 1
         }
         #write redeployment
         if(rv$redeploy() == TRUE){
-          dbGetQuery(poolConn, paste0("INSERT INTO fieldwork.tbl_deployment (deployment_dtime_est, ow_uid,
-         inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid, interval_min, notes, deployment_dtw_or_depth_ft)
-            VALUES (", rv$collect_date(), ", fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), '",
-                                      rv$new_inventory_sensors_uid(), "','", rv$purpose(), "','", rv$term(), "',", rv$research_lookup_uid(), 
-                                      ",'",input$interval, "', ", 
-                                      iconv(rv$redeployment_notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                                                 #This is dumb. 
-                                      ", ", rv$collect_depth_to_water(), ")"))
+          
+          redeploy_query <- paste0("INSERT INTO fieldwork.tbl_deployment (deployment_dtime_est, ow_uid,
+                                    inventory_sensors_uid, sensor_purpose, long_term_lookup_uid, research_lookup_uid,
+                                    interval_min, notes, deployment_dtw_or_depth_ft)
+                                    VALUES (", rv$collect_date(),
+                                   ", fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), '",
+                                   rv$new_inventory_sensors_uid(), "','",
+                                   rv$purpose(), "','",
+                                   rv$term(), "',",
+                                   rv$research_lookup_uid(),",'",
+                                   input$interval, "', ", 
+                                   iconv(rv$redeployment_notes(), "latin1", "ASCII", sub=""),", ", 
+                                   #The above Strips unicode characters that WIN1252 encoding will choke on locally
+                                   rv$collect_depth_to_water(), ")")
+          
+          
+          dbGetQuery(poolConn, redeploy_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           redeploy_query,
+                           tab_name,
+                           session)
+          
         }
         
         #delete from future table when a future deployment is converted to current
         if(!rv$add_new_future()){
-          odbc::dbGetQuery(poolConn, paste0("DELETE FROM fieldwork.tbl_future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
+          delete_future_query <- paste0("DELETE FROM fieldwork.tbl_future_deployment
+                                        WHERE future_deployment_uid = '",
+                                        rv$update_future_deployment_uid(), "'")
+          
+          odbc::dbGetQuery(poolConn, delete_future_query)
+          
+          # log the DELETE query, see utils.R
+          insert.query.log(poolConn,
+                           delete_future_query,
+                           tab_name,
+                           session)
+          
         }
         
         #query active table
@@ -1403,20 +1466,35 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       #write or edit a future deployment
       observeEvent(input$future_deploy, {
         if(rv$add_new_future()){
-          odbc::dbGetQuery(poolConn,
-                           paste0("INSERT INTO fieldwork.tbl_future_deployment (ow_uid, inventory_sensors_uid, sensor_purpose,
-    			interval_min, long_term_lookup_uid, research_lookup_uid, notes, field_test_priority_lookup_uid, premonitoring_inspection, ready)
-    			VALUES (fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ", rv$inventory_sensors_uid_null(),
-                                  ", ", rv$purpose_null(), ", ", rv$interval_min(), ", ", rv$term_null(),
-                                  ", ", rv$research_lookup_uid(), ", ", 
-                                  iconv(rv$notes(), "latin1", "ASCII", sub=""), #Strip unicode characters that WIN1252 encoding will choke on locally
-                                                                                #This is dumb. 
-                                  ", ", rv$priority_lookup_uid(), 
-                                  ", ", rv$premonitoring_date(), ", ", rv$ready(), ")"))
+          
+          new_future_query <-paste0("INSERT INTO fieldwork.tbl_future_deployment (ow_uid, inventory_sensors_uid,
+                                    sensor_purpose, interval_min, long_term_lookup_uid, research_lookup_uid,
+                                    notes, field_test_priority_lookup_uid, premonitoring_inspection, ready)
+    			                          VALUES (fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), ",
+                                    rv$inventory_sensors_uid_null(),", ",
+                                    rv$purpose_null(), ", ",
+                                    rv$interval_min(), ", ",
+                                    rv$term_null(),", ",
+                                    rv$research_lookup_uid(), ", ", 
+                                    iconv(rv$notes(), "latin1", "ASCII", sub=""),", ", 
+                                    #The above Strips unicode characters that WIN1252 encoding will choke on locally
+                                    rv$priority_lookup_uid(), ", ",
+                                    rv$premonitoring_date(), ", ",
+                                    rv$ready(), ")")
+          
+          odbc::dbGetQuery(poolConn, new_future_query)
+          
+          # log the INSERT query, see utils.R
+          insert.query.log(poolConn,
+                           new_future_query,
+                           tab_name,
+                           session)
+          
+          
         }else{
-          odbc::dbGetQuery(poolConn, 
-                           paste0("UPDATE fieldwork.tbl_future_deployment SET 
-                           	ow_uid = fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
+          
+          update_future_query <- paste0("UPDATE fieldwork.tbl_future_deployment SET 
+                           	      ow_uid = fieldwork.fun_get_ow_uid(",rv$smp_id(),", '", input$well_name, "', ", rv$site_name_lookup_uid(), "), 
                                   inventory_sensors_uid = ",  rv$inventory_sensors_uid_null(), ", 
                                   sensor_purpose = ", rv$purpose_null(), ",
                                   long_term_lookup_uid = ", rv$term_null(), ",
@@ -1426,8 +1504,15 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
                                   field_test_priority_lookup_uid = ", rv$priority_lookup_uid(), ", 
                                   premonitoring_inspection = ", rv$premonitoring_date(), ", 
                                   ready = ", rv$ready(), " WHERE 
-                                  future_deployment_uid = '", rv$update_future_deployment_uid(), "'" 
-                           ))
+                                  future_deployment_uid = '", rv$update_future_deployment_uid(), "'")
+          
+          odbc::dbGetQuery(poolConn, update_future_query)
+          
+          # log the UPDATE query, see utils.R
+          insert.query.log(poolConn,
+                           update_future_query,
+                           tab_name,
+                           session)
         }
         
         rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
@@ -1444,8 +1529,11 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
       })
       
       observeEvent(input$confirm_delete_future, {
-        odbc::dbGetQuery(poolConn, 
-                         paste0("DELETE FROM fieldwork.tbl_future_deployment WHERE future_deployment_uid = '", rv$update_future_deployment_uid(), "'"))
+        delete_future_query <- paste0("DELETE FROM fieldwork.tbl_future_deployment
+                                      WHERE future_deployment_uid = '",
+                                      rv$update_future_deployment_uid(), "'")
+        
+        odbc::dbGetQuery(poolConn,delete_future_query)
         
         rv$future_table_db <- reactive(odbc::dbGetQuery(poolConn, future_table_query()))
         rv$refresh_collect <- rv$refresh_collect + 1

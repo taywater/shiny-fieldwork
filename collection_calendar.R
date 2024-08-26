@@ -51,18 +51,21 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
     function(input, output, session){
       
       
-      #2.0.0
+      #2.0.1 Debug ----
       # Debugging Button
       # observeEvent(input$BrowserButton,
       #              {browser()})
       
-      #2.0.1 set up ----
+      #2.0.2 set up ----
       #define ns to use in modals
       ns <- session$ns
       
       rv <- reactiveValues()  
       
-      #2.0.2 querying tables ---
+      #2.0.3 Tab Name ----
+      tab_name <- "Deploy Sensor Tab"
+      
+      #2.0.4 querying tables ----
       #query the collection calendar and arrange by deployment_uid
       collect_query <- "select * from fieldwork.viw_active_deployments"
       rv$collect_table_db<- odbc::dbGetQuery(poolConn, collect_query)
@@ -71,7 +74,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
       future_query <- "select * from fieldwork.viw_future_deployments_full order by field_test_priority_lookup_uid"
       rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
       
-      #2.0.3 updating tables following changes in other modules
+      #2.0.5 Updating tables from other modules ----
       #upon editing a row in add_ow
       observeEvent(ow$refresh_collect(),{
         rv$collect_table_db <- odbc::dbGetQuery(poolConn, collect_query)
@@ -84,7 +87,7 @@ collection_calendarServer <- function(id, parent_session, ow, deploy, poolConn) 
         rv$future_table_db <- odbc::dbGetQuery(poolConn, future_query)
       })
       
-      #2.0.4 filtering collection calendar table -----
+      #2.0.6 filtering collection calendar table -----
       rv$term_filter <- reactive(if(input$term_filter == 1.5){c(0, 1, 2, 3, 4)} else {input$term_filter})
       rv$purpose_filter <- reactive(if(input$purpose_filter == 1.5){c(0, 1, 2, 3)} else {input$purpose_filter})
       
