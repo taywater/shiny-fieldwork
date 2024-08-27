@@ -731,7 +731,7 @@ SRTServer <- function(id, parent_session, poolConn, srt_types, con_phase, sys_id
                              server = TRUE)
         updateTabsetPanel(session = parent_session, "inTabset", selected = "srt_tab")
         updateReactable("all_srt_table", selected = NA)
-        #delay so that the selectizeInput is updated and table is quereied before it is searched by R
+        #delay so that the selectizeInput is updated and table is queried before it is searched by R
         #delay time based on trail and error
         #thank you dean attali
         delay(300, {
