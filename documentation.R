@@ -43,6 +43,8 @@ documentationUI <- function(id, label = "documentation"){
                   ),
            column(width = 5, offset = 1,
                   h2("Current Status"),
+                  h3("v3.2"),
+                  h5("Final edits by Brian Cruice. Improvements to several bugs and warnings in the deploy tab. Sensor history table addition. Introduction of logging mechanism, which is present in the live version for well measurements and ready for beta everywhere else."),
                   h3("v3.1"),
                   h5("Major revisions to the \"Add/Edit Location\" tab centered around improving well measurment accuracy, including the ability to write custom sump and orifice elevations to the database"),
                   h3("v1.4.2"),
@@ -91,7 +93,5 @@ documentationUI <- function(id, label = "documentation"){
                  <li>Deploy Sensor</li>
                  <li>Documentation</li>
                  </ul></h5>"), 
-                  h3("Potential Updates"), 
-                  h5("View Nick Manna's Asana (https://app.asana.com/0/1168242610391697/list)")
            )) 
 }

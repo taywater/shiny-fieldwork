@@ -129,7 +129,7 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names,
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
                                  #Debug button
-                                 # actionButton(ns("BrowserButton"), "Click to Browse"),
+                                 actionButton(ns("BrowserButton"), "Click to Browse"),
                                  #note about requirements
                                  fluidRow(column(12,
                                    HTML(paste(html_req(""), " indicates required field for complete tests.")))),

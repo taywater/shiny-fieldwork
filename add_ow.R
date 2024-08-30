@@ -175,6 +175,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                                   ns=ns, 
                                   checkboxInput(ns("new_measurement"), "Create New Measurement?")),
                  textInput(ns("well_meas_notes"), "Notes", value = NULL),
+                 textOutput(ns("add_meas_warning")),
                  actionButton(ns("add_well_meas"), "Add Well Measurements"),
                  actionButton(ns("add_ow_deploy"), "Deploy Sensor at this SMP"),
                  actionButton(ns("clear_ow"), "Clear All Fields"),
@@ -209,10 +210,6 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       # observeEvent(input$BrowserButton,
       #              {browser()})
 
-      #show the user
-      # output$user_name <- reactive({
-      #   paste0("Hello, ",session$user)
-      # })
       
       #2.0.1 set up ------
       #define namespace to use while initializing inputs in modals
@@ -791,6 +788,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         }
         
         if(length(input$ow_table_rows_selected) > 0){
+          
+          
         #update well depth based on selected row
         rv$well_depth_edit <- rv$ow_view_db()$well_depth_ft[input$ow_table_rows_selected]
         updateNumericInput(session, "well_depth", value= rv$well_depth_edit)
@@ -815,8 +814,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$cap_elev_edit <- rv$ow_view_db()$cap_elev[input$ow_table_rows_selected]
         rv$bos_elev_edit <- rv$ow_view_db()$bottom_stone_elev[input$ow_table_rows_selected]
         rv$sump_depth_edit <- rv$ow_view_db()$sumpdepth_ft[input$ow_table_rows_selected]
-        
-        
+
 
         #update inputs in app with values from table
         updateNumericInput(session, "cth", value = rv$cth_edit)
@@ -854,7 +852,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         
         #update inputs in app with values from table
         updateDateInput(session, "start_date", value = rv$start_date_edit)
-        updateDateInput(session, "end_date", value = rv$end_date_edit)
+        updateDateInput(session, "end_date", value = rv$end_date_edit); print(rv$end_date_edit)
         }
       })
       
@@ -935,12 +933,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       })
       
       
-      #toggle state for "add/edit well measurement"
-      observe(toggleState("add_well_meas", condition = rv$ow_validity() & rv$weir_validity() & 
-                            (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
-                            (nchar(input$component_id) > 0 | input$at_smp == 2) & 
-                            (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
-                rv$toggle_suffix() ))
+
 
       
       observe(updateNumericInput(session, "wts", value = rv$wts()))
@@ -1016,6 +1009,15 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       )
       
       #2.7.3 toggle states/labels -----
+      #toggle state for "add/edit well measurement"
+      observe(toggleState("add_well_meas", condition = rv$ow_validity() & rv$weir_validity() & 
+                            (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
+                            (nchar(input$component_id) > 0 | input$at_smp == 2) & 
+                            (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
+                            rv$toggle_suffix() &
+                            nchar(rv$end_date_warning()) > 0))
+      
+      
       #toggle create new measurement checkbox
       observe(toggleState(id = "new_measurement", condition = rv$complete_end_dates()))
       
@@ -1034,7 +1036,24 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       rv$add_meas_label <- reactive(if(length(input$ow_table_rows_selected) == 0 | length(rv$well_measurements_at_ow_uid()) == 0 | input$new_measurement == TRUE) "Add Well Measurements" else "Edit Selected Well Measurements")
       observe(updateActionButton(session, "add_well_meas", label = rv$add_meas_label()))
       
-      observe(updateDateInput(session, "end_date", min = input$start_date))
+      
+      # Removed this to stop end_dates not being populated
+      # observe(updateDateInput(session, "end_date", min = input$start_date))
+      # Solution is below
+      rv$end_date_warning <- reactive(if(length(input$start_date) > 0 &&
+                                        length(input$end_date) > 0 &&
+                                        input$start_date > input$end_date){
+        paste("Warning: End date is less than the start date of the measurement.")
+      } else {
+        paste("")
+      })
+      # Button toggle occurs in the logic at the top of 2.7.3
+      output$add_meas_warning <- renderText(
+        rv$end_date_warning()
+      )
+
+      observe({toggleState(id = "add_well_meas", condition = nchar(rv$end_date_warning()) > 0)})
+      
       
       rv$refresh_deploy_meas <- 0 
       
