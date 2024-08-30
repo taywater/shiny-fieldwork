@@ -41,7 +41,7 @@ add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req
                                checkboxGroupInput(inputId = ns("sensor_summary_list"), label = "Selection",
                                                   choices = c("Model", "Sensor Type", "Sensor Status", "Deployed"),
                                                   tags$style(HTML("background-color: #272B30; color: #FFFFFF")))),
-                actionButton(ns("browserButton"),"Click to Browse")
+                # actionButton(ns("browserButton"),"Click to Browse")
               )
               )),
            #1.2 table -------
@@ -78,8 +78,8 @@ add_sensorServer <- function(id, parent_session, poolConn, sensor_model_lookup, 
       rv <- reactiveValues()
       
       #2.0.1.1 Debug Browser ----
-      observeEvent(input$browserButton,
-                   {browser()})
+      # observeEvent(input$browserButton,
+      #              {browser()})
       
       #2.0.1.2 Tab Name ----
       tab_name <- "Add/Edit Sensor"
