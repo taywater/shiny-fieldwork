@@ -18,7 +18,7 @@ add_sensorUI <- function(id, label = "add_sensor", sensor_model_lookup, html_req
                    dateInput(ns("date_purchased"), "Purchase Date", value = as.Date(NA)),
                    selectInput(ns("sensor_status"), html_req("Sensor Status"), choices = sensor_status_lookup$sensor_status, selected = "Good Order"),
                    conditionalPanel(width = 12,
-                     condition = 'input.sensor_status != "Good Order"',
+                     condition = 'input.sensor_status != "Good Order" & input.sensor_status != "In Testing"',
                                     ns = ns,
                                     selectInput(ns("issue_one"), html_req("Issue #1"),
                                                 choices = c("", sensor_issue_lookup$sensor_issue), selected = NULL),
