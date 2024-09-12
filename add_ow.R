@@ -34,9 +34,11 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
              sidebarPanel(width = 12,
                           #user decides whether they are looking at an SMP or non-SMP monitoring locations
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
-               #Debug button
-               # actionButton(ns("BrowserButton"), "Click to Browse"),
-               #conditional specific to smp
+               
+              # #Debug button
+              #  actionButton(ns("BrowserButton"), "Click to Browse"),
+               
+            #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
                               ns = ns, 
                              #selectInput(ns("smp_id"), html_req("SMP ID"), choices = c("", smp_id), selected = NULL)
@@ -208,7 +210,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       # Debugging Button
       # observeEvent(input$BrowserButton,
-      #              {browser()})
+                   # {browser()})
 
       
       #2.0.1 set up ------
@@ -1015,8 +1017,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                             (nchar(input$component_id) > 0 | input$at_smp == 2) & 
                             (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
                             rv$toggle_suffix() &
-                            nchar(rv$end_date_warning()) > 0))
-      
+                            nchar(rv$end_date_warning()) == 0)) #If there is no end date warning
       
       #toggle create new measurement checkbox
       observe(toggleState(id = "new_measurement", condition = rv$complete_end_dates()))
