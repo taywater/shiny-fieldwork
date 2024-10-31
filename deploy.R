@@ -125,11 +125,11 @@ deployUI <- function(id, label = "deploy", sensor_serial, site_name, site_names,
                                                   ns = ns, 
                                                   actionButton(ns("future_deploy"), "Add Future Deployment"), 
                                                   actionButton(ns("delete_future"), "Delete Future Deployment")),
-                                 textOutput(ns("deploy_warning")),
+                                 htmlOutput(ns("deploy_warning")),
                                  actionButton(ns("deploy_sensor"), "Deploy Sensor"), 
                                  actionButton(ns("clear_deploy_fields"), "Clear All Fields"),
                                  #Debug button
-                                 # actionButton(ns("BrowserButton"), "Click to Browse"),
+                                 #actionButton(ns("BrowserButton"), "Click to Browse"),
                                  #note about requirements
                                  fluidRow(column(12,
                                    HTML(paste(html_req(""), " indicates required field for complete tests.")))),
@@ -460,6 +460,7 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
         # }
 
         else if(
+          #browser()
           ## Condition 4a: sensor is not currently deployed; or if it is, the deployment does not overlap the current sensor use
               # sensor is deployed AND 
               (input$sensor_id %in% collect$sensor_serial() & nchar(input$smp_id) > 0) &&
@@ -589,13 +590,13 @@ deployServer <- function(id, parent_session, ow, collect, sensor, poolConn, depl
           }
         else{
           # "e0"
-          paste0("")
+          # paste0("Everything is good")
           # print("cowabunga")
         }
 
       )
 
-        output$deploy_warning <- renderText(rv$deploy_logic())
+        output$deploy_warning <- renderText(paste("<b> <p style = \"color:red\";>", rv$deploy_logic(), "</p> </b>"))
       
       
       
