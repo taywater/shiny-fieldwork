@@ -36,7 +36,7 @@ add_owUI <- function(id, label = "add_ow", site_names, html_req, future_req){
                selectInput(ns("at_smp"), html_req("At SMP?"), choices = c("", "Yes" = 1, "No" = 2), selected = NULL),
                
               # #Debug button
-              #  actionButton(ns("BrowserButton"), "Click to Browse"),
+               #actionButton(ns("BrowserButton"), "Click to Browse"),
                
             #conditional specific to smp
              conditionalPanel(condition = "input.at_smp == 1", 
@@ -208,9 +208,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
     function(input, output, session){
   
       
-      # Debugging Button
+      #Debugging Button
       # observeEvent(input$BrowserButton,
-                   # {browser()})
+      # {browser()})
 
       
       #2.0.1 set up ------
@@ -1012,9 +1012,9 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
       
       #2.7.3 toggle states/labels -----
       #toggle state for "add/edit well measurement"
-      observe(toggleState("add_well_meas", condition = rv$ow_validity() & rv$weir_validity() & 
-                            (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) & 
-                            (nchar(input$component_id) > 0 | input$at_smp == 2) & 
+      observe(toggleState("add_well_meas", condition = rv$ow_validity() & rv$weir_validity() &
+                            (nchar(input$smp_id) > 0 | nchar(input$site_name) > 0) &
+                            (nchar(input$component_id) > 0 | input$at_smp == 2) &
                             (nchar(input$ow_suffix) > 0) & nchar(input$cth) > 0 & nchar(input$hts) > 0 &
                             rv$toggle_suffix() &
                             nchar(rv$end_date_warning()) == 0)) #If there is no end date warning
@@ -1053,7 +1053,7 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
         rv$end_date_warning()
       )
 
-      observe({toggleState(id = "add_well_meas", condition = nchar(rv$end_date_warning()) > 0)})
+      observe({toggleState(id = "add_well_meas", condition = nchar(rv$end_date_warning()) == 0)})
       
       
       rv$refresh_deploy_meas <- 0 
@@ -1072,8 +1072,8 @@ add_owServer <- function(id, parent_session, smp_id, poolConn, deploy) {
                                                       cap_elev, bottom_stone_elev, custom_sumpdepth_ft,
                                                       sumpdepth_lookup_uid, orifice_elev, orifice_lookup_uid,
                                                       custom_orificedepth_ft)
-              VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), '", 
-              input$well_depth, "', ", rv$start_date(), ", ", rv$end_date(), ", ", 
+              VALUES(fieldwork.fun_get_ow_uid('", input$smp_id, "', '", rv$ow_suffix(), "', NULL), ", 
+              input$well_depth, ", ", rv$start_date(), ", ", rv$end_date(), ", ", 
               rv$cth(), ", ", rv$hts(), ", ", rv$ctw(), ", ", rv$cto(), ", ", rv$weir(), ", ",
               iconv(rv$well_meas_notes(), "latin1", "ASCII", sub=""), ", ", #Strip unicode characters that WIN1252 encoding will choke on locally
               #This is dumb.
